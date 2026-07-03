@@ -111,9 +111,11 @@ describe('cell classification', () => {
   it('teaching cell carries activity, lesson label, and teacher', () => {
     const cell = cellFor(model, '2026-07-06')!;
     expect(cell.kind).toBe('teaching');
-    expect(cell.activity).toBe('Listening');
-    expect(cell.lessonName).toBe('L1');
-    expect(cell.teacher).toBe('Ms Tan');
+    expect(cell.entries).toHaveLength(1);
+    expect(cell.entries![0].activity).toBe('Listening');
+    expect(cell.entries![0].lessonName).toBe('L1');
+    expect(cell.entries![0].teacher).toBe('Ms Tan');
+    expect(activityText(cell)).toBe('Listening');
     expect(dateText(cell)).toBe('06 July 2026');
     expect(teacherLines(cell)).toEqual(['L1', 'Ms Tan']);
   });
@@ -194,6 +196,47 @@ describe('first-day-of-week and 6-week months', () => {
     expect(model.months[0].weeks).toBe(6);
     // 2026-03-31 (Tuesday) lands in the last week column.
     expect(model.months[0].grid[1][5].dateIso).toBe('2026-03-31');
+  });
+});
+
+describe('v5 cells: AL and multi-entry teaching', () => {
+  it('an AL buffer day renders as an "al" cell with the date shown', () => {
+    const al = {
+      groupId: 'g1', moduleId: 'g1', moduleName: 'Course X', kind: 'AL' as const,
+      lessonNo: 0, lessonName: 'AL', date: '2026-07-02', day: 'Thursday',
+      startTime: '', endTime: '', teacher: '', classroom: '', classGroup: 'CG-1',
+    };
+    const lessons = generateSchedule(CONFIG, HOLIDAYS);
+    const model = buildPlanner([...lessons, al], COURSE, HOLIDAYS, 'monday', '2026-07-03');
+    const cell = cellFor(model, '2026-07-02')!;
+    expect(cell.kind).toBe('al');
+    expect(activityText(cell)).toBe('AL');
+    expect(dateText(cell)).toBe('02 July 2026');
+    expect(teacherLines(cell)).toEqual(['-']);
+  });
+
+  it('two modules on one date stack into one teaching cell', () => {
+    const lessons = generateSchedule(CONFIG, HOLIDAYS);
+    const second = {
+      ...lessons[0],
+      moduleId: 'g2',
+      moduleName: 'Other Module',
+      lessonName: 'X1',
+      teacher: 'Mr Lim',
+      startTime: '11:00',
+      endTime: '12:00',
+    };
+    const model = buildPlanner(
+      [...lessons, second],
+      COURSE,
+      HOLIDAYS,
+      'monday',
+      '2026-07-03',
+    );
+    const cell = cellFor(model, lessons[0].date)!;
+    expect(cell.kind).toBe('teaching');
+    expect(cell.entries).toHaveLength(2);
+    expect(teacherLines(cell)).toEqual(['L1', 'Ms Tan', 'X1', 'Mr Lim']);
   });
 });
 

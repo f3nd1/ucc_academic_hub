@@ -6,11 +6,14 @@ interface Props {
   model: PlannerModel;
 }
 
-/** CSS modifier for the activity cell's colour by kind. */
+/** CSS modifier for the activity cell's colour by kind (conflict wins). */
 const activityClass = (cell: PlannerCell): string => {
+  if (cell.conflict) return 'act act--conflict';
   switch (cell.kind) {
     case 'teaching':
       return 'act act--teaching';
+    case 'al':
+      return 'act act--al';
     case 'weekend':
       return 'act act--weekend';
     case 'schoolHoliday':
@@ -78,6 +81,7 @@ export function HybridView({ model }: Props) {
                       <Fragment key={w}>
                         <td className="planner__date">{dateText(cell)}</td>
                         <td className={activityClass(cell)}>
+                          {cell.conflict ? '⚠ ' : ''}
                           {activityText(cell)}
                         </td>
                         <td className="planner__teacher">

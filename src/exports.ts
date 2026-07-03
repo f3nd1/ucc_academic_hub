@@ -10,6 +10,7 @@ import { formatDisplayDate } from './dateUtils';
 // to the lesson label it qualifies.
 export const COLUMN_HEADERS = [
   'Lesson No',
+  'Module',
   'Lesson Name',
   'Activity',
   'Date',
@@ -25,6 +26,8 @@ export const COLUMN_HEADERS = [
 // records stay sortable AND add a human-readable "Date" in DD MMMM YYYY.
 export const DATA_COLUMN_HEADERS = [
   'Lesson No',
+  'Module',
+  'Kind',
   'Lesson Name',
   'Activity',
   'Date (ISO)',
@@ -39,7 +42,8 @@ export const DATA_COLUMN_HEADERS = [
 
 /** Cells for the on-screen table / PDF (Date shown as DD MMMM YYYY). */
 const rowFor = (l: ScheduledLesson): string[] => [
-  String(l.lessonNo),
+  l.kind === 'AL' ? '' : String(l.lessonNo),
+  l.moduleName,
   l.lessonName,
   l.activity ?? '',
   formatDisplayDate(l.date),
@@ -53,7 +57,9 @@ const rowFor = (l: ScheduledLesson): string[] => [
 
 /** Cells for data exports: ISO date plus display date. */
 export const dataRowFor = (l: ScheduledLesson): string[] => [
-  String(l.lessonNo),
+  l.kind === 'AL' ? '' : String(l.lessonNo),
+  l.moduleName,
+  l.kind === 'AL' ? 'AL' : 'Lesson',
   l.lessonName,
   l.activity ?? '',
   l.date,

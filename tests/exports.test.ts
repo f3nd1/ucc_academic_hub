@@ -23,6 +23,7 @@ describe('export column sets', () => {
   it('screen/PDF columns include Activity beside the lesson label', () => {
     expect([...COLUMN_HEADERS]).toEqual([
       'Lesson No',
+      'Module',
       'Lesson Name',
       'Activity',
       'Date',
@@ -38,6 +39,8 @@ describe('export column sets', () => {
   it('data columns keep both Date (ISO) and display Date', () => {
     expect([...DATA_COLUMN_HEADERS]).toEqual([
       'Lesson No',
+      'Module',
+      'Kind',
       'Lesson Name',
       'Activity',
       'Date (ISO)',
@@ -62,5 +65,28 @@ describe('export column sets', () => {
   it('missing activity renders as an empty cell, not "undefined"', () => {
     const row = dataRowFor({ ...LESSON, activity: undefined });
     expect(row[DATA_COLUMN_HEADERS.indexOf('Activity')]).toBe('');
+  });
+
+  it('carries the module name and marks kind', () => {
+    const row = dataRowFor(LESSON);
+    expect(row[DATA_COLUMN_HEADERS.indexOf('Module')]).toBe('Module One');
+    expect(row[DATA_COLUMN_HEADERS.indexOf('Kind')]).toBe('Lesson');
+  });
+
+  it('AL rows are marked and show no lesson number', () => {
+    const row = dataRowFor({
+      ...LESSON,
+      kind: 'AL',
+      lessonNo: 0,
+      lessonName: 'AL',
+      activity: undefined,
+      startTime: '',
+      endTime: '',
+      teacher: '',
+      classroom: '',
+    });
+    expect(row[DATA_COLUMN_HEADERS.indexOf('Kind')]).toBe('AL');
+    expect(row[DATA_COLUMN_HEADERS.indexOf('Lesson No')]).toBe('');
+    expect(row[DATA_COLUMN_HEADERS.indexOf('Lesson Name')]).toBe('AL');
   });
 });

@@ -27,13 +27,15 @@ interface Layout {
 
 const FILL: Record<string, [number, number, number]> = {
   teaching: [0.85, 0.94, 0.85],
+  al: [0.9, 0.92, 0.96],
   weekend: [0.93, 0.93, 0.93],
   schoolHoliday: [0.99, 0.95, 0.8],
   publicHoliday: [0.98, 0.87, 0.87],
+  conflict: [0.96, 0.7, 0.7],
 };
 
 const fillFor = (cell: PlannerCell): [number, number, number] | null =>
-  FILL[cell.kind] ?? null;
+  cell.conflict ? FILL.conflict : (FILL[cell.kind] ?? null);
 
 /** Ensure row `r` exists and is at least `width` wide, then return it. */
 function ensureRow(values: string[][], r: number, width: number): string[] {

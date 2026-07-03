@@ -142,24 +142,48 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
             key={c.iso}
           >
             <div className="month__daynum">{c.date.getDate()}</div>
-            {c.lessons.map((l) => (
-              <a
-                className="month__lesson"
-                key={l.lessonNo}
-                href={calendarLinkFor(l, courseName)}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`${l.lessonName}\n${l.startTime}–${l.endTime}\n${l.teacher} · ${l.classroom} · ${l.classGroup}`}
-              >
-                <span className="month__lesson-name">{l.lessonName}</span>
-                <span className="month__lesson-meta">
-                  {l.startTime}–{l.endTime}
-                </span>
-                <span className="month__lesson-meta">{l.teacher}</span>
-                <span className="month__lesson-meta">{l.classroom}</span>
-                <span className="month__lesson-meta">{l.classGroup}</span>
-              </a>
-            ))}
+            {c.lessons.map((l, i) => {
+              if (l.kind === 'AL') {
+                return (
+                  <span
+                    className="month__lesson month__lesson--al"
+                    key={`al-${l.moduleId}-${i}`}
+                    title={`AL buffer day · ${l.moduleName}`}
+                  >
+                    <span className="month__lesson-name">{l.lessonName}</span>
+                    <span className="month__lesson-meta">{l.moduleName}</span>
+                  </span>
+                );
+              }
+              const conflicted = (l.conflicts?.length ?? 0) > 0;
+              return (
+                <a
+                  className={`month__lesson${conflicted ? ' month__lesson--conflict' : ''}`}
+                  key={`${l.moduleId}-${l.lessonNo}`}
+                  href={calendarLinkFor(l, courseName)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={
+                    (conflicted
+                      ? `⚠ ${l.conflicts!.map((c) => c.detail).join('\n')}\n`
+                      : '') +
+                    `${l.lessonName}\n${l.startTime}–${l.endTime}\n${l.teacher} · ${l.classroom} · ${l.classGroup}`
+                  }
+                >
+                  <span className="month__lesson-name">
+                    {conflicted ? '⚠ ' : ''}
+                    {l.lessonName}
+                  </span>
+                  <span className="month__lesson-meta">{l.moduleName}</span>
+                  <span className="month__lesson-meta">
+                    {l.startTime}–{l.endTime}
+                  </span>
+                  <span className="month__lesson-meta">{l.teacher}</span>
+                  <span className="month__lesson-meta">{l.classroom}</span>
+                  <span className="month__lesson-meta">{l.classGroup}</span>
+                </a>
+              );
+            })}
           </div>
         ))}
       </div>

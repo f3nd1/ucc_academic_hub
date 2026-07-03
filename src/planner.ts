@@ -1,5 +1,6 @@
 import type { Course, HolidaySet, ScheduledLesson } from './types';
 import type { FirstDayOfWeek } from './settings';
+import { AL_LABEL } from './constants';
 import {
   formatDisplayDate,
   formatDate,
@@ -16,20 +17,33 @@ import {
 
 export type PlannerCellKind =
   | 'teaching'
+  | 'al' // AL buffer day (series-mode fill)
   | 'weekend'
   | 'schoolHoliday'
   | 'publicHoliday'
   | 'blank' // in-month non-teaching weekday with no lesson
   | 'empty'; // grid slot outside the current month
 
+/** One lesson inside a teaching cell (parallel mode can stack several). */
+export interface PlannerEntry {
+  moduleId: string;
+  moduleName: string;
+  lessonName: string;
+  teacher: string;
+  activity?: string;
+  /** True when the underlying lesson carries cross-module conflicts. */
+  conflict: boolean;
+}
+
 export interface PlannerCell {
   kind: PlannerCellKind;
   dateIso?: string;
   dateDisplay?: string; // DD MMMM YYYY
-  activity?: string;
-  lessonName?: string;
-  teacher?: string;
+  /** Teaching cells: one entry per lesson on this date. */
+  entries?: PlannerEntry[];
   holidayName?: string;
+  /** True when any entry in the cell is conflicted. */
+  conflict?: boolean;
 }
 
 export interface PlannerMonth {
@@ -55,25 +69,36 @@ export interface PlannerModel {
 function cellForDate(
   d: Date,
   iso: string,
-  lessons: Map<string, ScheduledLesson>,
+  byDate: Map<string, ScheduledLesson[]>,
   ucc: Map<string, string | undefined>,
   publicH: Map<string, string | undefined>,
 ): PlannerCell {
   const dateDisplay = formatDisplayDate(iso);
 
-  // Precedence: a scheduled lesson only ever lands on a valid teaching day, so
-  // it never collides with a holiday/weekend. Holidays outrank weekend so a
+  // Precedence: scheduled entries only ever land on valid teaching days, so
+  // they never collide with a holiday/weekend. Holidays outrank weekend so a
   // public holiday falling on a weekend still shows its name.
-  const lesson = lessons.get(iso);
-  if (lesson) {
+  const dayLessons = byDate.get(iso) ?? [];
+  const real = dayLessons.filter((l) => l.kind === 'lesson');
+  if (real.length > 0) {
+    const entries: PlannerEntry[] = real.map((l) => ({
+      moduleId: l.moduleId,
+      moduleName: l.moduleName,
+      lessonName: l.lessonName,
+      teacher: l.teacher,
+      activity: l.activity,
+      conflict: (l.conflicts?.length ?? 0) > 0,
+    }));
     return {
       kind: 'teaching',
       dateIso: iso,
       dateDisplay,
-      activity: lesson.activity,
-      lessonName: lesson.lessonName,
-      teacher: lesson.teacher,
+      entries,
+      conflict: entries.some((e) => e.conflict),
     };
+  }
+  if (dayLessons.some((l) => l.kind === 'AL')) {
+    return { kind: 'al', dateIso: iso, dateDisplay };
   }
   if (publicH.has(iso)) {
     return {
@@ -112,7 +137,12 @@ export function buildPlanner(
     (_, i) => DAY_NAMES[(startOffset + i) % 7],
   );
 
-  const lessonMap = new Map(lessons.map((l) => [l.date, l]));
+  const byDate = new Map<string, ScheduledLesson[]>();
+  for (const l of lessons) {
+    const arr = byDate.get(l.date);
+    if (arr) arr.push(l);
+    else byDate.set(l.date, [l]);
+  }
   const ucc = new Map(holidays.uccHolidays.map((h) => [h.date, h.name]));
   const publicH = new Map(holidays.publicHolidays.map((h) => [h.date, h.name]));
 
@@ -142,7 +172,7 @@ export function buildPlanner(
         const cellIndex = lead + (day - 1);
         const week = Math.floor(cellIndex / 7);
         const row = cellIndex % 7;
-        grid[row][week] = cellForDate(d, iso, lessonMap, ucc, publicH);
+        grid[row][week] = cellForDate(d, iso, byDate, ucc, publicH);
       }
 
       months.push({ year, month, monthName: MONTH_NAMES[month], weeks, grid });
@@ -174,7 +204,12 @@ export function buildPlanner(
 export function activityText(cell: PlannerCell): string {
   switch (cell.kind) {
     case 'teaching':
-      return cell.activity ?? '';
+      return (cell.entries ?? [])
+        .map((e) => e.activity ?? '')
+        .filter(Boolean)
+        .join(' / ');
+    case 'al':
+      return AL_LABEL;
     case 'weekend':
       return 'Weekend';
     case 'schoolHoliday':
@@ -197,10 +232,12 @@ export function dateText(cell: PlannerCell): string {
   return cell.dateDisplay ?? '';
 }
 
-/** Teacher sub-column: lesson label (line 1) + teacher (line 2) when teaching. */
+/** Teacher sub-column: label + teacher per entry when teaching, else "-". */
 export function teacherLines(cell: PlannerCell): string[] {
   if (cell.kind === 'teaching') {
-    return [cell.lessonName ?? '', cell.teacher ?? ''].filter(Boolean);
+    return (cell.entries ?? []).flatMap((e) =>
+      [e.lessonName, e.teacher].filter(Boolean),
+    );
   }
   if (cell.kind === 'empty' || cell.kind === 'blank') return [];
   return ['-'];
