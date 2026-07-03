@@ -46,15 +46,27 @@ control; all help copy lives in `src/help/helpText.ts`.
 
 ## What it does
 
-- **Two scheduling modes**
-  - *Every weekday* — one session on every valid weekday from the start date
-    until the total lesson count is reached.
-  - *Per month* — a fixed number of lessons per month, spread evenly across the
-    month's valid teaching days (even-interval selection). If a month cannot fit
-    its lessons, generation stops with a clear error naming the month and both
-    counts.
+- **Course engine (v5)** — a Course holds one or more **Modules** (each with
+  its own teacher, room, class group, lessons, activities, and times) and a
+  **start month** (`YYYY-MM`). Every module begins on the 1st of its month, or
+  the next valid teaching day if the 1st is a weekend or holiday. Two
+  **delivery modes**:
+  - *Series* — modules run sequentially (module N+1 starts the month after
+    module N's last lesson month); each month's lessons spread roughly evenly
+    across its valid teaching days and every remaining valid weekday becomes
+    an **AL buffer day** (label from `AL_LABEL`).
+  - *Parallel* — all modules start together and cluster onto contiguous valid
+    days; no AL fill.
+- **Conflict detection** — after generating, real lessons are scanned per date
+  for teacher / classroom / class-group claims by different modules at
+  overlapping time ranges. Conflicts are listed in a panel (with a green
+  all-clear) and highlighted in all three views and the planner exports.
+- **Module shift** — per-module *Shift +1 / +2 days* moves every lesson that
+  many valid teaching days later, consuming AL buffer in series mode, and is
+  rejected with a warning when the module's last lesson would pass the last
+  valid teaching day of its final month. Conflicts re-scan after every shift.
 - **Valid teaching day** = not a weekend, not a UCC holiday, not a Singapore
-  public holiday, and not already used (one session per day).
+  public holiday.
 - **Three views** — **List** (table with an Activity column), **Calendar**
   (7×6 month grid with clickable chips for every month containing lessons), and
   **Hybrid** (UCC ULEC course-planner matrix: month blocks of weekday rows ×
@@ -94,7 +106,8 @@ control; all help copy lives in `src/help/helpText.ts`.
 | --- | --- |
 | `src/types.ts` | Domain model (`ClassGroupConfig`, `ScheduledLesson`, `HolidaySet`, `Clash`). Designed for multi-group; this pass renders one group. |
 | `src/dateUtils.ts` | Timezone-safe local date helpers + `formatDisplayDate`. **Never** uses `toISOString()` for `YYYY-MM-DD` — Singapore is UTC+8 and UTC serialisation shifts dates back a day. |
-| `src/scheduler.ts` | `generateSchedule(config, holidays)` — both modes — plus `generateMultiGroupSchedule` and `detectClashes`. |
+| `src/courseEngine.ts` | v5 engine: month-anchored starts, series/parallel distribution + AL fill, whole-course generation, `detectConflicts`, `shiftModuleLater`. |
+| `src/scheduler.ts` | Legacy v1 single-group engine plus `generateMultiGroupSchedule` and `detectClashes` (kept and tested). |
 | `src/formModel.ts` | Raw form state, per-rule validation, and builders for config/holidays. |
 | `src/exports.ts` | CSV + PDF exporters; on-screen (9) and data-export (10, with ISO+display date) column sets. |
 | `src/planner.ts` | Builds the Hybrid `PlannerModel` (month blocks, week assignment, cell classification). |
