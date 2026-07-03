@@ -25,6 +25,7 @@ Other scripts:
 ```bash
 npm run build     # tsc -b && vite build
 npm run lint      # oxlint
+npm test          # vitest (scheduler, planner, dates, form model, exports)
 npm run preview   # serve the production build
 ```
 
@@ -54,7 +55,8 @@ control; all help copy lives in `src/help/helpText.ts`.
     counts.
 - **Valid teaching day** = not a weekend, not a UCC holiday, not a Singapore
   public holiday, and not already used (one session per day).
-- **Three views** — **List** (table), **Calendar** (7×6 month grid), and
+- **Three views** — **List** (table with an Activity column), **Calendar**
+  (7×6 month grid with clickable chips for every month containing lessons), and
   **Hybrid** (UCC ULEC course-planner matrix: month blocks of weekday rows ×
   week columns, each with Date/Activity/Teacher, colour-coded Weekend /
   SchoolHoliday / PublicHoliday cells). First-day-of-week applies to Calendar
@@ -67,12 +69,18 @@ control; all help copy lives in `src/help/helpText.ts`.
   Sheet reproducing the matrix (merged Week headers, month label merged down its
   rows, colour fills, dates as `DD MMMM YYYY` text — never serials), and
   **Planner (CSV)** exports the same shape with no OAuth needed.
-- **Exports** — CSV and PDF download `<classGroup>-timetable.*`; CSV carries
-  both a `Date (ISO)` and a display `Date` column. Plus a bulk `.ics`
-  (Asia/Singapore), per-lesson **Add to Google Calendar** links, and a
-  **Google Sheets** export (OAuth token flow; needs a client ID in Settings).
-- **ERPNext import** — pull a DocType into the form via token auth (adjust the
-  field map in `src/erpnext.ts` to your schema).
+- **Exports** — CSV and PDF download `<classGroup>-timetable.*`; both carry an
+  `Activity` column, CSV keeps `Date (ISO)` plus a display `Date`, and the PDF
+  title honours the chosen scope. Plus a bulk `.ics` (Asia/Singapore),
+  per-lesson **Add to Google Calendar** links, and a **Google Sheets** export
+  (OAuth token flow; needs a client ID in Settings).
+- **ERPNext import** — list records of the configured DocType, pick one, and
+  the app fetches the full document (child tables included) into the form via
+  token auth (adjust the field map in `src/erpnext.ts` to your schema).
+- **Multi-group engine** — `generateMultiGroupSchedule` merges several groups
+  against one holiday calendar, and `detectClashes` reports duplicate
+  sessions, teacher/classroom/class-group contention, and holiday collisions.
+  No dashboard UI yet; these back the future multi-group pass.
 - **Settings** (`/settings`, persisted to localStorage) — ERPNext base URL /
   key / secret / DocType, Google OAuth client ID, and first day of week.
 
@@ -86,7 +94,7 @@ control; all help copy lives in `src/help/helpText.ts`.
 | --- | --- |
 | `src/types.ts` | Domain model (`ClassGroupConfig`, `ScheduledLesson`, `HolidaySet`, `Clash`). Designed for multi-group; this pass renders one group. |
 | `src/dateUtils.ts` | Timezone-safe local date helpers + `formatDisplayDate`. **Never** uses `toISOString()` for `YYYY-MM-DD` — Singapore is UTC+8 and UTC serialisation shifts dates back a day. |
-| `src/scheduler.ts` | `generateSchedule(config, holidays)` — both modes. Stubs for `generateMultiGroupSchedule` and `detectClashes`. |
+| `src/scheduler.ts` | `generateSchedule(config, holidays)` — both modes — plus `generateMultiGroupSchedule` and `detectClashes`. |
 | `src/formModel.ts` | Raw form state, per-rule validation, and builders for config/holidays. |
 | `src/exports.ts` | CSV + PDF exporters; on-screen (9) and data-export (10, with ISO+display date) column sets. |
 | `src/planner.ts` | Builds the Hybrid `PlannerModel` (month blocks, week assignment, cell classification). |
