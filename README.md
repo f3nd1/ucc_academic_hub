@@ -1,8 +1,45 @@
-# UCC School Timetable Generator
+# UCC Workspace
 
-A client-only single-page app (React + TypeScript + Vite) that generates an
-evenly-spread teaching timetable for a class group, previews it, and exports it
-to CSV and PDF.
+A client-only single-page app (React + TypeScript + Vite) that hosts multiple
+self-contained **tracker tools** behind one workspace shell. It opens on a Home
+grid of tool cards with a persistent sidebar; today it ships two tools:
+
+- **Timetable Generator** (`/timetable`) — generates evenly-spread teaching
+  timetables for a course, module, or class group, previews them, and exports
+  to CSV / PDF / Sheets / calendar.
+- **Module & Course Review** (`/review-planner`) — tracks planned vs actual
+  start dates and auto-calculates module, per-cycle, and scheduled review
+  dates.
+
+## Workspace shell & adding a tool
+
+The shell is registry-driven. Everything the user sees — the Home tools grid,
+the sidebar nav, and the routing table — is generated from one typed array in
+`src/tools/registry.ts`. **Adding a tracker is two steps:** append a `ToolDef`
+(id, name, description, icon, path, status, lazy component) and create its page
+folder under `src/tools/`. Nothing else needs editing.
+
+Cross-tool services live in `src/shared/`: timezone-safe date helpers
+(`dates.ts`, incl. `formatDisplayDate` → DD MMMM YYYY), the single settings
+Context, a namespaced `localStorage` helper (each tool owns an `ucc:<toolId>:*`
+slice so tools never collide), and the help system (tooltips, hints, tour,
+master toggle) as a workspace-level provider.
+
+## Module & Course Review
+
+The review planner keeps two editable tables and derives every review date live
+(all timezone-safe, all shown DD MMMM YYYY):
+
+- **Module Review Date** = Actual Start Date + 1 month, clamped to the target
+  month's last day when it is shorter (31 Jan → 28/29 Feb).
+- **Course Per Cycle Review Date** = the latest Module Review Date among modules
+  whose course name matches (trimmed, case-insensitive); with no matching
+  modules the manually entered Per Cycle date is used instead (the manual field
+  is disabled and marked *auto-calculated* whenever matching modules exist).
+- **Course Scheduled Review Date** = Per Cycle Review Date + 2 years.
+
+Records persist under the `ucc:reviewPlanner:*` namespace. PDF/Excel/CSV export
+buttons are present but stubbed for this pass.
 
 ## Run
 
@@ -42,7 +79,7 @@ scope relabels the primary name field and the planner title.
 A **help layer** — accessible field tooltips, inline hints, and a first-run
 guided tour — is controlled by one **Help: On/Off** toggle in the nav
 (persisted). The tour has Back/Next/Skip/Don't-show-again and a **Restart tour**
-control; all help copy lives in `src/help/helpText.ts`.
+control; all help copy lives in `src/shared/help/helpText.ts`.
 
 ## What it does
 
