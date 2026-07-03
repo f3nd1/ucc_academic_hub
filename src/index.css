@@ -19,6 +19,11 @@
   --ok-bg: #f0fdf4;
   --ok-border: #bbf7d0;
   --ok-ink: #15803d;
+  --plan-teach: #d9f0d9;
+  --plan-weekend: #ededed;
+  --plan-school: #fcf2cc;
+  --plan-public: #fadede;
+  --plan-ink: #0f172a;
 
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
@@ -51,6 +56,12 @@
     --ok-bg: #0f2417;
     --ok-border: #166534;
     --ok-ink: #86efac;
+    /* Keep planner fills light with dark ink so the matrix stays print-like. */
+    --plan-teach: #cdeccd;
+    --plan-weekend: #e2e2e2;
+    --plan-school: #f6ecc0;
+    --plan-public: #f5d5d5;
+    --plan-ink: #0f172a;
   }
 }
 

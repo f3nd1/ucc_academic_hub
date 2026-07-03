@@ -72,7 +72,7 @@ function loadGsi(): Promise<GoogleGsi> {
 }
 
 /** Request an access token via the GIS token flow. */
-async function requestToken(clientId: string): Promise<string> {
+export async function requestSheetsToken(clientId: string): Promise<string> {
   const google = await loadGsi();
   return new Promise<string>((resolve, reject) => {
     const client = google.accounts.oauth2.initTokenClient({
@@ -113,7 +113,7 @@ export async function exportToGoogleSheets(
 
   let token: string;
   try {
-    token = await requestToken(clientId);
+    token = await requestSheetsToken(clientId);
   } catch (err) {
     return {
       ok: false,

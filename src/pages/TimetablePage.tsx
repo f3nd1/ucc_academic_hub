@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { TEACHER_LABEL } from '../constants';
-import type { ScheduledLesson, ClassGroupConfig } from '../types';
+import type { ScheduledLesson, ClassGroupConfig, HolidaySet } from '../types';
 import {
   EMPTY_FORM,
   DEMO_FORM,
@@ -16,15 +16,17 @@ import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
 import { importFromErpnext } from '../erpnext';
 import { useSettings } from '../settings';
-import { formatDisplayDate } from '../dateUtils';
+import { formatDisplayDate, formatDate } from '../dateUtils';
+import { buildPlanner } from '../planner';
+import { exportPlannerCsv, exportPlannerToSheets } from '../plannerExports';
 import { ListView } from '../views/ListView';
-import { AgendaView } from '../views/AgendaView';
 import { MonthView } from '../views/MonthView';
+import { HybridView } from '../views/HybridView';
 
 const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
 
-type ViewMode = 'list' | 'agenda' | 'month';
+type ViewMode = 'list' | 'calendar' | 'hybrid';
 type Banner = { ok: boolean; message: string } | null;
 
 export function TimetablePage() {
@@ -32,10 +34,14 @@ export function TimetablePage() {
   const [form, setForm] = useState<RawForm>(EMPTY_FORM);
   const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
   const [config, setConfig] = useState<ClassGroupConfig | null>(null);
+  const [holidays, setHolidays] = useState<HolidaySet | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [view, setView] = useState<ViewMode>('list');
   const [banner, setBanner] = useState<Banner>(null);
   const [busy, setBusy] = useState(false);
+
+  // Stable "today" for the planner's Updated line (recomputed per mount).
+  const todayIso = useMemo(() => formatDate(new Date()), []);
 
   const set =
     <K extends keyof RawForm>(key: K) =>
@@ -53,9 +59,23 @@ export function TimetablePage() {
     };
   }, [lessons]);
 
+  // The Hybrid planner model, rebuilt when the schedule / holidays / week-start
+  // change. Shared by the Hybrid view and both planner exports.
+  const plannerModel = useMemo(() => {
+    if (!lessons || lessons.length === 0 || !config || !holidays) return null;
+    return buildPlanner(
+      lessons,
+      config,
+      holidays,
+      settings.firstDayOfWeek,
+      todayIso,
+    );
+  }, [lessons, config, holidays, settings.firstDayOfWeek, todayIso]);
+
   const resetResults = () => {
     setLessons(null);
     setConfig(null);
+    setHolidays(null);
     setMessages([]);
     setBanner(null);
   };
@@ -71,17 +91,19 @@ export function TimetablePage() {
     }
 
     const cfg = buildConfig(form);
-    const holidays = buildHolidays(form);
+    const holidaySet = buildHolidays(form);
     try {
-      const result = generateSchedule(cfg, holidays);
+      const result = generateSchedule(cfg, holidaySet);
       setLessons(result);
       setConfig(cfg);
+      setHolidays(holidaySet);
       setMessages([]);
     } catch (err) {
       // Surface the scheduler's month-capacity error in the same message area.
       setMessages([err instanceof Error ? err.message : String(err)]);
       setLessons(null);
       setConfig(null);
+      setHolidays(null);
     }
   };
 
@@ -103,6 +125,7 @@ export function TimetablePage() {
       setForm(result.data);
       setLessons(null);
       setConfig(null);
+      setHolidays(null);
       setMessages([]);
     }
     setBanner({ ok: result.ok, message: result.message });
@@ -127,6 +150,30 @@ export function TimetablePage() {
     const result = await exportToGoogleSheets(
       lessons,
       config,
+      settings.googleClientId,
+    );
+    if (result.ok && result.url) window.open(result.url, '_blank', 'noopener');
+    setBanner({ ok: result.ok, message: result.message });
+    setBusy(false);
+  };
+
+  const handlePlannerCsv = () => {
+    if (!plannerModel) {
+      setMessages([EXPORT_EMPTY_MESSAGE]);
+      return;
+    }
+    exportPlannerCsv(plannerModel);
+  };
+
+  const handlePlannerSheets = async () => {
+    if (!plannerModel) {
+      setMessages([EXPORT_EMPTY_MESSAGE]);
+      return;
+    }
+    setBusy(true);
+    setBanner(null);
+    const result = await exportPlannerToSheets(
+      plannerModel,
       settings.googleClientId,
     );
     if (result.ok && result.url) window.open(result.url, '_blank', 'noopener');
@@ -203,15 +250,29 @@ export function TimetablePage() {
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="lessonNames">Lesson names (one per line)</label>
-          <textarea
-            id="lessonNames"
-            rows={4}
-            value={form.lessonNamesRaw}
-            onChange={(e) => set('lessonNamesRaw')(e.target.value)}
-            placeholder={'Introduction\nData Types\nControl Flow'}
-          />
+        <div className="grid-2">
+          <div className="field">
+            <label htmlFor="lessonNames">Lesson names (one per line)</label>
+            <textarea
+              id="lessonNames"
+              rows={4}
+              value={form.lessonNamesRaw}
+              onChange={(e) => set('lessonNamesRaw')(e.target.value)}
+              placeholder={'Introduction\nData Types\nControl Flow'}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="activities">
+              Activities (one per line, optional)
+            </label>
+            <textarea
+              id="activities"
+              rows={4}
+              value={form.activitiesRaw}
+              onChange={(e) => set('activitiesRaw')(e.target.value)}
+              placeholder={'Listening\nReading\nWriting'}
+            />
+          </div>
         </div>
 
         <div className="grid-2">
@@ -296,26 +357,26 @@ export function TimetablePage() {
         <div className="grid-2">
           <div className="field">
             <label htmlFor="uccHolidays">
-              UCC school holidays (one per line)
+              UCC school holidays (one per line, optional name)
             </label>
             <textarea
               id="uccHolidays"
               rows={4}
               value={form.uccHolidaysRaw}
               onChange={(e) => set('uccHolidaysRaw')(e.target.value)}
-              placeholder={'2026-09-01\n2026-09-02'}
+              placeholder={'2026-09-01, Term Break\n2026-09-02'}
             />
           </div>
           <div className="field">
             <label htmlFor="publicHolidays">
-              Singapore public holidays (one per line)
+              Singapore public holidays (one per line, optional name)
             </label>
             <textarea
               id="publicHolidays"
               rows={4}
               value={form.publicHolidaysRaw}
               onChange={(e) => set('publicHolidaysRaw')(e.target.value)}
-              placeholder={'2026-08-09\n2026-12-25'}
+              placeholder={'2026-08-09, National Day\n2026-12-25, Christmas'}
             />
           </div>
         </div>
@@ -363,6 +424,20 @@ export function TimetablePage() {
             <button className="btn" onClick={handleGoogleSheets} disabled={busy}>
               Google Sheets
             </button>
+            {view === 'hybrid' && (
+              <>
+                <button
+                  className="btn btn--primary"
+                  onClick={handlePlannerSheets}
+                  disabled={busy}
+                >
+                  Planner (Sheets)
+                </button>
+                <button className="btn" onClick={handlePlannerCsv}>
+                  Planner (CSV)
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -401,7 +476,7 @@ export function TimetablePage() {
 
         {hasLessons && (
           <div className="segmented view-switch" role="group" aria-label="View">
-            {(['list', 'agenda', 'month'] as ViewMode[]).map((v) => (
+            {(['list', 'calendar', 'hybrid'] as ViewMode[]).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -409,7 +484,7 @@ export function TimetablePage() {
                 aria-pressed={view === v}
                 onClick={() => setView(v)}
               >
-                {v === 'list' ? 'List' : v === 'agenda' ? 'Agenda' : 'Month'}
+                {v === 'list' ? 'List' : v === 'calendar' ? 'Calendar' : 'Hybrid'}
               </button>
             ))}
           </div>
@@ -418,14 +493,14 @@ export function TimetablePage() {
         {hasLessons ? (
           view === 'list' ? (
             <ListView lessons={lessons!} courseName={config!.courseName} />
-          ) : view === 'agenda' ? (
-            <AgendaView lessons={lessons!} courseName={config!.courseName} />
-          ) : (
+          ) : view === 'calendar' ? (
             <MonthView
               lessons={lessons!}
               firstDayOfWeek={settings.firstDayOfWeek}
               courseName={config!.courseName}
             />
+          ) : (
+            plannerModel && <HybridView model={plannerModel} />
           )
         ) : (
           !messages.length && (

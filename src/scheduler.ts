@@ -32,6 +32,21 @@ const lessonNameFor = (lessonNo: number, lessonNames: string[]): string =>
   lessonNames[(lessonNo - 1) % lessonNames.length];
 
 /**
+ * Activity paired to a lesson by index (same modulo cycle as the name). Returns
+ * undefined when no activity is provided for that slot, so the cell shows the
+ * label only.
+ */
+const activityFor = (
+  lessonNo: number,
+  lessonNames: string[],
+  activities: string[],
+): string | undefined => {
+  if (activities.length === 0) return undefined;
+  const value = activities[(lessonNo - 1) % lessonNames.length];
+  return value ? value : undefined;
+};
+
+/**
  * A date is a valid teaching day only if all hold:
  *  - not Saturday, not Sunday
  *  - not a UCC holiday
@@ -61,6 +76,7 @@ const makeLesson = (
   groupId: config.id,
   lessonNo,
   lessonName: lessonNameFor(lessonNo, config.lessonNames),
+  activity: activityFor(lessonNo, config.lessonNames, config.activities),
   date: formatDate(d),
   day: dayName(d),
   startTime: config.startTime,
@@ -84,8 +100,8 @@ export function generateSchedule(
   config: ClassGroupConfig,
   holidays: HolidaySet,
 ): ScheduledLesson[] {
-  const ucc = new Set(holidays.uccHolidays);
-  const publicH = new Set(holidays.publicHolidays);
+  const ucc = new Set(holidays.uccHolidays.map((h) => h.date));
+  const publicH = new Set(holidays.publicHolidays.map((h) => h.date));
   const assigned = new Set<string>();
   const lessons: ScheduledLesson[] = [];
 

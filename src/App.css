@@ -536,3 +536,93 @@ tbody tr:nth-child(even) {
   font-size: 0.9rem;
   cursor: pointer;
 }
+
+/* Hybrid planner view */
+.planner__band {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 1rem;
+  background: var(--summary-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.planner__key {
+  color: var(--muted);
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.planner__month {
+  margin-bottom: 1.25rem;
+}
+
+.planner__table {
+  font-size: 0.72rem;
+}
+
+.planner__table th,
+.planner__table td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.4rem;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.planner__table thead th {
+  position: static;
+  background: var(--summary-bg);
+  color: var(--ink);
+  text-align: center;
+}
+
+.planner__corner,
+.planner__monthlabel {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.planner__corner {
+  writing-mode: horizontal-tb;
+  transform: none;
+}
+
+.planner__weekhead {
+  background: var(--accent);
+  color: #fff;
+}
+
+.planner__weekday {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.planner__teacher div:nth-child(2) {
+  color: var(--muted);
+}
+
+/* Activity cell colour coding (light fills, dark ink, print-friendly) */
+.act {
+  color: var(--plan-ink);
+}
+.act--teaching {
+  background: var(--plan-teach);
+}
+.act--weekend {
+  background: var(--plan-weekend);
+}
+.act--school {
+  background: var(--plan-school);
+}
+.act--public {
+  background: var(--plan-public);
+}

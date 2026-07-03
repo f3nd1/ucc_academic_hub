@@ -39,9 +39,19 @@ npm run preview   # serve the production build
     counts.
 - **Valid teaching day** = not a weekend, not a UCC holiday, not a Singapore
   public holiday, and not already used (one session per day).
-- **Three views** — List (table), Agenda (grouped by day), and Month (7×6
-  calendar grid with a first-day-of-week option). Dates display as
-  `DD MMMM YYYY` ("01 July 2026") while ISO stays the internal value.
+- **Three views** — **List** (table), **Calendar** (7×6 month grid), and
+  **Hybrid** (UCC ULEC course-planner matrix: month blocks of weekday rows ×
+  week columns, each with Date/Activity/Teacher, colour-coded Weekend /
+  SchoolHoliday / PublicHoliday cells). First-day-of-week applies to Calendar
+  and Hybrid. Dates display as `DD MMMM YYYY` ("02 May 2026") while ISO stays
+  the internal value everywhere.
+- **Activities & named holidays** — an optional activity per lesson (paired to
+  lesson names by index) and holiday lines that accept `YYYY-MM-DD, Name`
+  (e.g. `2026-08-09, National Day`); the name shows in the planner.
+- **Planner export** — from Hybrid view, **Planner (Sheets)** builds a Google
+  Sheet reproducing the matrix (merged Week headers, month label merged down its
+  rows, colour fills, dates as `DD MMMM YYYY` text — never serials), and
+  **Planner (CSV)** exports the same shape with no OAuth needed.
 - **Exports** — CSV and PDF download `<classGroup>-timetable.*`; CSV carries
   both a `Date (ISO)` and a display `Date` column. Plus a bulk `.ics`
   (Asia/Singapore), per-lesson **Add to Google Calendar** links, and a
@@ -64,12 +74,14 @@ npm run preview   # serve the production build
 | `src/scheduler.ts` | `generateSchedule(config, holidays)` — both modes. Stubs for `generateMultiGroupSchedule` and `detectClashes`. |
 | `src/formModel.ts` | Raw form state, per-rule validation, and builders for config/holidays. |
 | `src/exports.ts` | CSV + PDF exporters; on-screen (9) and data-export (10, with ISO+display date) column sets. |
+| `src/planner.ts` | Builds the Hybrid `PlannerModel` (month blocks, week assignment, cell classification). |
+| `src/plannerExports.ts` | Planner CSV + Google Sheets planner (merges, colour fills, date-as-text). |
 | `src/erpnext.ts` | ERPNext token-auth import + field map + connection test. |
 | `src/googleCalendar.ts` | Per-lesson calendar link + `.ics` builder (Asia/Singapore). |
 | `src/googleSheets.ts` | GIS token flow + Sheets API v4 create/write. |
 | `src/settings.ts` | localStorage settings model + `useSettings` hook. |
 | `src/pages/` | `TimetablePage` (form + views + exports), `SettingsPage`. |
-| `src/views/` | `ListView`, `AgendaView`, `MonthView`. |
+| `src/views/` | `ListView`, `MonthView` (Calendar), `HybridView` (planner matrix). |
 | `src/App.tsx` | Router shell: header, nav, routes. |
 
 ## Google integration notes
@@ -84,14 +96,20 @@ npm run preview   # serve the production build
   this origin (`allow_cors` in `site_config.json`). A Vite dev-proxy alternative
   is documented in `vite.config.ts`, but its target is static at config time.
 
-## Known limitation: Excel export
+## Excel / SheetJS note
 
-Excel export is stubbed (`exportExcel` in `src/exports.ts`, button disabled in
-the UI). The build spec requires SheetJS **0.20.3** from the SheetJS CDN
-tarball, but that host is blocked by this environment's network egress policy,
-and the public npm `xlsx` build was explicitly ruled out. Once SheetJS 0.20.3
-is installable, wire up `exportExcel` (`aoa_to_sheet`, sized columns, sheet
-`"Timetable"`, file `<classGroup>-timetable.xlsx`) and re-enable the button.
+The SheetJS `.xlsx` path is not used: its CDN (required for 0.20.3) is blocked
+by this environment's egress policy and the public npm `xlsx` build was ruled
+out. So:
+
+- The **Excel** button (`exportExcel` in `src/exports.ts`) stays a disabled stub.
+- The **Hybrid planner** exports to **Google Sheets** instead — the Sheets API
+  reproduces everything SheetJS would (merged headers, month labels merged down
+  rows, colour fills, dates written as `DD MMMM YYYY` text, never serials) — with
+  a **Planner (CSV)** fallback that needs no OAuth.
+
+To enable a true `.xlsx` later, install SheetJS and implement `exportExcel` over
+`DATA_COLUMN_HEADERS` / `dataRowFor`, then re-enable the button.
 
 ## Out of scope (structured to slot in later)
 

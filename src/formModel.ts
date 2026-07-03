@@ -1,4 +1,4 @@
-import type { ClassGroupConfig, HolidaySet } from './types';
+import type { ClassGroupConfig, HolidaySet, NamedHoliday } from './types';
 import { DATE_PATTERN } from './dateUtils';
 
 export type SchedulingMode = 'weekday' | 'permonth';
@@ -10,14 +10,15 @@ export interface RawForm {
   teacher: string;
   classroom: string;
   lessonNamesRaw: string; // one per line
+  activitiesRaw: string; // one per line, paired to lesson names by index
   totalLessons: string;
   mode: SchedulingMode;
   lessonsPerMonth: string; // used only in per-month mode
   startDate: string;
   startTime: string;
   endTime: string;
-  uccHolidaysRaw: string; // one per line
-  publicHolidaysRaw: string; // one per line
+  uccHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
+  publicHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
 }
 
 export const EMPTY_FORM: RawForm = {
@@ -26,6 +27,7 @@ export const EMPTY_FORM: RawForm = {
   teacher: '',
   classroom: '',
   lessonNamesRaw: '',
+  activitiesRaw: '',
   totalLessons: '',
   mode: 'weekday',
   lessonsPerMonth: '',
@@ -51,14 +53,21 @@ export const DEMO_FORM: RawForm = {
     'Functions',
     'Data Structures',
   ].join('\n'),
-  totalLessons: '20',
-  mode: 'weekday',
+  activitiesRaw: ['Listening', 'Reading', 'Writing', 'Speaking', 'Grammar'].join(
+    '\n',
+  ),
+  // Per-month so the demo spans July–September and showcases the planner's
+  // public/school-holiday cells (National Day, Term Break) across months.
+  totalLessons: '24',
+  mode: 'permonth',
   lessonsPerMonth: '8',
   startDate: '2026-07-06',
   startTime: '09:00',
   endTime: '10:00',
-  uccHolidaysRaw: '2026-09-01',
-  publicHolidaysRaw: ['2026-08-09', '2026-12-25'].join('\n'),
+  uccHolidaysRaw: '2026-09-01, Term Break',
+  publicHolidaysRaw: ['2026-08-09, National Day', '2026-12-25, Christmas'].join(
+    '\n',
+  ),
 };
 
 /** Split a textarea into trimmed, non-empty lines. */
@@ -67,6 +76,22 @@ export const parseLines = (raw: string): string[] =>
     .split('\n')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+
+/**
+ * Parse one holiday line into { date, name }. Accepts "YYYY-MM-DD" or
+ * "YYYY-MM-DD, name" (only the first comma splits date from name).
+ */
+export function parseHolidayLine(line: string): NamedHoliday {
+  const comma = line.indexOf(',');
+  if (comma === -1) return { date: line.trim() };
+  const date = line.slice(0, comma).trim();
+  const name = line.slice(comma + 1).trim();
+  return name ? { date, name } : { date };
+}
+
+/** Parse a holiday textarea into NamedHoliday[]. */
+export const parseNamedHolidays = (raw: string): NamedHoliday[] =>
+  parseLines(raw).map(parseHolidayLine);
 
 /**
  * Validate the form. Returns one message per failing rule (empty = valid).
@@ -108,13 +133,16 @@ export function validateForm(form: RawForm): string[] {
     errors.push('End time must be later than start time.');
   }
 
-  for (const value of parseLines(form.uccHolidaysRaw)) {
-    if (!DATE_PATTERN.test(value))
-      errors.push(`UCC holiday "${value}" must be in YYYY-MM-DD format.`);
+  // Validate the DATE PART only; an optional ", name" may follow.
+  for (const line of parseLines(form.uccHolidaysRaw)) {
+    const { date } = parseHolidayLine(line);
+    if (!DATE_PATTERN.test(date))
+      errors.push(`UCC holiday "${line}" must start with a YYYY-MM-DD date.`);
   }
-  for (const value of parseLines(form.publicHolidaysRaw)) {
-    if (!DATE_PATTERN.test(value))
-      errors.push(`Public holiday "${value}" must be in YYYY-MM-DD format.`);
+  for (const line of parseLines(form.publicHolidaysRaw)) {
+    const { date } = parseHolidayLine(line);
+    if (!DATE_PATTERN.test(date))
+      errors.push(`Public holiday "${line}" must start with a YYYY-MM-DD date.`);
   }
 
   return errors;
@@ -130,6 +158,7 @@ export function buildConfig(form: RawForm): ClassGroupConfig {
     teacher: form.teacher.trim(),
     classroom: form.classroom.trim(),
     lessonNames: parseLines(form.lessonNamesRaw),
+    activities: parseLines(form.activitiesRaw),
     totalLessons: Number(form.totalLessons),
     lessonsPerMonth:
       form.mode === 'permonth' ? Number(form.lessonsPerMonth) : null,
@@ -139,10 +168,10 @@ export function buildConfig(form: RawForm): ClassGroupConfig {
   };
 }
 
-/** Build a HolidaySet from a validated form. */
+/** Build a HolidaySet (named) from a validated form. */
 export function buildHolidays(form: RawForm): HolidaySet {
   return {
-    uccHolidays: parseLines(form.uccHolidaysRaw),
-    publicHolidays: parseLines(form.publicHolidaysRaw),
+    uccHolidays: parseNamedHolidays(form.uccHolidaysRaw),
+    publicHolidays: parseNamedHolidays(form.publicHolidaysRaw),
   };
 }

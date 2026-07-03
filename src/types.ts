@@ -13,6 +13,8 @@ export interface ClassGroupConfig {
   teacher: string;
   classroom: string;
   lessonNames: string[];
+  /** Optional activity/skill per lesson, paired to lessonNames by index. */
+  activities: string[];
   totalLessons: number;
   /** null = every-weekday mode; a number = per-month mode. */
   lessonsPerMonth: number | null;
@@ -26,6 +28,8 @@ export interface ScheduledLesson {
   groupId: string;
   lessonNo: number;
   lessonName: string;
+  /** Optional activity/skill, distinct from the lesson label (planner). */
+  activity?: string;
   date: string; // YYYY-MM-DD (local)
   day: string; // e.g. "Monday"
   startTime: string;
@@ -35,10 +39,16 @@ export interface ScheduledLesson {
   classGroup: string;
 }
 
-/** Non-teaching dates. Both lists are YYYY-MM-DD strings. */
+/** A non-teaching date with an optional display name (e.g. "National Day"). */
+export interface NamedHoliday {
+  date: string; // YYYY-MM-DD
+  name?: string;
+}
+
+/** Non-teaching dates, each carrying an optional name for the planner. */
 export interface HolidaySet {
-  uccHolidays: string[];
-  publicHolidays: string[];
+  uccHolidays: NamedHoliday[];
+  publicHolidays: NamedHoliday[];
 }
 
 /**
