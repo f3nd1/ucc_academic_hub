@@ -685,6 +685,13 @@ tbody tr:nth-child(even) {
   margin: 0;
 }
 
+.wizard__head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .stepper {
   display: flex;
   list-style: none;
