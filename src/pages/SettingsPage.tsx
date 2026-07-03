@@ -9,11 +9,14 @@ import {
   type ErpFieldMapping,
 } from '../erpFieldMapping';
 import { Hint } from '../shared/help/Hint';
+import { useTheme } from '../shared/themeStore';
+import { SKINS, type Skin } from '../shared/theme';
 
 const NOT_MAPPED = '';
 
 export function SettingsPage() {
   const [settings, update] = useSettings();
+  const [skin, setSkin] = useTheme();
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -234,7 +237,27 @@ export function SettingsPage() {
 
       <h3 className="settings__subhead">Appearance</h3>
       <div className="field">
-        <label>Theme</label>
+        <label htmlFor="workspaceTheme">Theme</label>
+        <select
+          id="workspaceTheme"
+          value={skin}
+          onChange={(e) => setSkin(e.target.value as Skin)}
+        >
+          {SKINS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <Hint text={SKINS.find((s) => s.value === skin)?.hint ?? ''} />
+        <p className="field__help">
+          Restyles the whole workspace and every tracker instantly. Applies
+          across light and dark; Retro LCD and Y2K Pop keep their own fixed
+          palette. Remembered on this device.
+        </p>
+      </div>
+      <div className="field">
+        <label>Colour mode</label>
         <div className="radio-row">
           {(
             [
@@ -246,7 +269,7 @@ export function SettingsPage() {
             <label className="radio" key={mode}>
               <input
                 type="radio"
-                name="theme"
+                name="colourMode"
                 checked={settings.theme === mode}
                 onChange={() => update({ theme: mode })}
               />
@@ -256,7 +279,7 @@ export function SettingsPage() {
         </div>
         <p className="field__help">
           System follows your operating-system preference; Light and Dark force
-          the mode. Applies immediately and is remembered on this device.
+          the mode. Classic follows this; the other themes pin their palette.
         </p>
       </div>
 
