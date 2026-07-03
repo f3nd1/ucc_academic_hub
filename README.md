@@ -6,8 +6,9 @@ to CSV and PDF.
 
 ## Run
 
+From the repository root:
+
 ```bash
-cd ucc-timetable
 npm install
 npm run dev
 ```
@@ -15,6 +16,9 @@ npm run dev
 Then open the forwarded port **5173** from the Codespace **Ports** tab. The dev
 server binds to all interfaces (`server.host = true`) so the forwarded port
 works.
+
+The form starts pre-filled with demo data, so you can click **Generate
+timetable** straight away to see a result. Use **Clear** to empty the form.
 
 Other scripts:
 

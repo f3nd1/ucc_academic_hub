@@ -36,6 +36,32 @@ export const EMPTY_FORM: RawForm = {
   publicHolidaysRaw: '',
 };
 
+// Demo data the form starts with, so the app is testable in one click: hit
+// "Generate timetable" and you get the acceptance-criteria result (20 sessions,
+// no weekends, skipping the two public holidays). Use the "Clear" button to
+// start from EMPTY_FORM.
+export const DEMO_FORM: RawForm = {
+  courseName: 'Foundations of Data Science',
+  classGroup: 'DS-2026A',
+  teacher: 'Ms Tan',
+  classroom: 'Room 3-01',
+  lessonNamesRaw: [
+    'Introduction',
+    'Data Types',
+    'Control Flow',
+    'Functions',
+    'Data Structures',
+  ].join('\n'),
+  totalLessons: '20',
+  mode: 'weekday',
+  lessonsPerMonth: '8',
+  startDate: '2026-07-06',
+  startTime: '09:00',
+  endTime: '10:00',
+  uccHolidaysRaw: '2026-09-01',
+  publicHolidaysRaw: ['2026-08-09', '2026-12-25'].join('\n'),
+};
+
 /** Split a textarea into trimmed, non-empty lines. */
 export const parseLines = (raw: string): string[] =>
   raw

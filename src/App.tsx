@@ -4,6 +4,7 @@ import { TEACHER_LABEL } from './constants';
 import type { ScheduledLesson, ClassGroupConfig } from './types';
 import {
   EMPTY_FORM,
+  DEMO_FORM,
   validateForm,
   buildConfig,
   buildHolidays,
@@ -17,7 +18,8 @@ const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
 
 function App() {
-  const [form, setForm] = useState<RawForm>(EMPTY_FORM);
+  // Start pre-filled with demo data so the app is testable in one click.
+  const [form, setForm] = useState<RawForm>(DEMO_FORM);
   const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
   const [config, setConfig] = useState<ClassGroupConfig | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
@@ -60,6 +62,13 @@ function App() {
       setLessons(null);
       setConfig(null);
     }
+  };
+
+  const handleClear = () => {
+    setForm(EMPTY_FORM);
+    setLessons(null);
+    setConfig(null);
+    setMessages([]);
   };
 
   const guardedExport = (fn: () => void) => {
@@ -245,9 +254,14 @@ function App() {
             </div>
           </div>
 
-          <button className="btn btn--primary" onClick={handleGenerate}>
-            Generate timetable
-          </button>
+          <div className="actions">
+            <button className="btn btn--primary" onClick={handleGenerate}>
+              Generate timetable
+            </button>
+            <button className="btn" onClick={handleClear}>
+              Clear
+            </button>
+          </div>
         </section>
 
         {/* ---------------- Right: preview + exports ---------------- */}
