@@ -13,6 +13,12 @@
   --error-bg: #fef2f2;
   --error-border: #fecaca;
   --error-ink: #b91c1c;
+  --warn-bg: #fffbeb;
+  --warn-border: #fde68a;
+  --warn-ink: #92400e;
+  --ok-bg: #f0fdf4;
+  --ok-border: #bbf7d0;
+  --ok-ink: #15803d;
 
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
@@ -39,6 +45,12 @@
     --error-bg: #2a1416;
     --error-border: #7f1d1d;
     --error-ink: #fca5a5;
+    --warn-bg: #2a2410;
+    --warn-border: #78560f;
+    --warn-ink: #fcd34d;
+    --ok-bg: #0f2417;
+    --ok-border: #166534;
+    --ok-ink: #86efac;
   }
 }
 

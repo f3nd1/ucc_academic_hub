@@ -31,6 +31,21 @@ const DAY_NAMES = [
 /** Weekday name for a local Date, e.g. "Monday". */
 export const dayName = (d: Date): string => DAY_NAMES[d.getDay()];
 
+/** Weekday name for an ISO YYYY-MM-DD string. */
+export const dayNameFromIso = (iso: string): string => dayName(parseLocal(iso));
+
+/**
+ * Human display format for an ISO date: "01 July 2026".
+ * ISO stays the internal value everywhere; this is presentation only. The
+ * explicit "T00:00:00" pins parsing to local midnight so the day never shifts.
+ */
+export const formatDisplayDate = (iso: string): string =>
+  new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+
 /** True for Saturday (6) or Sunday (0). */
 export const isWeekend = (d: Date): boolean => {
   const g = d.getDay();

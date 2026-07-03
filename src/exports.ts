@@ -2,9 +2,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { ClassGroupConfig, ScheduledLesson } from './types';
 import { TEACHER_LABEL } from './constants';
+import { formatDisplayDate } from './dateUtils';
 
-// The nine output columns, in order. TEACHER_LABEL keeps the "Teacher" header
-// (and its field label) in a single place.
+// The nine on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
+// header (and its field label) in a single place. The Date column shows the
+// human display format; ISO stays the internal value.
 export const COLUMN_HEADERS = [
   'Lesson No',
   'Lesson Name',
@@ -17,11 +19,40 @@ export const COLUMN_HEADERS = [
   'Class Group',
 ] as const;
 
-/** Nine cells for one lesson, in COLUMN_HEADERS order. */
+// Data-export columns (CSV, Excel, Google Sheets). Keep ISO in "Date (ISO)" so
+// records stay sortable AND add a human-readable "Date" in DD MMMM YYYY.
+export const DATA_COLUMN_HEADERS = [
+  'Lesson No',
+  'Lesson Name',
+  'Date (ISO)',
+  'Date',
+  'Day',
+  'Start Time',
+  'End Time',
+  TEACHER_LABEL,
+  'Classroom',
+  'Class Group',
+] as const;
+
+/** Nine cells for the on-screen table / PDF (Date shown as DD MMMM YYYY). */
 const rowFor = (l: ScheduledLesson): string[] => [
   String(l.lessonNo),
   l.lessonName,
+  formatDisplayDate(l.date),
+  l.day,
+  l.startTime,
+  l.endTime,
+  l.teacher,
+  l.classroom,
+  l.classGroup,
+];
+
+/** Ten cells for data exports: ISO date plus display date. */
+export const dataRowFor = (l: ScheduledLesson): string[] => [
+  String(l.lessonNo),
+  l.lessonName,
   l.date,
+  formatDisplayDate(l.date),
   l.day,
   l.startTime,
   l.endTime,
@@ -49,14 +80,14 @@ const download = (blob: Blob, filename: string): void => {
 /** Quote a CSV field, doubling any embedded quotes. */
 const csvQuote = (value: string): string => `"${value.replace(/"/g, '""')}"`;
 
-/** Export as CSV (native Blob, all nine columns, every field quoted). */
+/** Export as CSV (native Blob, ISO + display date columns, every field quoted). */
 export function exportCsv(
   lessons: ScheduledLesson[],
   config: ClassGroupConfig,
 ): void {
   const lines = [
-    COLUMN_HEADERS.map(csvQuote).join(','),
-    ...lessons.map((l) => rowFor(l).map(csvQuote).join(',')),
+    DATA_COLUMN_HEADERS.map(csvQuote).join(','),
+    ...lessons.map((l) => dataRowFor(l).map(csvQuote).join(',')),
   ];
   const blob = new Blob([lines.join('\r\n')], {
     type: 'text/csv;charset=utf-8;',
@@ -101,8 +132,10 @@ export function exportPdf(
 /**
  * Export as Excel — TODO.
  *
- * Intended to use SheetJS aoa_to_sheet (header row, sized columns, sheet
- * "Timetable", file <classGroup>-timetable.xlsx). The SheetJS 0.20.3 CDN
+ * Intended to use SheetJS aoa_to_sheet over DATA_COLUMN_HEADERS + dataRowFor
+ * (so the workbook carries both the ISO and display Date columns), header row,
+ * sized columns, sheet "Timetable", file <classGroup>-timetable.xlsx. The
+ * SheetJS 0.20.3 CDN
  * tarball required by the build spec is blocked by this environment's network
  * policy, and the public npm `xlsx` build was explicitly ruled out, so Excel
  * export is deferred. Wire this up once SheetJS is installable, then re-enable

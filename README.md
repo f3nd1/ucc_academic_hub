@@ -39,22 +39,50 @@ npm run preview   # serve the production build
     counts.
 - **Valid teaching day** = not a weekend, not a UCC holiday, not a Singapore
   public holiday, and not already used (one session per day).
-- **Preview table** with all nine columns plus a summary strip (total, first
-  date, last date).
-- **Exports** — CSV (native Blob, all fields quoted) and PDF (jsPDF landscape
-  via `jspdf-autotable`). Both download the file `<classGroup>-timetable.*`.
+- **Three views** — List (table), Agenda (grouped by day), and Month (7×6
+  calendar grid with a first-day-of-week option). Dates display as
+  `DD MMMM YYYY` ("01 July 2026") while ISO stays the internal value.
+- **Exports** — CSV and PDF download `<classGroup>-timetable.*`; CSV carries
+  both a `Date (ISO)` and a display `Date` column. Plus a bulk `.ics`
+  (Asia/Singapore), per-lesson **Add to Google Calendar** links, and a
+  **Google Sheets** export (OAuth token flow; needs a client ID in Settings).
+- **ERPNext import** — pull a DocType into the form via token auth (adjust the
+  field map in `src/erpnext.ts` to your schema).
+- **Settings** (`/settings`, persisted to localStorage) — ERPNext base URL /
+  key / secret / DocType, Google OAuth client ID, and first day of week.
+
+## Routing
+
+`/` is the Timetable page and `/settings` is Settings; a top nav links both.
 
 ## Architecture
 
 | File | Responsibility |
 | --- | --- |
 | `src/types.ts` | Domain model (`ClassGroupConfig`, `ScheduledLesson`, `HolidaySet`, `Clash`). Designed for multi-group; this pass renders one group. |
-| `src/dateUtils.ts` | Timezone-safe local date helpers. **Never** uses `toISOString()` for `YYYY-MM-DD` — Singapore is UTC+8 and UTC serialisation shifts dates back a day. |
+| `src/dateUtils.ts` | Timezone-safe local date helpers + `formatDisplayDate`. **Never** uses `toISOString()` for `YYYY-MM-DD` — Singapore is UTC+8 and UTC serialisation shifts dates back a day. |
 | `src/scheduler.ts` | `generateSchedule(config, holidays)` — both modes. Stubs for `generateMultiGroupSchedule` and `detectClashes`. |
 | `src/formModel.ts` | Raw form state, per-rule validation, and builders for config/holidays. |
-| `src/exports.ts` | CSV + PDF exporters and the nine-column header list. |
-| `src/constants.ts` | `TEACHER_LABEL` — single source for the "Teacher" label/header. |
-| `src/App.tsx` | Two-column UI: setup + holidays on the left, preview + exports on the right. |
+| `src/exports.ts` | CSV + PDF exporters; on-screen (9) and data-export (10, with ISO+display date) column sets. |
+| `src/erpnext.ts` | ERPNext token-auth import + field map + connection test. |
+| `src/googleCalendar.ts` | Per-lesson calendar link + `.ics` builder (Asia/Singapore). |
+| `src/googleSheets.ts` | GIS token flow + Sheets API v4 create/write. |
+| `src/settings.ts` | localStorage settings model + `useSettings` hook. |
+| `src/pages/` | `TimetablePage` (form + views + exports), `SettingsPage`. |
+| `src/views/` | `ListView`, `AgendaView`, `MonthView`. |
+| `src/App.tsx` | Router shell: header, nav, routes. |
+
+## Google integration notes
+
+- **Google Sheets / OAuth**: create a Google Cloud project with the Sheets API
+  enabled and a Web-application OAuth client ID whose Authorised JavaScript
+  origin equals the Codespace forwarded URL (these can change per session — pin
+  the port or update the origin). Without a client ID, use CSV and import it
+  into Sheets manually.
+- **ERPNext CORS**: the app calls ERPNext directly with an
+  `Authorization: token <key>:<secret>` header, so the Frappe site must allow
+  this origin (`allow_cors` in `site_config.json`). A Vite dev-proxy alternative
+  is documented in `vite.config.ts`, but its target is static at config time.
 
 ## Known limitation: Excel export
 
@@ -67,6 +95,7 @@ is installable, wire up `exportExcel` (`aoa_to_sheet`, sized columns, sheet
 
 ## Out of scope (structured to slot in later)
 
-Drag-and-drop editing, calendar/monthly view, SG holiday auto-fetch, Google
-Calendar export, Excel import, colour-coded groups, approval workflow, and live
-clash detection (`detectClashes` / `generateMultiGroupSchedule` are typed stubs).
+Multi-group dashboard, live clash detection (`detectClashes` /
+`generateMultiGroupSchedule` are typed stubs), OAuth Calendar `events.insert`
+(a TODO in `src/googleCalendar.ts`), drag-and-drop editing, SG holiday
+auto-fetch, Excel import, and colour-coded groups.

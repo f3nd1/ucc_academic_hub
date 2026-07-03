@@ -19,6 +19,32 @@
   color: var(--muted);
 }
 
+/* Top navigation */
+.nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.nav a {
+  text-decoration: none;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.nav a:hover {
+  color: var(--ink);
+}
+
+.nav a.active {
+  color: #fff;
+  background: var(--accent);
+}
+
 /* Two-column layout: setup + holidays on the left, preview + exports right. */
 .layout {
   display: grid;
@@ -289,4 +315,224 @@ tbody tr:nth-child(even) {
   color: var(--muted);
   padding: 2rem 0;
   text-align: center;
+}
+
+/* Setup header actions (Import / Load demo) */
+.setup-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Banners (import / sheets / settings test / security note) */
+.banner {
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+  border: 1px solid var(--border);
+}
+
+.banner--warn {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-ink);
+}
+
+.banner--ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-ink);
+}
+
+.banner--error {
+  background: var(--error-bg);
+  border-color: var(--error-border);
+  color: var(--error-ink);
+}
+
+/* View switcher */
+.view-switch {
+  margin-bottom: 1rem;
+}
+
+.cal-link {
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cal-link:hover {
+  text-decoration: underline;
+}
+
+/* Agenda view */
+.agenda__group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.agenda__date {
+  background: var(--summary-bg);
+  padding: 0.5rem 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.agenda__weekday {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.agenda__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.agenda__item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.55rem 0.8rem;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.agenda__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  font-weight: 600;
+  min-width: 96px;
+}
+
+.agenda__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 140px;
+}
+
+.agenda__meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* Month view */
+.month__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.month__title {
+  font-weight: 600;
+}
+
+.month__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.month__weekday {
+  background: var(--summary-bg);
+  padding: 0.4rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.month__cell {
+  background: var(--panel);
+  min-height: 92px;
+  padding: 0.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.month__cell--out {
+  background: var(--disabled-bg);
+}
+
+.month__cell--out .month__daynum {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.month__daynum {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.month__lesson {
+  display: flex;
+  flex-direction: column;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 5px;
+  padding: 0.25rem 0.35rem;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  text-decoration: none;
+}
+
+.month__lesson-name {
+  font-weight: 700;
+}
+
+.month__lesson-meta {
+  opacity: 0.92;
+}
+
+/* Settings page */
+.settings h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.75rem;
+}
+
+.settings__subhead {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.settings__saved {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 1rem;
+}
+
+.field__help {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0.35rem 0 0;
+  line-height: 1.4;
+}
+
+.radio-row {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  cursor: pointer;
 }
