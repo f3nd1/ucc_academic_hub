@@ -258,3 +258,113 @@ describe('detectConflicts', () => {
     expect(scan.lessons.filter((l) => l.kind === 'AL').every((l) => !l.conflicts)).toBe(true);
   });
 });
+
+describe('shiftModuleLater', () => {
+  const seriesLessons = () =>
+    generateCourseSchedule(
+      course({ deliveryMode: 'series', modules: [mod({ totalLessons: 8 })] }),
+      NO_HOLIDAYS,
+    );
+
+  it('moves every lesson N valid days later, consuming AL buffer', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    const before = seriesLessons();
+    const beforeDates = before.filter((l) => l.kind === 'lesson').map((l) => l.date);
+    const result = shiftModuleLater(before, 'm1', 1, NO_HOLIDAYS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = result.lessons.filter((l) => l.kind === 'lesson');
+    expect(after).toHaveLength(8);
+    // First lesson moved off 01 July to the next valid day.
+    expect(beforeDates[0]).toBe('2026-07-01');
+    expect(after[0].date).toBe('2026-07-02');
+    // Numbering and labels stick to the lessons, not the dates.
+    expect(after.map((l) => l.lessonNo)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    // The window stays fully covered: every valid July day is lesson or AL.
+    const dates = new Set(result.lessons.map((l) => l.date));
+    for (const d of validTeachingDaysOfMonth(2026, 6, NO_HOLIDAYS)) {
+      expect(dates.has(formatDate(d))).toBe(true);
+    }
+    // Total AL count is unchanged (buffer consumed at the front, freed behind).
+    expect(result.lessons.filter((l) => l.kind === 'AL')).toHaveLength(15);
+  });
+
+  it('shift steps skip weekends and holidays', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    const holidays: HolidaySet = {
+      uccHolidays: [],
+      publicHolidays: [{ date: '2026-07-02', name: 'PH' }],
+    };
+    const lessons = generateCourseSchedule(
+      course({ deliveryMode: 'series', modules: [mod({ totalLessons: 8 })] }),
+      holidays,
+    );
+    const result = shiftModuleLater(lessons, 'm1', 1, holidays);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // 01 July + 1 valid day skips the PH on the 2nd → lands on the 3rd.
+    expect(result.lessons.filter((l) => l.kind === 'lesson')[0].date).toBe('2026-07-03');
+  });
+
+  it('blocks a shift past the end-of-module deadline, naming it', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    // A module that fills EVERY valid day of July has no slack at all.
+    const lessons = generateCourseSchedule(
+      course({ deliveryMode: 'series', modules: [mod({ totalLessons: 23 })] }),
+      NO_HOLIDAYS,
+    );
+    const result = shiftModuleLater(lessons, 'm1', 1, NO_HOLIDAYS);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('Module One');
+    expect(result.message).toContain('31 July 2026'); // deadline, DD MMMM YYYY
+  });
+
+  it('repeated shifts eventually hit the deadline and stop applying', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    // 22 lessons in a 23-day month: exactly one AL day of slack.
+    let lessons = generateCourseSchedule(
+      course({ deliveryMode: 'series', modules: [mod({ totalLessons: 22 })] }),
+      NO_HOLIDAYS,
+    );
+    const first = shiftModuleLater(lessons, 'm1', 1, NO_HOLIDAYS);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    lessons = first.lessons;
+    const second = shiftModuleLater(lessons, 'm1', 1, NO_HOLIDAYS);
+    expect(second.ok).toBe(false);
+  });
+
+  it('shifts parallel blocks too (no AL to rebuild)', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    const lessons = generateCourseSchedule(
+      course({ deliveryMode: 'parallel', modules: [mod({ totalLessons: 5 })] }),
+      NO_HOLIDAYS,
+    );
+    const result = shiftModuleLater(lessons, 'm1', 2, NO_HOLIDAYS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.lessons.filter((l) => l.kind === 'AL')).toHaveLength(0);
+    expect(result.lessons[0].date).toBe('2026-07-03'); // 01 Jul + 2 valid days
+  });
+
+  it('only the target module moves', async () => {
+    const { shiftModuleLater } = await import('../src/courseEngine');
+    const lessons = generateCourseSchedule(
+      course({
+        deliveryMode: 'series',
+        modules: [
+          mod({ id: 'a', name: 'A', totalLessons: 8 }),
+          mod({ id: 'b', name: 'B', totalLessons: 8 }),
+        ],
+      }),
+      NO_HOLIDAYS,
+    );
+    const bBefore = lessons.filter((l) => l.moduleId === 'b').map((l) => l.date);
+    const result = shiftModuleLater(lessons, 'a', 1, NO_HOLIDAYS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const bAfter = result.lessons.filter((l) => l.moduleId === 'b').map((l) => l.date);
+    expect(bAfter).toEqual(bBefore);
+  });
+});

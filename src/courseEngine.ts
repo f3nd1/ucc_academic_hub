@@ -6,7 +6,14 @@ import type {
   ScheduledLesson,
 } from './types';
 import { AL_LABEL } from './constants';
-import { formatDate, dayName, isWeekend, parseMonth } from './dateUtils';
+import {
+  formatDate,
+  formatDisplayDate,
+  parseLocal,
+  dayName,
+  isWeekend,
+  parseMonth,
+} from './dateUtils';
 
 // Course scheduling engine (v5). Modules start month-anchored: on the 1st of
 // their start month, or the next valid teaching day when the 1st is blocked.
@@ -112,13 +119,21 @@ export const sortLessons = (lessons: ScheduledLesson[]): ScheduledLesson[] =>
       a.moduleId.localeCompare(b.moduleId),
   );
 
-/** Even-interval selection of `take` days across a month's valid days. */
+/**
+ * Even selection of `take` days across a month's valid days, anchored at the
+ * month's first teaching day: index i = floor(i * n / take).
+ *
+ * Deliberately floor-strided rather than end-anchored: spacing stays roughly
+ * equal, but the LAST lesson lands before the month's final valid day whenever
+ * take < n, leaving trailing AL buffer. The module-shift feature depends on
+ * that slack — an end-anchored spread would put every module's last lesson on
+ * its deadline and make every shift impossible.
+ */
 function evenPick(validDays: Date[], take: number): Date[] {
   if (take >= validDays.length) return [...validDays];
-  if (take === 1) return [validDays[0]];
-  const interval = (validDays.length - 1) / (take - 1);
+  const n = validDays.length;
   const picked: Date[] = [];
-  for (let i = 0; i < take; i++) picked.push(validDays[Math.round(i * interval)]);
+  for (let i = 0; i < take; i++) picked.push(validDays[Math.floor((i * n) / take)]);
   return picked;
 }
 
@@ -321,4 +336,101 @@ export function detectConflicts(lessons: ScheduledLesson[]): ConflictScan {
     }),
     conflicts,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Module shift (requirement 5): move a module later by whole valid teaching
+// days, consuming its AL buffer, without passing its end-of-month deadline.
+// ---------------------------------------------------------------------------
+
+export type ShiftResult =
+  | { ok: true; lessons: ScheduledLesson[] }
+  | { ok: false; message: string };
+
+/** Advance an ISO date by `steps` valid teaching days. */
+function advanceValidDays(iso: string, steps: number, blocked: Set<string>): Date {
+  const d = parseLocal(iso);
+  let left = steps;
+  while (left > 0) {
+    d.setDate(d.getDate() + 1);
+    if (isValidTeachingDay(d, blocked)) left--;
+  }
+  return d;
+}
+
+/**
+ * Shift every lesson of `moduleId` to the valid teaching day `days` steps
+ * later. The module's window (the months it currently occupies, lessons + AL)
+ * is FIXED: its last lesson must stay on or before the last valid teaching
+ * day of its final month — the end-of-module deadline. A shift that would
+ * pass the deadline is rejected with a warning instead of applied.
+ *
+ * In series mode the vacated days become AL and consumed AL days become
+ * lessons (the AL fill is rebuilt across the window). Callers re-run
+ * detectConflicts on the returned list.
+ */
+export function shiftModuleLater(
+  lessons: ScheduledLesson[],
+  moduleId: string,
+  days: 1 | 2,
+  holidays: HolidaySet,
+): ShiftResult {
+  const blocked = holidayDates(holidays);
+  const moduleEntries = lessons.filter((l) => l.moduleId === moduleId);
+  const real = moduleEntries.filter((l) => l.kind === 'lesson');
+  if (real.length === 0)
+    return { ok: false, message: 'That module has no lessons to shift.' };
+
+  const moduleName = real[0].moduleName;
+  const hadAl = moduleEntries.some((l) => l.kind === 'AL');
+
+  // Window months are fixed by the current occupancy (lessons + AL).
+  const windowMonths = [...new Set(moduleEntries.map((l) => l.date.slice(0, 7)))].sort();
+  const lastMonth = windowMonths[windowMonths.length - 1];
+  const { year, month } = parseMonth(lastMonth);
+  const monthDays = validTeachingDaysOfMonth(year, month, holidays);
+  const deadline = monthDays.length > 0
+    ? formatDate(monthDays[monthDays.length - 1])
+    : lastMonth + '-01';
+
+  // Move every lesson the same number of valid-day steps (order preserved).
+  const moved = real.map((l) => ({
+    lesson: l,
+    newDate: advanceValidDays(l.date, days, blocked),
+  }));
+  const lastNew = formatDate(moved[moved.length - 1].newDate);
+  if (lastNew > deadline) {
+    return {
+      ok: false,
+      message:
+        `Cannot shift "${moduleName}" by ${days} day(s): its last lesson would ` +
+        `land after the module deadline of ${formatDisplayDate(deadline)}.`,
+    };
+  }
+
+  const shifted: ScheduledLesson[] = moved.map(({ lesson, newDate }) => ({
+    ...lesson,
+    date: formatDate(newDate),
+    day: dayName(newDate),
+    conflicts: undefined, // re-scanned by the caller
+  }));
+
+  // Rebuild the AL fill across the fixed window (series mode only).
+  const rebuilt: ScheduledLesson[] = [...shifted];
+  if (hadAl) {
+    const lessonDates = new Set(shifted.map((l) => l.date));
+    const template = moduleEntries.find((l) => l.kind === 'AL')!;
+    for (const ym of windowMonths) {
+      const { year: y, month: m } = parseMonth(ym);
+      for (const d of validTeachingDaysOfMonth(y, m, holidays)) {
+        const iso = formatDate(d);
+        if (!lessonDates.has(iso)) {
+          rebuilt.push({ ...template, date: iso, day: dayName(d) });
+        }
+      }
+    }
+  }
+
+  const others = lessons.filter((l) => l.moduleId !== moduleId);
+  return { ok: true, lessons: sortLessons([...others, ...rebuilt]) };
 }

@@ -9,7 +9,11 @@ import {
   type CourseForm,
   type ModuleForm,
 } from '../formModel';
-import { generateCourseSchedule, detectConflicts } from '../courseEngine';
+import {
+  generateCourseSchedule,
+  detectConflicts,
+  shiftModuleLater,
+} from '../courseEngine';
 import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
@@ -207,6 +211,27 @@ export function TimetablePage() {
     setBusy(false);
   };
 
+  // Shift a module later by 1|2 valid teaching days (consumes AL buffer in
+  // series mode). Rejected with a warning when it would pass the module's
+  // end-of-month deadline; conflicts re-scan after every applied shift.
+  const handleShift = (moduleId: string, days: 1 | 2) => {
+    if (!lessons || !holidays) return;
+    setBanner(null);
+    const result = shiftModuleLater(lessons, moduleId, days, holidays);
+    if (!result.ok) {
+      setBanner({ ok: false, message: result.message });
+      return;
+    }
+    const scanned = detectConflicts(result.lessons);
+    setLessons(scanned.lessons);
+    setConflicts(scanned.conflicts);
+    const name = course?.modules.find((m) => m.id === moduleId)?.name ?? 'Module';
+    setBanner({
+      ok: true,
+      message: `${name} shifted ${days} teaching day${days > 1 ? 's' : ''} later.`,
+    });
+  };
+
   const guardedExport = (fn: () => void) => {
     if (!lessons || lessons.length === 0 || !course) {
       setMessages([EXPORT_EMPTY_MESSAGE]);
@@ -392,6 +417,48 @@ export function TimetablePage() {
             <span>
               Last <strong>{summary.last}</strong>
             </span>
+          </div>
+        )}
+
+        {hasLessons && course && (
+          <div className="modules-panel" data-tour="shift">
+            <p className="modules-panel__title">Modules</p>
+            {course.modules.map((m) => {
+              const modLessons = (lessons ?? []).filter(
+                (l) => l.moduleId === m.id && l.kind === 'lesson',
+              );
+              if (modLessons.length === 0) return null;
+              const first = formatDisplayDate(modLessons[0].date);
+              const last = formatDisplayDate(
+                modLessons[modLessons.length - 1].date,
+              );
+              return (
+                <div className="modules-panel__row" key={m.id}>
+                  <span>
+                    <strong>{m.name}</strong>{' '}
+                    <span className="modules-panel__meta">
+                      {modLessons.length} lessons · {first} – {last}
+                    </span>
+                  </span>
+                  <span className="modules-panel__actions">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleShift(m.id, 1)}
+                    >
+                      Shift +1 day
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => handleShift(m.id, 2)}
+                    >
+                      +2 days
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
 
