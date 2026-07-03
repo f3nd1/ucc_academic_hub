@@ -3,16 +3,22 @@ import {
   EMPTY_FORM,
   parseLines,
   parseAlignedLines,
-  parseHolidayLine,
-  parseNamedHolidays,
+  holidayRowInvalid,
   validateDetails,
   validateRules,
   validateForm,
   buildCourse,
   buildHolidays,
   type CourseForm,
+  type HolidayRow,
   type ModuleForm,
 } from '../src/formModel';
+
+const row = (date: string, name = '', id = `r-${date || 'blank'}-${name}`): HolidayRow => ({
+  id,
+  date,
+  name,
+});
 
 const VALID_MODULE: ModuleForm = {
   id: 'm1',
@@ -52,27 +58,14 @@ describe('parseLines / parseAlignedLines', () => {
   });
 });
 
-describe('parseHolidayLine / parseNamedHolidays', () => {
-  it('date only', () => {
-    expect(parseHolidayLine('2026-08-09')).toEqual({ date: '2026-08-09' });
+describe('holidayRowInvalid', () => {
+  it('a real date is valid; blank rows are never invalid', () => {
+    expect(holidayRowInvalid(row('2026-08-09'))).toBe(false);
+    expect(holidayRowInvalid(row(''))).toBe(false);
   });
-  it('date with name', () => {
-    expect(parseHolidayLine('2026-08-09, National Day')).toEqual({
-      date: '2026-08-09',
-      name: 'National Day',
-    });
-  });
-  it('only the first comma splits; the name may contain commas', () => {
-    expect(parseHolidayLine('2026-12-25, Christmas, observed')).toEqual({
-      date: '2026-12-25',
-      name: 'Christmas, observed',
-    });
-  });
-  it('parses a textarea of mixed lines', () => {
-    expect(parseNamedHolidays('2026-08-09, National Day\n2026-12-25')).toEqual([
-      { date: '2026-08-09', name: 'National Day' },
-      { date: '2026-12-25' },
-    ]);
+  it('rollover and malformed dates are invalid', () => {
+    expect(holidayRowInvalid(row('2026-02-30'))).toBe(true);
+    expect(holidayRowInvalid(row('not-a-date'))).toBe(true);
   });
 });
 
@@ -121,22 +114,23 @@ describe('validateDetails (course + modules)', () => {
   });
 });
 
-describe('validateRules', () => {
-  it('accepts named and unnamed holidays', () => {
+describe('validateRules (holiday tables)', () => {
+  it('accepts named, unnamed, and blank rows', () => {
     expect(
       validateRules({
         ...VALID,
-        uccHolidaysRaw: '2026-09-01, Term Break',
-        publicHolidaysRaw: '2026-08-09',
+        uccHolidays: [row('2026-09-01', 'Term Break'), row('')],
+        publicHolidays: [row('2026-08-09')],
       }),
     ).toEqual([]);
   });
-  it('rejects a badly-shaped date, naming the line', () => {
-    const errs = validateRules({ ...VALID, uccHolidaysRaw: 'Sept 1' });
-    expect(errs[0]).toContain('"Sept 1"');
-  });
-  it('rejects a rollover date that matches the shape', () => {
-    const errs = validateRules({ ...VALID, publicHolidaysRaw: '2026-02-30' });
+  it('flags a rollover date naming its row', () => {
+    const errs = validateRules({
+      ...VALID,
+      publicHolidays: [row('2026-08-09'), row('2026-02-30')],
+    });
+    expect(errs).toHaveLength(1);
+    expect(errs[0]).toContain('row 2');
     expect(errs[0]).toContain('not a real calendar date');
   });
 });
@@ -164,18 +158,23 @@ describe('buildCourse', () => {
 });
 
 describe('buildHolidays / validateForm', () => {
-  it('builds named holiday sets', () => {
+  it('builds the same NamedHoliday[] shape as before, skipping blank rows', () => {
     const h = buildHolidays({
       ...VALID,
-      publicHolidaysRaw: '2026-08-09, National Day',
+      publicHolidays: [
+        row('2026-08-09', 'National Day'),
+        row(''), // blank row is ignored
+        row('2026-12-25'),
+      ],
     });
     expect(h.publicHolidays).toEqual([
       { date: '2026-08-09', name: 'National Day' },
+      { date: '2026-12-25' },
     ]);
   });
   it('validateForm combines details and rules', () => {
     const errs = validateForm(
-      { ...VALID, courseName: '', uccHolidaysRaw: 'bad' },
+      { ...VALID, courseName: '', uccHolidays: [row('2026-02-30')] },
       'Course name',
     );
     expect(errs.length).toBe(2);

@@ -11,7 +11,6 @@ import {
   WIZARD_STEPS,
   validateStep,
   primaryNameLabel,
-  parseLinesCount,
   type WizardState,
   type Intent,
   type Scope,
@@ -271,8 +270,8 @@ export function Wizard({
               </dd>
               <dt>Holidays</dt>
               <dd>
-                {parseLinesCount(state.form.uccHolidaysRaw)} school ·{' '}
-                {parseLinesCount(state.form.publicHolidaysRaw)} public
+                {state.form.uccHolidays.filter((r) => r.date).length} school ·{' '}
+                {state.form.publicHolidays.filter((r) => r.date).length} public
               </dd>
               <dt>Week starts</dt>
               <dd>

@@ -1150,3 +1150,77 @@ select {
   display: flex;
   gap: 0.4rem;
 }
+
+/* Holiday table editor (v6) */
+.holiday-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  background: var(--input-bg);
+}
+
+.holiday-table__head,
+.holiday-table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 34px;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.holiday-table__head {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 0.1rem;
+}
+
+.holiday-table__datecell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.holiday-table__display {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.holiday-table input {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.45rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.holiday-table input.input--invalid {
+  border-color: var(--error-ink);
+  box-shadow: 0 0 0 2px var(--error-border);
+}
+
+.holiday-table__remove {
+  padding: 0.25rem 0;
+  width: 34px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--error-ink);
+}
+
+.holiday-table__error {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  color: var(--error-ink);
+}
+
+.holiday-table__add {
+  align-self: flex-start;
+}

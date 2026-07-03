@@ -5,11 +5,7 @@ import type {
   Module,
   NamedHoliday,
 } from './types';
-import {
-  DATE_PATTERN,
-  isValidIsoDate,
-  isValidIsoMonth,
-} from './dateUtils';
+import { isValidIsoDate, isValidIsoMonth } from './dateUtils';
 import { CLASS_GROUP_LABEL } from './constants';
 
 /** Raw per-module form state — every field a string off the inputs. */
@@ -26,15 +22,30 @@ export interface ModuleForm {
   endTime: string;
 }
 
+/** One row of a holiday table: date from a date picker, optional name. */
+export interface HolidayRow {
+  id: string;
+  date: string; // YYYY-MM-DD (ISO) or '' for a blank row
+  name: string;
+}
+
 /** Raw course form state: course-level fields plus one or more modules. */
 export interface CourseForm {
   courseName: string;
   startMonth: string; // YYYY-MM
   deliveryMode: DeliveryMode;
   modules: ModuleForm[];
-  uccHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
-  publicHolidaysRaw: string; // one per line
+  uccHolidays: HolidayRow[];
+  publicHolidays: HolidayRow[];
 }
+
+let rowSeq = 0;
+/** Fresh blank holiday-table row with a unique id. */
+export const emptyHolidayRow = (): HolidayRow => ({
+  id: `hol-${++rowSeq}-${Math.random().toString(36).slice(2, 7)}`,
+  date: '',
+  name: '',
+});
 
 let moduleSeq = 0;
 /** Fresh empty module row with a unique id. */
@@ -69,8 +80,8 @@ export const EMPTY_FORM: CourseForm = {
       endTime: '',
     },
   ],
-  uccHolidaysRaw: '',
-  publicHolidaysRaw: '',
+  uccHolidays: [],
+  publicHolidays: [],
 };
 
 // Demo course: two modules sharing a class group and classroom. Series mode
@@ -113,8 +124,11 @@ export const DEMO_FORM: CourseForm = {
       endTime: '10:30',
     },
   ],
-  uccHolidaysRaw: '2026-09-01, Term Break',
-  publicHolidaysRaw: ['2026-08-09, National Day', '2026-12-25, Christmas'].join('\n'),
+  uccHolidays: [{ id: 'hol-demo-1', date: '2026-09-01', name: 'Term Break' }],
+  publicHolidays: [
+    { id: 'hol-demo-2', date: '2026-08-09', name: 'National Day' },
+    { id: 'hol-demo-3', date: '2026-12-25', name: 'Christmas' },
+  ],
 };
 
 /** Split a textarea into trimmed, non-empty lines. */
@@ -135,22 +149,6 @@ export const parseAlignedLines = (raw: string): string[] => {
   while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   return lines;
 };
-
-/**
- * Parse one holiday line into { date, name }. Accepts "YYYY-MM-DD" or
- * "YYYY-MM-DD, name" (only the first comma splits date from name).
- */
-export function parseHolidayLine(line: string): NamedHoliday {
-  const comma = line.indexOf(',');
-  if (comma === -1) return { date: line.trim() };
-  const date = line.slice(0, comma).trim();
-  const name = line.slice(comma + 1).trim();
-  return name ? { date, name } : { date };
-}
-
-/** Parse a holiday textarea into NamedHoliday[]. */
-export const parseNamedHolidays = (raw: string): NamedHoliday[] =>
-  parseLines(raw).map(parseHolidayLine);
 
 /**
  * Validate the "details" inputs (course + modules; holidays live in rules).
@@ -200,25 +198,30 @@ export function validateDetails(
   return errors;
 }
 
-/** Validate the "calendar rules" inputs (holiday date formats). */
+/**
+ * A holiday-table row is invalid only when it HAS a date that is not a real
+ * calendar day (round-trip check catches 2026-02-30 rollover). Blank rows are
+ * ignored everywhere. The same predicate drives per-row inline errors in the
+ * table editor and the step-gate messages below.
+ */
+export const holidayRowInvalid = (row: HolidayRow): boolean =>
+  row.date.trim() !== '' && !isValidIsoDate(row.date.trim());
+
+/** Validate the "calendar rules" inputs (holiday tables). */
 export function validateRules(form: CourseForm): string[] {
   const errors: string[] = [];
-  // Validate the DATE PART only; an optional ", name" may follow. Two tiers:
-  // shape (YYYY-MM-DD) and reality (no 2026-02-30 rollover).
-  for (const line of parseLines(form.uccHolidaysRaw)) {
-    const { date } = parseHolidayLine(line);
-    if (!DATE_PATTERN.test(date))
-      errors.push(`UCC holiday "${line}" must start with a YYYY-MM-DD date.`);
-    else if (!isValidIsoDate(date))
-      errors.push(`UCC holiday "${line}" is not a real calendar date.`);
-  }
-  for (const line of parseLines(form.publicHolidaysRaw)) {
-    const { date } = parseHolidayLine(line);
-    if (!DATE_PATTERN.test(date))
-      errors.push(`Public holiday "${line}" must start with a YYYY-MM-DD date.`);
-    else if (!isValidIsoDate(date))
-      errors.push(`Public holiday "${line}" is not a real calendar date.`);
-  }
+  form.uccHolidays.forEach((row, i) => {
+    if (holidayRowInvalid(row))
+      errors.push(
+        `UCC holiday row ${i + 1} ("${row.date}") is not a real calendar date.`,
+      );
+  });
+  form.publicHolidays.forEach((row, i) => {
+    if (holidayRowInvalid(row))
+      errors.push(
+        `Public holiday row ${i + 1} ("${row.date}") is not a real calendar date.`,
+      );
+  });
   return errors;
 }
 
@@ -259,10 +262,18 @@ export function buildCourse(form: CourseForm): Course {
   };
 }
 
-/** Build a HolidaySet (named) from a validated form. */
+/** Rows with a date become NamedHoliday entries; blank rows are ignored. */
+const rowsToHolidays = (rows: HolidayRow[]): NamedHoliday[] =>
+  rows
+    .filter((r) => r.date.trim() !== '')
+    .map((r) =>
+      r.name.trim() ? { date: r.date.trim(), name: r.name.trim() } : { date: r.date.trim() },
+    );
+
+/** Build a HolidaySet (named) from a validated form — same shape as v3-v5. */
 export function buildHolidays(form: CourseForm): HolidaySet {
   return {
-    uccHolidays: parseNamedHolidays(form.uccHolidaysRaw),
-    publicHolidays: parseNamedHolidays(form.publicHolidaysRaw),
+    uccHolidays: rowsToHolidays(form.uccHolidays),
+    publicHolidays: rowsToHolidays(form.publicHolidays),
   };
 }

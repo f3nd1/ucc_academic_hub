@@ -35,8 +35,8 @@ export const TOOLTIPS: Record<string, string> = {
 
 /** Muted inline hints under complex fields, keyed by field id. */
 export const HINTS: Record<string, string> = {
-  uccHolidays: 'Format: "2026-09-01" or "2026-09-01, Term Break".',
-  publicHolidays: 'Format: "2026-08-09, National Day" — the name shows in the planner.',
+  uccHolidays: 'Days the school is closed are skipped when scheduling.',
+  publicHolidays: 'The name (e.g. National Day) shows in the Hybrid planner.',
   activities: 'Paired to lesson names by position: line 1 ↔ lesson 1, and so on.',
   lessonNames: 'One per line. Labels repeat if there are more lessons than labels.',
   deliveryMode: 'Series = one module after another with AL fill; Parallel = all at once.',

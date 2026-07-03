@@ -1,6 +1,5 @@
 import {
   EMPTY_FORM,
-  parseLines,
   validateDetails,
   validateRules,
   type CourseForm,
@@ -28,9 +27,6 @@ export const primaryNameLabel = (scope: Scope): string =>
 export const scopeTitleLabel = (scope: Scope): string =>
   SCOPE_LABELS[scope].title;
 
-/** Count of non-empty lines (for the review summary). */
-export const parseLinesCount = (raw: string): number => parseLines(raw).length;
-
 export const makeInitialWizard = (
   firstDayOfWeek: FirstDayOfWeek,
 ): WizardState => ({
@@ -44,7 +40,7 @@ export const makeInitialWizard = (
 // Key bumped for the v5 course-shaped form: merging an old flat RawForm into
 // the new CourseForm shape would produce a broken hybrid, so stale state from
 // the previous key is deliberately ignored.
-const STATE_KEY = 'ucc-wizard-state-v5';
+const STATE_KEY = 'ucc-wizard-state-v6';
 
 export function loadWizard(fallbackFdow: FirstDayOfWeek): WizardState {
   try {
