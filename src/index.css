@@ -78,9 +78,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Classic — dark colour scheme (only Classic follows data-mode; the other
-   skins pin their own fixed palette, documented in their blocks). */
-:root[data-mode='dark'] {
+/* Classic — dark colour scheme. Only Classic (or an unset skin) follows
+   data-mode; Retro LCD and Y2K Pop pin their own fixed palettes and ignore
+   light/dark, so they are excluded here. */
+:root[data-mode='dark']:not([data-theme='retro-lcd']):not([data-theme='y2k-pop']) {
   --ink: #e2e8f0;
   --muted: #94a3b8;
   --bg: #0b1120;
@@ -112,6 +113,116 @@
   --card-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;
+}
+
+/* ============================================================= RETRO LCD ===
+   Monochrome olive/green duotone. PINS ITS OWN PALETTE — ignores data-mode
+   (light/dark) entirely so the LCD look is identical in both. Dark-green ink
+   and icons sit on lighter-green surfaces; every data cell keeps a high
+   contrast ratio. Condensed all-caps labels; a subtle scan-line texture is on
+   the page background only (panels have their own solid fill, so it never sits
+   behind tables). */
+:root[data-theme='retro-lcd'] {
+  --ink: #17240d;
+  --muted: #465231;
+  --bg: #a7b57e;
+  --panel: #cdd6ab;
+  --border: #7c8a54;
+  --input-bg: #d9e0bb;
+  --disabled-bg: #b9c393;
+  --row-alt: #c5cf9f;
+  --summary-bg: #c5cf9f;
+  --accent: #2f3d18;
+  --accent-ring: rgba(47, 61, 24, 0.28);
+  --on-accent: #d9e0bb;
+  --th-bg: #2a3714;
+  --th-ink: #d9e0bb;
+
+  /* Status banners: kept low-saturation but tinted enough to read. */
+  --error-bg: #d8c8a0;
+  --error-border: #96702f;
+  --error-ink: #5a3410;
+  --warn-bg: #d9d29c;
+  --warn-border: #8f8433;
+  --warn-ink: #4b4410;
+  --ok-bg: #c3d29a;
+  --ok-border: #6d8a37;
+  --ok-ink: #2c3f12;
+
+  --radius: 2px;
+  --radius-lg: 3px;
+  --radius-pill: 3px;
+  --card-border-width: 2px;
+  --card-shadow: none;
+  --card-shadow-hover: 3px 3px 0 #7c8a54;
+
+  --font-heading: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
+  --label-transform: uppercase;
+  --label-spacing: 0.07em;
+
+  /* LCD scan lines on the page background only. */
+  --page-texture: repeating-linear-gradient(
+    0deg,
+    rgba(23, 36, 13, 0.06) 0,
+    rgba(23, 36, 13, 0.06) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+
+  color-scheme: light;
+}
+
+/* ============================================================== Y2K POP ===
+   Maximalist retro-pop: saturated pink/teal/mustard/cream with heavy black
+   outlines and a playful display font for HEADINGS ONLY. PINS ITS OWN PALETTE
+   — ignores data-mode. Data cells are near-black ink on white/cream (high
+   contrast); the table header is a solid black bar with white text. Decorative
+   motifs live on Home and empty states only (see App.css), never in tables. */
+:root[data-theme='y2k-pop'] {
+  --ink: #16110f;
+  --muted: #6b5a4f;
+  --bg: #fff0e6;
+  --panel: #ffffff;
+  --border: #141414;
+  --input-bg: #ffffff;
+  --disabled-bg: #efe4d9;
+  --row-alt: #fff5ee;
+  --summary-bg: #ffe7d0;
+  --accent: #ff2f8e;
+  --accent-ring: rgba(255, 47, 142, 0.28);
+  --on-accent: #ffffff;
+  --th-bg: #141414;
+  --th-ink: #ffffff;
+
+  --error-bg: #ffdede;
+  --error-border: #141414;
+  --error-ink: #b3001b;
+  --warn-bg: #fff0bf;
+  --warn-border: #141414;
+  --warn-ink: #7a5600;
+  --ok-bg: #ccf2e3;
+  --ok-border: #141414;
+  --ok-ink: #0b6e4f;
+
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --card-border-width: 2.5px;
+  --card-shadow: 4px 4px 0 #141414;
+  --card-shadow-hover: 6px 6px 0 #141414;
+
+  --font-heading: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+  --label-transform: none;
+  --label-spacing: normal;
+
+  /* Decorative accent hues used by Home/empty-state motifs (App.css). */
+  --pop-pink: #ff2f8e;
+  --pop-teal: #14b3ad;
+  --pop-mustard: #f7b500;
+  --pop-cream: #fff0e6;
+  --page-texture: none;
+
+  color-scheme: light;
 }
 
 * {
