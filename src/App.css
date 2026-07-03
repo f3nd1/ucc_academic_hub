@@ -1532,3 +1532,180 @@ a.tool-card:hover {
     padding: 1.25rem 1rem 3rem;
   }
 }
+
+/* ==================================================================
+   Review planner tool
+   ================================================================== */
+.rvp__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.rvp__head h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.3rem;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.rvp__sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: 46rem;
+}
+
+.rvp__section {
+  margin-bottom: 1.25rem;
+}
+
+.rvp__section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+}
+
+.rvp__section-head h2 {
+  margin: 0;
+}
+
+.rvp__add {
+  margin-top: 0.85rem;
+}
+
+/* Editable data tables */
+.rv-table {
+  min-width: 640px;
+}
+
+.rv-table thead th {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.rv-table tbody td {
+  vertical-align: top;
+  padding: 0.4rem 0.5rem;
+  white-space: normal;
+}
+
+.rv-table tbody tr:nth-child(even) {
+  background: transparent;
+}
+
+.rv-input {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  width: 100%;
+  min-width: 7rem;
+  box-sizing: border-box;
+}
+
+.rv-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.rv-input:disabled {
+  background: var(--disabled-bg);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.rv-input--num {
+  min-width: 4.5rem;
+  max-width: 6rem;
+}
+
+.rv-input.input--invalid {
+  border-color: var(--error-ink);
+  box-shadow: 0 0 0 2px var(--error-border);
+}
+
+.rv-datecell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 8.5rem;
+}
+
+.rv-datecell__display {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.rv-auto {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.rv-computed {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: var(--summary-bg);
+  border: 1px dashed var(--border);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.rv-computed__blank {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.rv-del {
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--error-ink);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+}
+
+.rv-del:hover {
+  border-color: var(--error-ink);
+}
+
+.rv-errrow td {
+  background: var(--error-bg);
+  padding-top: 0 !important;
+}
+
+.rv-errrow ul {
+  margin: 0.2rem 0 0.4rem;
+  padding-left: 1.1rem;
+}
+
+.rv-errrow li {
+  color: var(--error-ink);
+  font-size: 0.78rem;
+}
+
+.rv-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 1.5rem 0 !important;
+}

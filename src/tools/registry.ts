@@ -34,4 +34,15 @@ const timetable: ToolDef = {
   component: lazy(() => import('./timetable/TimetablePage')),
 };
 
-export const TOOLS: ToolDef[] = [timetable];
+const reviewPlanner: ToolDef = {
+  id: 'reviewPlanner',
+  name: 'Module & Course Review',
+  description:
+    'Track planned vs actual start dates. Module, per-cycle, and scheduled review dates calculate themselves and stay in sync as you edit.',
+  icon: 'clipboard-check',
+  path: '/review-planner',
+  status: 'new',
+  component: lazy(() => import('./review-planner/ReviewPlannerPage')),
+};
+
+export const TOOLS: ToolDef[] = [timetable, reviewPlanner];
