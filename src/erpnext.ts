@@ -1,29 +1,6 @@
 import type { AppSettings } from './settings';
 import { EMPTY_FORM, type CourseForm } from './formModel';
-
-// ---------------------------------------------------------------------------
-// FIELD MAPPING — adjust these to the real ERPNext DocType schema.
-// Keys are the app's fields; values are the ERPNext fieldnames to read from.
-// ---------------------------------------------------------------------------
-export const ERPNEXT_FIELD_MAP = {
-  courseName: 'course_name', // TODO confirm against DocType
-  classGroup: 'class_group',
-  teacher: 'teacher',
-  classroom: 'classroom',
-  startDate: 'start_date',
-  startTime: 'start_time',
-  endTime: 'end_time',
-  lessonNames: 'lesson_names', // newline text or child table; TODO confirm
-  activities: 'activities', // newline text or child table; TODO confirm
-} as const;
-
-/** Label fieldnames tried, in order, on each child-table row. */
-const CHILD_ROW_LABEL_FIELDS = [
-  'lesson_name',
-  'activity',
-  'title',
-  'name',
-] as const;
+import type { ErpFieldMapping } from './erpFieldMapping';
 
 // ---------------------------------------------------------------------------
 // CORS / networking note
@@ -119,57 +96,122 @@ const str = (doc: Record<string, unknown>, field: string): string => {
   return v == null ? '' : String(v);
 };
 
-/**
- * Turn a mapped multi-line value (newline text OR a child table) into textarea
- * lines. Child-table rows try the common label fieldnames in order.
- */
-function linesFrom(doc: Record<string, unknown>, field: string): string {
-  const raw = doc[field];
-  if (Array.isArray(raw)) {
-    return raw
-      .map((row) => {
-        if (row == null) return ''; // String(null) would leak a literal "null"
-        if (typeof row === 'object') {
-          const r = row as Record<string, unknown>;
-          for (const key of CHILD_ROW_LABEL_FIELDS) {
-            const v = r[key];
-            if (typeof v === 'string' && v.trim()) return v.trim();
-          }
-          return '';
-        }
-        return String(row).trim();
-      })
-      .filter(Boolean)
-      .join('\n');
-  }
-  return typeof raw === 'string' ? raw : '';
-}
+/** Read the ERPNext field the user mapped to `target`, or '' when unmapped. */
+const mapped = (
+  doc: Record<string, unknown>,
+  mapping: ErpFieldMapping,
+  target: string,
+): string => {
+  const key = mapping[target];
+  return key ? str(doc, key) : '';
+};
 
 /**
- * Map one ERPNext doc into a CourseForm holding a single module. The start
- * month is derived from the DocType's start date (YYYY-MM-DD -> YYYY-MM).
+ * Map one ERPNext doc into a CourseForm holding a single module, using the
+ * user's saved field mapping. Unmapped targets stay blank. Lesson names are
+ * NOT sourced from ERPNext — they are always typed manually in the app. The
+ * start month is derived from the mapped start date (YYYY-MM-DD -> YYYY-MM).
  */
-export function mapDocToForm(doc: Record<string, unknown>): CourseForm {
-  const name = str(doc, ERPNEXT_FIELD_MAP.courseName);
+export function mapDocToForm(
+  doc: Record<string, unknown>,
+  mapping: ErpFieldMapping,
+): CourseForm {
+  const name = mapped(doc, mapping, 'courseName');
   return {
     ...EMPTY_FORM,
     courseName: name,
-    startMonth: str(doc, ERPNEXT_FIELD_MAP.startDate).slice(0, 7), // YYYY-MM
+    startMonth: mapped(doc, mapping, 'startDate').slice(0, 7), // YYYY-MM
     modules: [
       {
         id: 'mod-erpnext',
         name,
-        classGroup: str(doc, ERPNEXT_FIELD_MAP.classGroup),
-        teacher: str(doc, ERPNEXT_FIELD_MAP.teacher),
-        classroom: str(doc, ERPNEXT_FIELD_MAP.classroom),
-        lessonNamesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.lessonNames),
-        activitiesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.activities),
-        totalLessons: '',
-        startTime: str(doc, ERPNEXT_FIELD_MAP.startTime).slice(0, 5), // HH:mm
-        endTime: str(doc, ERPNEXT_FIELD_MAP.endTime).slice(0, 5),
+        classGroup: mapped(doc, mapping, 'classGroup'),
+        teacher: mapped(doc, mapping, 'teacher'),
+        classroom: mapped(doc, mapping, 'classroom'),
+        lessonNamesRaw: '', // manual — never imported
+        activitiesRaw: mapped(doc, mapping, 'activity'),
+        totalLessons: mapped(doc, mapping, 'totalLessons'),
+        startTime: mapped(doc, mapping, 'startTime').slice(0, 5), // HH:mm
+        endTime: mapped(doc, mapping, 'endTime').slice(0, 5),
       },
     ],
   };
+}
+
+/** A field value counts as scalar (mappable) when it isn't an array or a
+ *  plain object — those are child tables / links, out of scope here. */
+const isScalar = (v: unknown): boolean =>
+  !Array.isArray(v) && (typeof v !== 'object' || v === null);
+
+export interface ErpSampleFields {
+  /** The document name the sample was pulled from (shown for reference). */
+  recordName: string;
+  /** Every top-level scalar field key found on that document, sorted. */
+  fields: string[];
+}
+
+/**
+ * Pull one record of `docType` and return its scalar field names, so the
+ * Settings mapping screen can offer real fieldnames instead of guesses.
+ * Two round trips: the list endpoint (cheapest way to find A record), then
+ * the single-doc endpoint (list queries omit some fields Frappe reserves for
+ * document reads).
+ */
+export async function fetchSampleFields(
+  settings: AppSettings,
+  docType: string,
+): Promise<ErpResult<ErpSampleFields>> {
+  if (!settings.erpBaseUrl.trim())
+    return { ok: false, message: 'Set an ERPNext base URL in Settings first.' };
+  if (!docType.trim())
+    return { ok: false, message: 'Enter a DocType first.' };
+
+  const listUrl =
+    `${erpBase(settings)}/api/resource/${encodeURIComponent(docType)}` +
+    `?limit_page_length=1`;
+  try {
+    const listRes = await fetch(listUrl, { headers: authHeaders(settings) });
+    if (!listRes.ok)
+      return {
+        ok: false,
+        message: statusMessage(listRes, ` listing "${docType}"`),
+      };
+    const listBody = (await listRes.json()) as {
+      data?: Record<string, unknown>[];
+    };
+    const first = listBody.data?.[0];
+    const recordName = first ? str(first, 'name') : '';
+    if (!recordName)
+      return {
+        ok: false,
+        message: `No "${docType}" records found — create one in ERPNext first.`,
+      };
+
+    const docUrl =
+      `${erpBase(settings)}/api/resource/${encodeURIComponent(docType)}` +
+      `/${encodeURIComponent(recordName)}`;
+    const docRes = await fetch(docUrl, { headers: authHeaders(settings) });
+    if (!docRes.ok)
+      return {
+        ok: false,
+        message: statusMessage(docRes, ` fetching "${recordName}"`),
+      };
+    const docBody = (await docRes.json()) as { data?: Record<string, unknown> };
+    if (!docBody.data)
+      return { ok: false, message: `Record "${recordName}" came back empty.` };
+
+    const fields = Object.entries(docBody.data)
+      .filter(([, v]) => isScalar(v))
+      .map(([key]) => key)
+      .sort();
+    return {
+      ok: true,
+      message: `Loaded ${fields.length} field(s) from "${recordName}".`,
+      data: { recordName, fields },
+    };
+  } catch (err) {
+    return { ok: false, message: networkFailure(err) };
+  }
 }
 
 /** One row of the record picker. */
@@ -189,21 +231,23 @@ const guard = (settings: AppSettings): ErpResult<never> | null => {
 };
 
 /**
- * List records of the configured DocType for the picker. Uses the list
- * endpoint with a small field set — child tables are NOT returned by list
- * queries, which is exactly why the actual import fetches the single doc.
+ * List records of the configured DocType for the picker, requesting only the
+ * fields the saved mapping actually uses (plus "name"). Note the fetched
+ * fields here are for the picker's label only — the actual import re-fetches
+ * the single doc so every mapped field is present regardless of what the list
+ * endpoint happens to return.
  */
 export async function listErpRecords(
   settings: AppSettings,
+  mapping: ErpFieldMapping,
 ): Promise<ErpResult<ErpRecordSummary[]>> {
   const blocked = guard(settings);
   if (blocked) return blocked;
 
-  const fields = JSON.stringify([
-    'name',
-    ERPNEXT_FIELD_MAP.courseName,
-    ERPNEXT_FIELD_MAP.classGroup,
-  ]);
+  const mappedKeys = Object.values(mapping).filter(
+    (v): v is string => v != null,
+  );
+  const fields = JSON.stringify(['name', ...new Set(mappedKeys)]);
   const url =
     `${erpBase(settings)}/api/resource/` +
     `${encodeURIComponent(settings.erpDocType)}` +
@@ -225,8 +269,8 @@ export async function listErpRecords(
       };
     const records = rows.map((row) => {
       const name = str(row, 'name');
-      const course = str(row, ERPNEXT_FIELD_MAP.courseName);
-      const group = str(row, ERPNEXT_FIELD_MAP.classGroup);
+      const course = mapped(row, mapping, 'courseName');
+      const group = mapped(row, mapping, 'classGroup');
       const label = [course, group].filter(Boolean).join(' — ') || name;
       return { name, label };
     });
@@ -241,12 +285,13 @@ export async function listErpRecords(
 }
 
 /**
- * Fetch ONE document by name — the single-doc endpoint returns child tables
- * (lesson names / activities), which list queries omit — and map it into the
- * form for review before generating.
+ * Fetch ONE document by name and map it into the form via the saved field
+ * mapping, for review before generating. Lesson names stay whatever the user
+ * had typed — this never overwrites them.
  */
 export async function fetchErpRecord(
   settings: AppSettings,
+  mapping: ErpFieldMapping,
   name: string,
 ): Promise<ErpResult<CourseForm>> {
   const blocked = guard(settings);
@@ -266,7 +311,7 @@ export async function fetchErpRecord(
     return {
       ok: true,
       message: `Imported "${name}". Review the form, then Generate.`,
-      data: mapDocToForm(body.data),
+      data: mapDocToForm(body.data, mapping),
     };
   } catch (err) {
     return { ok: false, message: networkFailure(err) };

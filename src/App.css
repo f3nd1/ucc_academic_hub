@@ -1224,3 +1224,57 @@ select {
 .holiday-table__add {
   align-self: flex-start;
 }
+
+/* ERPNext field mapping (Settings) */
+.erp-mapping {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  background: var(--input-bg);
+  margin: 0.6rem 0 1rem;
+}
+
+.erp-mapping__title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.erp-mapping__head,
+.erp-mapping__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 24px minmax(0, 1.3fr);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.erp-mapping__head {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 0.1rem;
+}
+
+.erp-mapping select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.45rem;
+  width: 100%;
+}
+
+.erp-mapping__arrow {
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.erp-mapping__target {
+  font-size: 0.85rem;
+}

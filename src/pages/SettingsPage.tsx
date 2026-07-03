@@ -1,7 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FirstDayOfWeek, ThemeMode } from '../settings';
 import { useSettings } from '../settingsStore';
-import { testErpConnection } from '../erpnext';
+import { testErpConnection, fetchSampleFields } from '../erpnext';
+import {
+  APP_TARGET_FIELDS,
+  loadErpFieldMapping,
+  saveErpFieldMapping,
+  type ErpFieldMapping,
+} from '../erpFieldMapping';
+import { Hint } from '../help/Hint';
+
+const NOT_MAPPED = '';
 
 export function SettingsPage() {
   const [settings, update] = useSettings();
@@ -11,12 +20,58 @@ export function SettingsPage() {
     message: string;
   } | null>(null);
 
+  // Sample fields + mapping are keyed off the current DocType. Switching
+  // DocType reloads its own saved mapping and clears the loaded field list
+  // (a sample from a different DocType would be meaningless here).
+  const [sampleFields, setSampleFields] = useState<string[]>([]);
+  const [sampleRecordName, setSampleRecordName] = useState<string | null>(null);
+  const [loadingFields, setLoadingFields] = useState(false);
+  const [fieldsResult, setFieldsResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const [mapping, setMapping] = useState<ErpFieldMapping>(() =>
+    loadErpFieldMapping(settings.erpDocType),
+  );
+
+  useEffect(() => {
+    setMapping(loadErpFieldMapping(settings.erpDocType));
+    setSampleFields([]);
+    setSampleRecordName(null);
+    setFieldsResult(null);
+    // Only re-run when the DocType itself changes, not on every settings edit.
+  }, [settings.erpDocType]);
+
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
     const result = await testErpConnection(settings);
     setTestResult(result);
     setTesting(false);
+  };
+
+  const handleLoadFields = async () => {
+    setLoadingFields(true);
+    setFieldsResult(null);
+    const result = await fetchSampleFields(settings, settings.erpDocType);
+    if (result.ok && result.data) {
+      setSampleFields(result.data.fields);
+      setSampleRecordName(result.data.recordName);
+    } else {
+      setSampleFields([]);
+      setSampleRecordName(null);
+    }
+    setFieldsResult({ ok: result.ok, message: result.message });
+    setLoadingFields(false);
+  };
+
+  const handleMapField = (appField: string, erpField: string) => {
+    const next: ErpFieldMapping = {
+      ...mapping,
+      [appField]: erpField === NOT_MAPPED ? null : erpField,
+    };
+    setMapping(next);
+    saveErpFieldMapping(settings.erpDocType, next);
   };
 
   return (
@@ -71,12 +126,19 @@ export function SettingsPage() {
           id="erpDocType"
           value={settings.erpDocType}
           onChange={(e) => update({ erpDocType: e.target.value })}
-          placeholder="e.g. Course Schedule"
+          placeholder="e.g. Course"
         />
       </div>
       <div className="actions">
         <button className="btn" onClick={handleTest} disabled={testing}>
           {testing ? 'Testing…' : 'Test ERPNext connection'}
+        </button>
+        <button
+          className="btn"
+          onClick={handleLoadFields}
+          disabled={loadingFields || !settings.erpDocType.trim()}
+        >
+          {loadingFields ? 'Loading…' : 'Load sample fields'}
         </button>
       </div>
       {testResult && (
@@ -87,6 +149,52 @@ export function SettingsPage() {
           {testResult.message}
         </div>
       )}
+      {fieldsResult && (
+        <div
+          className={`banner ${fieldsResult.ok ? 'banner--ok' : 'banner--error'}`}
+          role="status"
+        >
+          {fieldsResult.message}
+        </div>
+      )}
+
+      <div className="erp-mapping">
+        <p className="erp-mapping__title">Field mapping</p>
+        <Hint text="Left is the field name in ERPNext. Right is where it goes in this app. Load a sample record first to see your field names." />
+        {sampleRecordName && (
+          <p className="hint">Sample fields loaded from record "{sampleRecordName}".</p>
+        )}
+        {sampleFields.length === 0 && (
+          <p className="hint">Load sample fields first to populate the dropdowns.</p>
+        )}
+        <div className="erp-mapping__head">
+          <span>ERPNext field</span>
+          <span aria-hidden="true" />
+          <span>App field</span>
+        </div>
+        {APP_TARGET_FIELDS.map(({ key, label }) => (
+          <div className="erp-mapping__row" key={key}>
+            <select
+              aria-label={`ERPNext field mapped to ${label}`}
+              value={mapping[key] ?? NOT_MAPPED}
+              onChange={(e) => handleMapField(key, e.target.value)}
+              disabled={sampleFields.length === 0}
+            >
+              <option value={NOT_MAPPED}>— not mapped —</option>
+              {sampleFields.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+            <span className="erp-mapping__arrow" aria-hidden="true">
+              →
+            </span>
+            <span className="erp-mapping__target">{label}</span>
+          </div>
+        ))}
+        <p className="hint">Lesson names are entered manually.</p>
+      </div>
 
       <h3 className="settings__subhead">Google</h3>
       <div className="field">

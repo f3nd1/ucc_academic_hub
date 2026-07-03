@@ -22,6 +22,7 @@ import {
   fetchErpRecord,
   type ErpRecordSummary,
 } from '../erpnext';
+import { loadErpFieldMapping } from '../erpFieldMapping';
 import type { FirstDayOfWeek } from '../settings';
 import { CLASS_GROUP_LABEL } from '../constants';
 import { useSettings } from '../settingsStore';
@@ -189,12 +190,35 @@ export function TimetablePage() {
   };
 
   // ERPNext import is two-step: list records for a picker, then fetch the
-  // chosen document (the single-doc endpoint returns child tables, which list
-  // queries omit).
+  // chosen document mapped through the saved per-DocType field mapping
+  // (Settings). With exactly one record there's nothing to pick, so it's
+  // imported straight away with a note; lesson names are never imported —
+  // they stay whatever the user typed.
   const handleImportErpnext = async () => {
     setBusy(true);
     setBanner(null);
-    const result = await listErpRecords(settings);
+    const mapping = loadErpFieldMapping(settings.erpDocType);
+    const result = await listErpRecords(settings, mapping);
+    if (result.ok && result.data && result.data.length === 1) {
+      const only = result.data[0];
+      const imported = await fetchErpRecord(settings, mapping, only.name);
+      if (imported.ok && imported.data) {
+        setWizard((w) => ({ ...w, form: imported.data! }));
+        setLessons(null);
+        setCourse(null);
+        setHolidays(null);
+        setMessages([]);
+      }
+      setErpRecords(null);
+      setBanner({
+        ok: imported.ok,
+        message: imported.ok
+          ? `Only one "${settings.erpDocType}" record found — imported "${only.name}" automatically.`
+          : imported.message,
+      });
+      setBusy(false);
+      return;
+    }
     setErpRecords(result.ok && result.data ? result.data : null);
     setBanner({ ok: result.ok, message: result.message });
     setBusy(false);
@@ -203,7 +227,8 @@ export function TimetablePage() {
   const handlePickErpRecord = async (name: string) => {
     setBusy(true);
     setBanner(null);
-    const result = await fetchErpRecord(settings, name);
+    const mapping = loadErpFieldMapping(settings.erpDocType);
+    const result = await fetchErpRecord(settings, mapping, name);
     if (result.ok && result.data) {
       setWizard((w) => ({ ...w, form: result.data! }));
       setLessons(null);

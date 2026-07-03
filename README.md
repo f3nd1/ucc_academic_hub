@@ -90,9 +90,14 @@ control; all help copy lives in `src/help/helpText.ts`.
   `Date (ISO)` plus a display `Date`. Plus a bulk `.ics` (Asia/Singapore),
   per-lesson **Add to Google Calendar** links, and the Hybrid planner's own
   Sheets/CSV exports.
-- **ERPNext import** — list records of the configured DocType, pick one, and
-  the app fetches the full document (child tables included) into the form via
-  token auth (adjust the field map in `src/erpnext.ts` to your schema).
+- **ERPNext import with a field-mapping screen** — in Settings, "Load sample
+  fields" fetches one record of the configured DocType and lists its real
+  scalar field names; each app field (course/module name, teacher, classroom,
+  Module Class Details, total lessons, start date/time, end time, optional
+  activity) maps to one of those via a dropdown, persisted per DocType. Import
+  fetches only the mapped fields, applies the saved mapping, and — with
+  exactly one record — imports it directly with a note instead of showing a
+  picker. **Lesson names are always typed manually** and are never imported.
 - **Multi-group engine** — `generateMultiGroupSchedule` merges several groups
   against one holiday calendar, and `detectClashes` reports duplicate
   sessions, teacher/classroom/class-group contention, and holiday collisions.
@@ -116,7 +121,8 @@ control; all help copy lives in `src/help/helpText.ts`.
 | `src/exports.ts` | CSV + PDF exporters; on-screen (9) and data-export (10, with ISO+display date) column sets. |
 | `src/planner.ts` | Builds the Hybrid `PlannerModel` (month blocks, week assignment, cell classification). |
 | `src/plannerExports.ts` | Planner CSV + Google Sheets planner (merges, colour fills, date-as-text). |
-| `src/erpnext.ts` | ERPNext token-auth import + field map + connection test. |
+| `src/erpnext.ts` | ERPNext token-auth import: connection test, sample-field discovery, mapped list/fetch — all via the dev proxy base path. |
+| `src/erpFieldMapping.ts` | The fixed app target fields and per-DocType field-mapping persistence used by the Settings mapping screen. |
 | `src/googleCalendar.ts` | Per-lesson calendar link + `.ics` builder (Asia/Singapore). |
 | `src/googleSheets.ts` | GIS token flow + Sheets API v4 create/write. |
 | `src/settings.ts` | localStorage settings model + `useSettings` hook. |
