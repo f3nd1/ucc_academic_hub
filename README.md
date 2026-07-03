@@ -75,17 +75,21 @@ control; all help copy lives in `src/help/helpText.ts`.
   and Hybrid. Dates display as `DD MMMM YYYY` ("02 May 2026") while ISO stays
   the internal value everywhere.
 - **Activities & named holidays** — an optional activity per lesson (paired to
-  lesson names by index) and holiday lines that accept `YYYY-MM-DD, Name`
-  (e.g. `2026-08-09, National Day`); the name shows in the planner.
+  lesson names by index) and per-row holiday **table editors** (date picker
+  shown as `DD MMMM YYYY`, optional name, add/remove rows); the name shows in
+  the planner. The "Class group" field is labelled **Module Class Details**
+  (data key unchanged).
 - **Planner export** — from Hybrid view, **Planner (Sheets)** builds a Google
   Sheet reproducing the matrix (merged Week headers, month label merged down its
   rows, colour fills, dates as `DD MMMM YYYY` text — never serials), and
   **Planner (CSV)** exports the same shape with no OAuth needed.
-- **Exports** — CSV and PDF download `<classGroup>-timetable.*`; both carry an
-  `Activity` column, CSV keeps `Date (ISO)` plus a display `Date`, and the PDF
-  title honours the chosen scope. Plus a bulk `.ics` (Asia/Singapore),
-  per-lesson **Add to Google Calendar** links, and a **Google Sheets** export
-  (OAuth token flow; needs a client ID in Settings).
+- **Exports match the active view** — "PDF (current view)" renders the List
+  table, the Calendar month grids, or the Hybrid planner matrix depending on
+  the selected view (colour-coded, first-day-of-week aware, all dates
+  `DD MMMM YYYY`); "CSV (list)" / "Sheets (list)" stay list-shaped with
+  `Date (ISO)` plus a display `Date`. Plus a bulk `.ics` (Asia/Singapore),
+  per-lesson **Add to Google Calendar** links, and the Hybrid planner's own
+  Sheets/CSV exports.
 - **ERPNext import** — list records of the configured DocType, pick one, and
   the app fetches the full document (child tables included) into the form via
   token auth (adjust the field map in `src/erpnext.ts` to your schema).
