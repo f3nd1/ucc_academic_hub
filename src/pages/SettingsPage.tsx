@@ -40,6 +40,11 @@ export function SettingsPage() {
           onChange={(e) => update({ erpBaseUrl: e.target.value })}
           placeholder="https://erp.unitedceres.edu.sg"
         />
+        <p className="hint">
+          In dev, requests avoid CORS by going same-origin through the Vite
+          proxy (<code>/erp</code> → the server in <code>vite.config.ts</code>);
+          this URL is used by production builds.
+        </p>
       </div>
       <div className="grid-2">
         <div className="field">

@@ -135,10 +135,15 @@ control; all help copy lives in `src/help/helpText.ts`.
   origin equals the Codespace forwarded URL (these can change per session — pin
   the port or update the origin). Without a client ID, use CSV and import it
   into Sheets manually.
-- **ERPNext CORS**: the app calls ERPNext directly with an
-  `Authorization: token <key>:<secret>` header, so the Frappe site must allow
-  this origin (`allow_cors` in `site_config.json`). A Vite dev-proxy alternative
-  is documented in `vite.config.ts`, but its target is static at config time.
+- **ERPNext CORS**: in dev, every ERPNext call goes same-origin through the
+  Vite proxy (`/erp` → the server hard-coded in `vite.config.ts`), so the
+  Frappe site needs no CORS headers for the Codespace origin; restart the dev
+  server after editing `vite.config.ts`. Production builds use the Base URL
+  from Settings and must sit behind a real backend proxy (see the Settings
+  security banner). Credentials travel only in the
+  `Authorization: token <key>:<secret>` header — never in a URL. Auth failures
+  surface as "Authentication failed (401/403)…"; network/preflight failures
+  say so explicitly instead of a bare "Failed to fetch".
 
 ## Excel / SheetJS note
 

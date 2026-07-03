@@ -28,21 +28,21 @@ const CHILD_ROW_LABEL_FIELDS = [
 // ---------------------------------------------------------------------------
 // CORS / networking note
 // ---------------------------------------------------------------------------
-// This is a browser app calling a different origin (the ERPNext server), so the
-// ERPNext/Frappe site must allow the Codespace origin. Two paths:
+// This is a browser app calling the ERPNext server. The ERPNext site does not
+// return CORS headers for the Codespace origin, so a direct cross-origin fetch
+// dies in the browser with "Failed to fetch" (curl works — no CORS there).
 //
-//  A) Direct fetch (used here): the Frappe site must enable CORS —
-//     set `"allow_cors": "*"` (or the specific Codespace origin) in
-//     site_config.json. Simplest when you control the ERPNext site.
-//
-//  B) Vite dev proxy: add a `/erpnext` proxy in vite.config.ts pointing at the
-//     ERPNext base URL and call `/erpnext/api/...` instead. The catch is the
-//     Vite proxy target is STATIC at config time, but the base URL lives in
-//     Settings — so the proxy target would have to be hard-coded. Because of
-//     that limitation we default to path A (direct fetch + server CORS).
+//  - DEV: every request goes to same-origin '/erp/...', which the Vite dev
+//    proxy (vite.config.ts) forwards to the ERPNext server — no CORS involved.
+//    The proxy target is static at config time; restart the dev server after
+//    changing vite.config.ts.
+//  - PROD: requests use the base URL from Settings. That deployment must sit
+//    behind a real backend proxy (see the Settings security banner) — the
+//    browser must never hold the secret on a shared/public URL.
 // ---------------------------------------------------------------------------
 
-/** ERPNext token-auth header. */
+/** ERPNext token-auth header. The key/secret travel ONLY here — never in the
+ *  URL or query string. */
 function authHeaders(settings: AppSettings): HeadersInit {
   return {
     Authorization: `token ${settings.erpApiKey}:${settings.erpApiSecret}`,
@@ -52,6 +52,32 @@ function authHeaders(settings: AppSettings): HeadersInit {
 
 /** Trim a trailing slash so we can join paths predictably. */
 const trimBase = (url: string) => url.replace(/\/+$/, '');
+
+/**
+ * Base path for every ERPNext request. In dev this is the same-origin '/erp'
+ * prefix handled by the Vite proxy; in a real deployment it is the configured
+ * base URL. `dev` is injectable for tests (vitest runs with DEV=true).
+ */
+export const erpBase = (
+  settings: AppSettings,
+  dev: boolean = import.meta.env.DEV,
+): string => (dev ? '/erp' : trimBase(settings.erpBaseUrl));
+
+/** Turn a non-2xx response into a message that says WHICH kind of failure. */
+const statusMessage = (res: Response, context = ''): string =>
+  res.status === 401 || res.status === 403
+    ? `Authentication failed (${res.status} ${res.statusText})${context} — check the API key, secret, and the user's role permissions.`
+    : `ERPNext responded ${res.status} ${res.statusText}${context}.`;
+
+/**
+ * The fetch itself threw: the request never got an HTTP response. Cross-origin
+ * that usually means CORS/preflight; same-origin via the dev proxy it means
+ * the proxy or network, not auth (auth failures arrive as 401/403 above).
+ */
+const networkFailure = (err: unknown): string =>
+  `Could not reach ERPNext (network or CORS preflight failure — no HTTP response): ${
+    err instanceof Error ? err.message : String(err)
+  }. In dev, restart the dev server if vite.config.ts changed.`;
 
 export interface ErpResult<T> {
   ok: boolean;
@@ -71,15 +97,11 @@ export async function testErpConnection(
   if (!settings.erpApiKey.trim() || !settings.erpApiSecret.trim())
     return { ok: false, message: 'Set an ERPNext API key and secret first.' };
 
-  const url = `${trimBase(settings.erpBaseUrl)}/api/method/frappe.auth.get_logged_user`;
+  // Lightweight auth check: requires a valid token, returns the user.
+  const url = `${erpBase(settings)}/api/method/frappe.auth.get_logged_user`;
   try {
     const res = await fetch(url, { headers: authHeaders(settings) });
-    if (!res.ok) {
-      return {
-        ok: false,
-        message: `ERPNext responded ${res.status} ${res.statusText}.`,
-      };
-    }
+    if (!res.ok) return { ok: false, message: statusMessage(res) };
     const body = (await res.json()) as { message?: string };
     return {
       ok: true,
@@ -87,12 +109,7 @@ export async function testErpConnection(
       data: body.message,
     };
   } catch (err) {
-    return {
-      ok: false,
-      message: `Request failed (often CORS): ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    };
+    return { ok: false, message: networkFailure(err) };
   }
 }
 
@@ -171,11 +188,6 @@ const guard = (settings: AppSettings): ErpResult<never> | null => {
   return null;
 };
 
-const corsHint = (err: unknown): string =>
-  `Request failed (often CORS — the ERPNext site must allow this origin): ${
-    err instanceof Error ? err.message : String(err)
-  }`;
-
 /**
  * List records of the configured DocType for the picker. Uses the list
  * endpoint with a small field set — child tables are NOT returned by list
@@ -193,7 +205,7 @@ export async function listErpRecords(
     ERPNEXT_FIELD_MAP.classGroup,
   ]);
   const url =
-    `${trimBase(settings.erpBaseUrl)}/api/resource/` +
+    `${erpBase(settings)}/api/resource/` +
     `${encodeURIComponent(settings.erpDocType)}` +
     `?fields=${encodeURIComponent(fields)}&limit_page_length=50`;
 
@@ -202,7 +214,7 @@ export async function listErpRecords(
     if (!res.ok)
       return {
         ok: false,
-        message: `ERPNext responded ${res.status} ${res.statusText}. Check the DocType, keys, and permissions.`,
+        message: statusMessage(res, ` listing "${settings.erpDocType}"`),
       };
     const body = (await res.json()) as { data?: Record<string, unknown>[] };
     const rows = body.data ?? [];
@@ -224,7 +236,7 @@ export async function listErpRecords(
       data: records,
     };
   } catch (err) {
-    return { ok: false, message: corsHint(err) };
+    return { ok: false, message: networkFailure(err) };
   }
 }
 
@@ -241,16 +253,13 @@ export async function fetchErpRecord(
   if (blocked) return blocked;
 
   const url =
-    `${trimBase(settings.erpBaseUrl)}/api/resource/` +
+    `${erpBase(settings)}/api/resource/` +
     `${encodeURIComponent(settings.erpDocType)}/${encodeURIComponent(name)}`;
 
   try {
     const res = await fetch(url, { headers: authHeaders(settings) });
     if (!res.ok)
-      return {
-        ok: false,
-        message: `ERPNext responded ${res.status} ${res.statusText} fetching "${name}".`,
-      };
+      return { ok: false, message: statusMessage(res, ` fetching "${name}"`) };
     const body = (await res.json()) as { data?: Record<string, unknown> };
     if (!body.data)
       return { ok: false, message: `Record "${name}" came back empty.` };
@@ -260,6 +269,6 @@ export async function fetchErpRecord(
       data: mapDocToForm(body.data),
     };
   } catch (err) {
-    return { ok: false, message: corsHint(err) };
+    return { ok: false, message: networkFailure(err) };
   }
 }

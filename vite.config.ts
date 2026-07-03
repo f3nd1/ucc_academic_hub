@@ -1,6 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// The ERPNext server does not return CORS headers for the Codespace origin, so
+// direct browser calls fail with "Failed to fetch". In dev the app therefore
+// calls same-origin '/erp/...' and this proxy forwards it (src/erpnext.ts picks
+// the path via erpBase()). The Vite proxy target is STATIC at config time —
+// it cannot read the base URL from Settings — so it is fixed here.
+// ERP_PROXY_TARGET exists so tests can point the proxy at a mock server.
+//
+// NOTE: vite.config.ts is only read at startup — after editing this file
+// (or changing ERP_PROXY_TARGET) the dev server must be RESTARTED for the
+// proxy to take effect.
+const ERP_TARGET = process.env.ERP_PROXY_TARGET ?? 'https://sms.unitedceres.edu.sg'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -8,19 +20,13 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    // ERPNext CORS: the app calls ERPNext directly with the token header (see
-    // src/erpnext.ts), which needs the Frappe site to allow this origin
-    // (allow_cors in site_config.json). If you cannot enable CORS server-side,
-    // a Vite dev proxy is the alternative — but its target is STATIC at config
-    // time, so you must hard-code the ERPNext base URL here rather than reading
-    // it from Settings:
-    //
-    // proxy: {
-    //   '/erpnext': {
-    //     target: 'https://erp.unitedceres.edu.sg', // hard-coded; not from Settings
-    //     changeOrigin: true,
-    //     rewrite: (p) => p.replace(/^\/erpnext/, ''),
-    //   },
-    // },
+    proxy: {
+      '/erp': {
+        target: ERP_TARGET,
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/erp/, ''),
+      },
+    },
   },
 })
