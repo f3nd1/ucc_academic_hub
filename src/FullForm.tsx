@@ -1,5 +1,6 @@
 import type { RawForm } from './formModel';
 import type { FirstDayOfWeek } from './settings';
+import type { ErpRecordSummary } from './erpnext';
 import { DetailsFields } from './components/DetailsFields';
 import { RulesFields } from './components/RulesFields';
 import {
@@ -18,6 +19,10 @@ interface Props {
   onLoadDemo: () => void;
   onClear: () => void;
   onImportErpnext: () => void;
+  /** Non-null while the ERPNext record picker is open. */
+  erpRecords: ErpRecordSummary[] | null;
+  onPickErpRecord: (name: string) => void;
+  onCancelErpPick: () => void;
   onSwitchToWizard: () => void;
   busy: boolean;
 }
@@ -33,6 +38,9 @@ export function FullForm({
   onLoadDemo,
   onClear,
   onImportErpnext,
+  erpRecords,
+  onPickErpRecord,
+  onCancelErpPick,
   onSwitchToWizard,
   busy,
 }: Props) {
@@ -57,6 +65,32 @@ export function FullForm({
           </button>
         </div>
       </div>
+
+      {erpRecords && (
+        <div className="erp-picker" role="region" aria-label="ERPNext records">
+          <div className="erp-picker__head">
+            <strong>Pick a record to import</strong>
+            <button type="button" className="linkbtn" onClick={onCancelErpPick}>
+              Cancel
+            </button>
+          </div>
+          <ul className="erp-picker__list">
+            {erpRecords.map((r) => (
+              <li key={r.name}>
+                <button
+                  type="button"
+                  className="erp-picker__item"
+                  onClick={() => onPickErpRecord(r.name)}
+                  disabled={busy}
+                >
+                  <span className="erp-picker__label">{r.label}</span>
+                  <span className="erp-picker__name">{r.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid-2">
         <div className="field">

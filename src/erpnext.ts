@@ -13,8 +13,17 @@ export const ERPNEXT_FIELD_MAP = {
   startDate: 'start_date',
   startTime: 'start_time',
   endTime: 'end_time',
-  lessonNames: 'lesson_names', // expects newline text or child-table; TODO confirm
+  lessonNames: 'lesson_names', // newline text or child table; TODO confirm
+  activities: 'activities', // newline text or child table; TODO confirm
 } as const;
+
+/** Label fieldnames tried, in order, on each child-table row. */
+const CHILD_ROW_LABEL_FIELDS = [
+  'lesson_name',
+  'activity',
+  'title',
+  'name',
+] as const;
 
 // ---------------------------------------------------------------------------
 // CORS / networking note
@@ -93,16 +102,23 @@ const str = (doc: Record<string, unknown>, field: string): string => {
   return v == null ? '' : String(v);
 };
 
-/** Turn the mapped lesson-names value (newline text or child table) into lines. */
-function lessonNamesFrom(doc: Record<string, unknown>): string {
-  const raw = doc[ERPNEXT_FIELD_MAP.lessonNames];
+/**
+ * Turn a mapped multi-line value (newline text OR a child table) into textarea
+ * lines. Child-table rows try the common label fieldnames in order.
+ */
+function linesFrom(doc: Record<string, unknown>, field: string): string {
+  const raw = doc[field];
   if (Array.isArray(raw)) {
-    // Child table: try common label fields on each row.
     return raw
       .map((row) => {
-        if (row && typeof row === 'object') {
+        if (row == null) return ''; // String(null) would leak a literal "null"
+        if (typeof row === 'object') {
           const r = row as Record<string, unknown>;
-          return String(r.lesson_name ?? r.name ?? r.title ?? '').trim();
+          for (const key of CHILD_ROW_LABEL_FIELDS) {
+            const v = r[key];
+            if (typeof v === 'string' && v.trim()) return v.trim();
+          }
+          return '';
         }
         return String(row).trim();
       })
@@ -123,55 +139,116 @@ export function mapDocToForm(doc: Record<string, unknown>): RawForm {
     startDate: str(doc, ERPNEXT_FIELD_MAP.startDate),
     startTime: str(doc, ERPNEXT_FIELD_MAP.startTime).slice(0, 5), // HH:mm
     endTime: str(doc, ERPNEXT_FIELD_MAP.endTime).slice(0, 5),
-    lessonNamesRaw: lessonNamesFrom(doc),
+    lessonNamesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.lessonNames),
+    activitiesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.activities),
   };
 }
 
-/**
- * Fetch the configured DocType and map the FIRST record into the form.
- * Returns a clear message on auth / CORS / mapping failure.
- */
-export async function importFromErpnext(
-  settings: AppSettings,
-): Promise<ErpResult<RawForm>> {
+/** One row of the record picker. */
+export interface ErpRecordSummary {
+  /** Frappe document name (the id used to fetch the full doc). */
+  name: string;
+  /** Human label assembled from the course / class-group fields. */
+  label: string;
+}
+
+const guard = (settings: AppSettings): ErpResult<never> | null => {
   if (!settings.erpBaseUrl.trim())
     return { ok: false, message: 'Set an ERPNext base URL in Settings first.' };
   if (!settings.erpDocType.trim())
     return { ok: false, message: 'Set an ERPNext DocType in Settings first.' };
+  return null;
+};
 
-  const fields = JSON.stringify(Object.values(ERPNEXT_FIELD_MAP));
+const corsHint = (err: unknown): string =>
+  `Request failed (often CORS — the ERPNext site must allow this origin): ${
+    err instanceof Error ? err.message : String(err)
+  }`;
+
+/**
+ * List records of the configured DocType for the picker. Uses the list
+ * endpoint with a small field set — child tables are NOT returned by list
+ * queries, which is exactly why the actual import fetches the single doc.
+ */
+export async function listErpRecords(
+  settings: AppSettings,
+): Promise<ErpResult<ErpRecordSummary[]>> {
+  const blocked = guard(settings);
+  if (blocked) return blocked;
+
+  const fields = JSON.stringify([
+    'name',
+    ERPNEXT_FIELD_MAP.courseName,
+    ERPNEXT_FIELD_MAP.classGroup,
+  ]);
   const url =
     `${trimBase(settings.erpBaseUrl)}/api/resource/` +
     `${encodeURIComponent(settings.erpDocType)}` +
-    `?fields=${encodeURIComponent(fields)}&limit_page_length=0`;
+    `?fields=${encodeURIComponent(fields)}&limit_page_length=50`;
 
   try {
     const res = await fetch(url, { headers: authHeaders(settings) });
-    if (!res.ok) {
+    if (!res.ok)
       return {
         ok: false,
         message: `ERPNext responded ${res.status} ${res.statusText}. Check the DocType, keys, and permissions.`,
       };
-    }
     const body = (await res.json()) as { data?: Record<string, unknown>[] };
     const rows = body.data ?? [];
-    if (rows.length === 0) {
+    if (rows.length === 0)
       return {
         ok: false,
-        message: `No "${settings.erpDocType}" records returned to import.`,
+        message: `No "${settings.erpDocType}" records found to import.`,
       };
-    }
+    const records = rows.map((row) => {
+      const name = str(row, 'name');
+      const course = str(row, ERPNEXT_FIELD_MAP.courseName);
+      const group = str(row, ERPNEXT_FIELD_MAP.classGroup);
+      const label = [course, group].filter(Boolean).join(' — ') || name;
+      return { name, label };
+    });
     return {
       ok: true,
-      message: `Imported 1 of ${rows.length} "${settings.erpDocType}" record(s). Review the form, then Generate.`,
-      data: mapDocToForm(rows[0]),
+      message: `Found ${records.length} record(s). Pick one to import.`,
+      data: records,
     };
   } catch (err) {
+    return { ok: false, message: corsHint(err) };
+  }
+}
+
+/**
+ * Fetch ONE document by name — the single-doc endpoint returns child tables
+ * (lesson names / activities), which list queries omit — and map it into the
+ * form for review before generating.
+ */
+export async function fetchErpRecord(
+  settings: AppSettings,
+  name: string,
+): Promise<ErpResult<RawForm>> {
+  const blocked = guard(settings);
+  if (blocked) return blocked;
+
+  const url =
+    `${trimBase(settings.erpBaseUrl)}/api/resource/` +
+    `${encodeURIComponent(settings.erpDocType)}/${encodeURIComponent(name)}`;
+
+  try {
+    const res = await fetch(url, { headers: authHeaders(settings) });
+    if (!res.ok)
+      return {
+        ok: false,
+        message: `ERPNext responded ${res.status} ${res.statusText} fetching "${name}".`,
+      };
+    const body = (await res.json()) as { data?: Record<string, unknown> };
+    if (!body.data)
+      return { ok: false, message: `Record "${name}" came back empty.` };
     return {
-      ok: false,
-      message: `Import failed (often CORS — the ERPNext site must allow this origin): ${
-        err instanceof Error ? err.message : String(err)
-      }`,
+      ok: true,
+      message: `Imported "${name}". Review the form, then Generate.`,
+      data: mapDocToForm(body.data),
     };
+  } catch (err) {
+    return { ok: false, message: corsHint(err) };
   }
 }

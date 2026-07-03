@@ -11,7 +11,11 @@ import { generateSchedule } from '../scheduler';
 import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
-import { importFromErpnext } from '../erpnext';
+import {
+  listErpRecords,
+  fetchErpRecord,
+  type ErpRecordSummary,
+} from '../erpnext';
 import type { FirstDayOfWeek } from '../settings';
 import { useSettings } from '../settingsStore';
 import { useTimetableStore, type ViewMode } from '../timetableStore';
@@ -60,6 +64,9 @@ export function TimetablePage() {
     setBanner,
   } = useTimetableStore();
   const [busy, setBusy] = useState(false);
+  // ERPNext record picker contents (null = picker closed). Transient UI state,
+  // deliberately NOT in the route-persistent store.
+  const [erpRecords, setErpRecords] = useState<ErpRecordSummary[] | null>(null);
 
   const todayIso = useMemo(() => formatDate(new Date()), []);
 
@@ -138,16 +145,29 @@ export function TimetablePage() {
     resetResults();
   };
 
+  // ERPNext import is two-step: list records for a picker, then fetch the
+  // chosen document (the single-doc endpoint returns child tables, which list
+  // queries omit).
   const handleImportErpnext = async () => {
     setBusy(true);
     setBanner(null);
-    const result = await importFromErpnext(settings);
+    const result = await listErpRecords(settings);
+    setErpRecords(result.ok && result.data ? result.data : null);
+    setBanner({ ok: result.ok, message: result.message });
+    setBusy(false);
+  };
+
+  const handlePickErpRecord = async (name: string) => {
+    setBusy(true);
+    setBanner(null);
+    const result = await fetchErpRecord(settings, name);
     if (result.ok && result.data) {
       setWizard((w) => ({ ...w, form: result.data! }));
       setLessons(null);
       setConfig(null);
       setHolidays(null);
       setMessages([]);
+      setErpRecords(null); // close the picker on success
     }
     setBanner({ ok: result.ok, message: result.message });
     setBusy(false);
@@ -235,6 +255,9 @@ export function TimetablePage() {
           onLoadDemo={handleLoadDemo}
           onClear={handleClear}
           onImportErpnext={handleImportErpnext}
+          erpRecords={erpRecords}
+          onPickErpRecord={handlePickErpRecord}
+          onCancelErpPick={() => setErpRecords(null)}
           onSwitchToWizard={() => setLayout('wizard')}
           busy={busy}
         />
