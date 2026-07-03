@@ -30,6 +30,7 @@ interface Props {
   removeModule: (id: string) => void;
   onGenerate: () => void;
   onSwitchToFullForm: () => void;
+  onLoadDemo: () => void;
   busy: boolean;
 }
 
@@ -106,6 +107,7 @@ export function Wizard({
   removeModule,
   onGenerate,
   onSwitchToFullForm,
+  onLoadDemo,
   busy,
 }: Props) {
   const [showErrors, setShowErrors] = useState(false);
@@ -146,13 +148,31 @@ export function Wizard({
 
   const primaryName = state.form.courseName || '—';
 
+  // Demo data is already valid for the default intent/scope, so jump
+  // straight to Review — the user sees a complete, ready-to-generate wizard
+  // instead of a filled-in form buried on step 1.
+  const handleLoadDemoClick = () => {
+    onLoadDemo();
+    setShowErrors(false);
+    setStep(() => WIZARD_STEPS.length - 1);
+  };
+
   return (
     <section className="panel wizard">
       <div className="wizard__head">
         <h2>Create a timetable</h2>
-        <button type="button" className="linkbtn" onClick={onSwitchToFullForm}>
-          Skip wizard, use full form
-        </button>
+        <div className="wizard__head-actions">
+          <button
+            type="button"
+            className="btn btn--demo"
+            onClick={handleLoadDemoClick}
+          >
+            Load demo data
+          </button>
+          <button type="button" className="linkbtn" onClick={onSwitchToFullForm}>
+            Skip wizard, use full form
+          </button>
+        </div>
       </div>
 
       <Stepper steps={WIZARD_STEPS} current={step} onSelect={selectStep} />

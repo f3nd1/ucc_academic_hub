@@ -352,6 +352,7 @@ export function TimetablePage() {
           removeModule={removeModule}
           onGenerate={handleGenerate}
           onSwitchToFullForm={() => setLayout('full')}
+          onLoadDemo={handleLoadDemo}
           busy={busy}
         />
       ) : (
