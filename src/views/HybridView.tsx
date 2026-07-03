@@ -28,7 +28,8 @@ export function HybridView({ model }: Props) {
     <div className="planner">
       <div className="planner__band">
         <div>
-          <span className="planner__key">Course:</span> {model.course}
+          <span className="planner__key">{model.scopeLabel}:</span>{' '}
+          {model.course}
         </div>
         <div>
           <span className="planner__key">Timing:</span> {model.timing}

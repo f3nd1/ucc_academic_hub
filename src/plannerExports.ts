@@ -65,7 +65,7 @@ export function buildPlannerLayout(
 
   const totalWidth = (weeks: number) => 2 + weeks * 3;
 
-  put(values, 0, 0, 'Course:', 2);
+  put(values, 0, 0, `${model.scopeLabel}:`, 2);
   put(values, 0, 1, model.course, 2);
   put(values, 1, 0, 'Timing:', 2);
   put(values, 1, 1, model.timing, 2);

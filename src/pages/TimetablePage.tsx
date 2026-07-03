@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { TEACHER_LABEL } from '../constants';
 import type { ScheduledLesson, ClassGroupConfig, HolidaySet } from '../types';
 import {
   EMPTY_FORM,
@@ -8,30 +7,44 @@ import {
   buildConfig,
   buildHolidays,
   type RawForm,
-  type SchedulingMode,
 } from '../formModel';
 import { generateSchedule } from '../scheduler';
 import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
 import { importFromErpnext } from '../erpnext';
-import { useSettings } from '../settings';
+import { useSettings, type FirstDayOfWeek } from '../settings';
 import { formatDisplayDate, formatDate } from '../dateUtils';
 import { buildPlanner } from '../planner';
 import { exportPlannerCsv, exportPlannerToSheets } from '../plannerExports';
 import { ListView } from '../views/ListView';
 import { MonthView } from '../views/MonthView';
 import { HybridView } from '../views/HybridView';
+import { Wizard } from '../wizard/Wizard';
+import { FullForm } from '../FullForm';
+import {
+  loadWizard,
+  saveWizard,
+  primaryNameLabel,
+  scopeTitleLabel,
+  type WizardState,
+  type Intent,
+  type Scope,
+} from '../wizard/wizardModel';
 
 const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
 
 type ViewMode = 'list' | 'calendar' | 'hybrid';
 type Banner = { ok: boolean; message: string } | null;
+type Layout = 'wizard' | 'full';
 
 export function TimetablePage() {
   const [settings] = useSettings();
-  const [form, setForm] = useState<RawForm>(EMPTY_FORM);
+  const [wizard, setWizard] = useState<WizardState>(() =>
+    loadWizard(settings.firstDayOfWeek),
+  );
+  const [layout, setLayout] = useState<Layout>('wizard');
   const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
   const [config, setConfig] = useState<ClassGroupConfig | null>(null);
   const [holidays, setHolidays] = useState<HolidaySet | null>(null);
@@ -40,15 +53,14 @@ export function TimetablePage() {
   const [banner, setBanner] = useState<Banner>(null);
   const [busy, setBusy] = useState(false);
 
-  // Stable "today" for the planner's Updated line (recomputed per mount).
   const todayIso = useMemo(() => formatDate(new Date()), []);
 
-  const set =
-    <K extends keyof RawForm>(key: K) =>
-    (value: RawForm[K]) =>
-      setForm((f) => ({ ...f, [key]: value }));
-
-  const setMode = (mode: SchedulingMode) => setForm((f) => ({ ...f, mode }));
+  const updateForm = (patch: Partial<RawForm>) =>
+    setWizard((w) => ({ ...w, form: { ...w.form, ...patch } }));
+  const setIntent = (intent: Intent) => setWizard((w) => ({ ...w, intent }));
+  const setScope = (scope: Scope) => setWizard((w) => ({ ...w, scope }));
+  const setFirstDayOfWeek = (firstDayOfWeek: FirstDayOfWeek) =>
+    setWizard((w) => ({ ...w, firstDayOfWeek }));
 
   const summary = useMemo(() => {
     if (!lessons || lessons.length === 0) return null;
@@ -59,18 +71,17 @@ export function TimetablePage() {
     };
   }, [lessons]);
 
-  // The Hybrid planner model, rebuilt when the schedule / holidays / week-start
-  // change. Shared by the Hybrid view and both planner exports.
   const plannerModel = useMemo(() => {
     if (!lessons || lessons.length === 0 || !config || !holidays) return null;
     return buildPlanner(
       lessons,
       config,
       holidays,
-      settings.firstDayOfWeek,
+      wizard.firstDayOfWeek,
       todayIso,
+      scopeTitleLabel(wizard.scope),
     );
-  }, [lessons, config, holidays, settings.firstDayOfWeek, todayIso]);
+  }, [lessons, config, holidays, wizard.firstDayOfWeek, wizard.scope, todayIso]);
 
   const resetResults = () => {
     setLessons(null);
@@ -82,24 +93,26 @@ export function TimetablePage() {
 
   const handleGenerate = () => {
     setBanner(null);
-    const errors = validateForm(form);
+    const errors = validateForm(wizard.form, primaryNameLabel(wizard.scope));
     if (errors.length > 0) {
       setMessages(errors);
       setLessons(null);
       setConfig(null);
+      setHolidays(null);
       return;
     }
 
-    const cfg = buildConfig(form);
-    const holidaySet = buildHolidays(form);
+    const cfg = buildConfig(wizard.form);
+    const holidaySet = buildHolidays(wizard.form);
     try {
       const result = generateSchedule(cfg, holidaySet);
       setLessons(result);
       setConfig(cfg);
       setHolidays(holidaySet);
       setMessages([]);
+      setView(wizard.intent); // open in the intent chosen in Step 1
+      saveWizard(wizard); // prefill next visit with these values
     } catch (err) {
-      // Surface the scheduler's month-capacity error in the same message area.
       setMessages([err instanceof Error ? err.message : String(err)]);
       setLessons(null);
       setConfig(null);
@@ -108,12 +121,12 @@ export function TimetablePage() {
   };
 
   const handleLoadDemo = () => {
-    setForm(DEMO_FORM);
+    setWizard((w) => ({ ...w, form: DEMO_FORM }));
     resetResults();
   };
 
   const handleClear = () => {
-    setForm(EMPTY_FORM);
+    setWizard((w) => ({ ...w, form: EMPTY_FORM }));
     resetResults();
   };
 
@@ -122,7 +135,7 @@ export function TimetablePage() {
     setBanner(null);
     const result = await importFromErpnext(settings);
     if (result.ok && result.data) {
-      setForm(result.data);
+      setWizard((w) => ({ ...w, form: result.data! }));
       setLessons(null);
       setConfig(null);
       setHolidays(null);
@@ -181,221 +194,43 @@ export function TimetablePage() {
     setBusy(false);
   };
 
-  const perMonthDisabled = form.mode !== 'permonth';
   const hasLessons = !!lessons && lessons.length > 0;
 
   return (
     <div className="layout">
-      {/* ---------------- Left: setup + holidays ---------------- */}
-      <section className="panel">
-        <div className="setup-head">
-          <h2>Setup</h2>
-          <div className="setup-actions">
-            <button
-              type="button"
-              className="btn btn--demo"
-              onClick={handleImportErpnext}
-              disabled={busy}
-            >
-              Import from ERPNext
-            </button>
-            <button
-              type="button"
-              className="btn btn--demo"
-              onClick={handleLoadDemo}
-            >
-              Load demo data
-            </button>
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="courseName">Course name</label>
-          <input
-            id="courseName"
-            value={form.courseName}
-            onChange={(e) => set('courseName')(e.target.value)}
-            placeholder="e.g. Foundations of Data Science"
-          />
-        </div>
-
-        <div className="grid-2">
-          <div className="field">
-            <label htmlFor="classGroup">Class group</label>
-            <input
-              id="classGroup"
-              value={form.classGroup}
-              onChange={(e) => set('classGroup')(e.target.value)}
-              placeholder="e.g. DS-2026A"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="teacher">{TEACHER_LABEL}</label>
-            <input
-              id="teacher"
-              value={form.teacher}
-              onChange={(e) => set('teacher')(e.target.value)}
-              placeholder="e.g. Ms Tan"
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="classroom">Classroom</label>
-          <input
-            id="classroom"
-            value={form.classroom}
-            onChange={(e) => set('classroom')(e.target.value)}
-            placeholder="e.g. Room 3-01"
-          />
-        </div>
-
-        <div className="grid-2">
-          <div className="field">
-            <label htmlFor="lessonNames">Lesson names (one per line)</label>
-            <textarea
-              id="lessonNames"
-              rows={4}
-              value={form.lessonNamesRaw}
-              onChange={(e) => set('lessonNamesRaw')(e.target.value)}
-              placeholder={'Introduction\nData Types\nControl Flow'}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="activities">
-              Activities (one per line, optional)
-            </label>
-            <textarea
-              id="activities"
-              rows={4}
-              value={form.activitiesRaw}
-              onChange={(e) => set('activitiesRaw')(e.target.value)}
-              placeholder={'Listening\nReading\nWriting'}
-            />
-          </div>
-        </div>
-
-        <div className="grid-2">
-          <div className="field">
-            <label htmlFor="totalLessons">Total lessons</label>
-            <input
-              id="totalLessons"
-              type="number"
-              min={1}
-              value={form.totalLessons}
-              onChange={(e) => set('totalLessons')(e.target.value)}
-              placeholder="e.g. 20"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="lessonsPerMonth">Lessons per month</label>
-            <input
-              id="lessonsPerMonth"
-              type="number"
-              min={1}
-              value={form.lessonsPerMonth}
-              onChange={(e) => set('lessonsPerMonth')(e.target.value)}
-              disabled={perMonthDisabled}
-              placeholder={perMonthDisabled ? 'Per month mode only' : 'e.g. 8'}
-            />
-          </div>
-        </div>
-
-        <div className="field">
-          <label>Scheduling mode</label>
-          <div className="segmented" role="group" aria-label="Scheduling mode">
-            <button
-              type="button"
-              className={form.mode === 'weekday' ? 'active' : ''}
-              aria-pressed={form.mode === 'weekday'}
-              onClick={() => setMode('weekday')}
-            >
-              Every weekday
-            </button>
-            <button
-              type="button"
-              className={form.mode === 'permonth' ? 'active' : ''}
-              aria-pressed={form.mode === 'permonth'}
-              onClick={() => setMode('permonth')}
-            >
-              Per month
-            </button>
-          </div>
-        </div>
-
-        <div className="grid-3">
-          <div className="field">
-            <label htmlFor="startDate">Start date</label>
-            <input
-              id="startDate"
-              type="date"
-              value={form.startDate}
-              onChange={(e) => set('startDate')(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="startTime">Start time</label>
-            <input
-              id="startTime"
-              type="time"
-              value={form.startTime}
-              onChange={(e) => set('startTime')(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="endTime">End time</label>
-            <input
-              id="endTime"
-              type="time"
-              value={form.endTime}
-              onChange={(e) => set('endTime')(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <h2 className="panel__subhead">Holidays</h2>
-        <div className="grid-2">
-          <div className="field">
-            <label htmlFor="uccHolidays">
-              UCC school holidays (one per line, optional name)
-            </label>
-            <textarea
-              id="uccHolidays"
-              rows={4}
-              value={form.uccHolidaysRaw}
-              onChange={(e) => set('uccHolidaysRaw')(e.target.value)}
-              placeholder={'2026-09-01, Term Break\n2026-09-02'}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="publicHolidays">
-              Singapore public holidays (one per line, optional name)
-            </label>
-            <textarea
-              id="publicHolidays"
-              rows={4}
-              value={form.publicHolidaysRaw}
-              onChange={(e) => set('publicHolidaysRaw')(e.target.value)}
-              placeholder={'2026-08-09, National Day\n2026-12-25, Christmas'}
-            />
-          </div>
-        </div>
-
-        <div className="actions">
-          <button className="btn btn--primary" onClick={handleGenerate}>
-            Generate timetable
-          </button>
-          <button className="btn" onClick={handleClear}>
-            Clear
-          </button>
-        </div>
-      </section>
+      {/* ---------------- Left: wizard or full form ---------------- */}
+      {layout === 'wizard' ? (
+        <Wizard
+          state={wizard}
+          setIntent={setIntent}
+          setScope={setScope}
+          setFirstDayOfWeek={setFirstDayOfWeek}
+          updateForm={updateForm}
+          onGenerate={handleGenerate}
+          onSwitchToFullForm={() => setLayout('full')}
+          busy={busy}
+        />
+      ) : (
+        <FullForm
+          state={wizard}
+          setIntent={setIntent}
+          setScope={setScope}
+          setFirstDayOfWeek={setFirstDayOfWeek}
+          updateForm={updateForm}
+          onGenerate={handleGenerate}
+          onLoadDemo={handleLoadDemo}
+          onClear={handleClear}
+          onImportErpnext={handleImportErpnext}
+          onSwitchToWizard={() => setLayout('wizard')}
+          busy={busy}
+        />
+      )}
 
       {/* ---------------- Right: preview + exports ---------------- */}
       <section className="panel">
         <div className="preview-head">
           <h2>Preview</h2>
-          <div className="exports">
+          <div className="exports" data-tour="exports">
             <button
               className="btn"
               onClick={() => guardedExport(() => exportCsv(lessons!, config!))}
@@ -475,7 +310,12 @@ export function TimetablePage() {
         )}
 
         {hasLessons && (
-          <div className="segmented view-switch" role="group" aria-label="View">
+          <div
+            className="segmented view-switch"
+            role="group"
+            aria-label="View"
+            data-tour="view-switch"
+          >
             {(['list', 'calendar', 'hybrid'] as ViewMode[]).map((v) => (
               <button
                 key={v}
@@ -496,7 +336,7 @@ export function TimetablePage() {
           ) : view === 'calendar' ? (
             <MonthView
               lessons={lessons!}
-              firstDayOfWeek={settings.firstDayOfWeek}
+              firstDayOfWeek={wizard.firstDayOfWeek}
               courseName={config!.courseName}
             />
           ) : (
@@ -505,7 +345,7 @@ export function TimetablePage() {
         ) : (
           !messages.length && (
             <p className="empty">
-              No timetable yet. Fill in the setup and click{' '}
+              No timetable yet. Complete the steps and click{' '}
               <strong>Generate timetable</strong>.
             </p>
           )

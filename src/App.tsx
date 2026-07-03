@@ -2,27 +2,67 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 import { TimetablePage } from './pages/TimetablePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { HelpProvider } from './help/HelpContext';
+import { useHelp } from './help/helpStore';
+import { Tour } from './help/Tour';
 
-function App() {
+/** Nav help controls: master toggle + restart tour. */
+function HelpControls() {
+  const { helpEnabled, setHelpEnabled, startTour } = useHelp();
   return (
-    <BrowserRouter>
-      <div className="app">
-        <header className="app__header">
-          <h1>UCC School Timetable Generator</h1>
+    <div className="nav__help">
+      <button
+        type="button"
+        className="nav__helpbtn"
+        aria-pressed={helpEnabled}
+        onClick={() => setHelpEnabled(!helpEnabled)}
+      >
+        Help: {helpEnabled ? 'On' : 'Off'}
+      </button>
+      {helpEnabled && (
+        <button type="button" className="linkbtn" onClick={startTour}>
+          Restart tour
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Shell() {
+  return (
+    <div className="app">
+      <header className="app__header">
+        <h1>UCC School Timetable Generator</h1>
+        <div className="app__bar">
           <nav className="nav">
             <NavLink to="/" end>
               Timetable
             </NavLink>
-            <NavLink to="/settings">Settings</NavLink>
+            <NavLink to="/settings" data-tour="settings-link">
+              Settings
+            </NavLink>
           </nav>
-        </header>
+          <HelpControls />
+        </div>
+      </header>
 
-        <Routes>
-          <Route path="/" element={<TimetablePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </div>
-    </BrowserRouter>
+      <Routes>
+        <Route path="/" element={<TimetablePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+
+      <Tour />
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <HelpProvider>
+      <BrowserRouter>
+        <Shell />
+      </BrowserRouter>
+    </HelpProvider>
   );
 }
 

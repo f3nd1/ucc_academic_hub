@@ -94,14 +94,16 @@ export const parseNamedHolidays = (raw: string): NamedHoliday[] =>
   parseLines(raw).map(parseHolidayLine);
 
 /**
- * Validate the form. Returns one message per failing rule (empty = valid).
- * The scheduler's "too many lessons for a month" error is surfaced separately
- * at generation time into the same message area.
+ * Validate the "details" inputs (everything except holidays). `primaryLabel`
+ * names the primary field per the chosen scope (e.g. "Module name").
  */
-export function validateForm(form: RawForm): string[] {
+export function validateDetails(
+  form: RawForm,
+  primaryLabel = 'Course name',
+): string[] {
   const errors: string[] = [];
 
-  if (!form.courseName.trim()) errors.push('Course name is required.');
+  if (!form.courseName.trim()) errors.push(`${primaryLabel} is required.`);
   if (!form.classGroup.trim()) errors.push('Class group is required.');
 
   const lessonNames = parseLines(form.lessonNamesRaw);
@@ -133,6 +135,12 @@ export function validateForm(form: RawForm): string[] {
     errors.push('End time must be later than start time.');
   }
 
+  return errors;
+}
+
+/** Validate the "calendar rules" inputs (holiday date formats). */
+export function validateRules(form: RawForm): string[] {
+  const errors: string[] = [];
   // Validate the DATE PART only; an optional ", name" may follow.
   for (const line of parseLines(form.uccHolidaysRaw)) {
     const { date } = parseHolidayLine(line);
@@ -144,8 +152,16 @@ export function validateForm(form: RawForm): string[] {
     if (!DATE_PATTERN.test(date))
       errors.push(`Public holiday "${line}" must start with a YYYY-MM-DD date.`);
   }
-
   return errors;
+}
+
+/**
+ * Validate the whole form. Returns one message per failing rule (empty = valid).
+ * The scheduler's "too many lessons for a month" error is surfaced separately
+ * at generation time into the same message area.
+ */
+export function validateForm(form: RawForm, primaryLabel = 'Course name'): string[] {
+  return [...validateDetails(form, primaryLabel), ...validateRules(form)];
 }
 
 /** Build a ClassGroupConfig from a validated form. */

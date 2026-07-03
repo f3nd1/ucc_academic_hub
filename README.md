@@ -28,6 +28,21 @@ npm run lint      # oxlint
 npm run preview   # serve the production build
 ```
 
+## Guided wizard & help
+
+The app opens on a **step-by-step wizard**: Output (List / Calendar / Hybrid) →
+Scope (course / module / class group) → Details → Calendar rules → Review &
+generate. Per-step validation blocks going forward on invalid input; back
+navigation is always allowed and no data is lost between steps. A **"Skip
+wizard, use full form"** link switches to the legacy all-at-once layout (and
+back) with data preserved. The chosen output opens that view after generating;
+scope relabels the primary name field and the planner title.
+
+A **help layer** — accessible field tooltips, inline hints, and a first-run
+guided tour — is controlled by one **Help: On/Off** toggle in the nav
+(persisted). The tour has Back/Next/Skip/Don't-show-again and a **Restart tour**
+control; all help copy lives in `src/help/helpText.ts`.
+
 ## What it does
 
 - **Two scheduling modes**
@@ -80,9 +95,13 @@ npm run preview   # serve the production build
 | `src/googleCalendar.ts` | Per-lesson calendar link + `.ics` builder (Asia/Singapore). |
 | `src/googleSheets.ts` | GIS token flow + Sheets API v4 create/write. |
 | `src/settings.ts` | localStorage settings model + `useSettings` hook. |
-| `src/pages/` | `TimetablePage` (form + views + exports), `SettingsPage`. |
+| `src/pages/` | `TimetablePage` (hosts shared state + wizard/full-form toggle + views + exports), `SettingsPage`. |
+| `src/wizard/` | `Wizard`, `Stepper`, `wizardModel` (state, scope, persistence, per-step validation). |
+| `src/components/` | `LabeledField`, and the `DetailsFields` / `RulesFields` groups shared by wizard and full form. |
+| `src/FullForm.tsx` | Legacy all-at-once form (reuses the shared field groups). |
+| `src/help/` | `HelpProvider` + `useHelp`, `Tooltip`, `Hint`, `Tour`, and `helpText.ts` (all copy). |
 | `src/views/` | `ListView`, `MonthView` (Calendar), `HybridView` (planner matrix). |
-| `src/App.tsx` | Router shell: header, nav, routes. |
+| `src/App.tsx` | Router shell: header, nav, Help controls, routes, Tour. |
 
 ## Google integration notes
 

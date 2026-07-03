@@ -39,6 +39,8 @@ export interface PlannerMonth {
 }
 
 export interface PlannerModel {
+  /** Label for the primary name row per scope, e.g. "Course" / "Module". */
+  scopeLabel: string;
   course: string;
   timing: string;
   updatedDisplay: string;
@@ -107,6 +109,7 @@ export function buildPlanner(
   holidays: HolidaySet,
   firstDayOfWeek: FirstDayOfWeek,
   todayIso: string,
+  scopeLabel = 'Course',
 ): PlannerModel {
   const startOffset = firstDayOfWeek === 'monday' ? 1 : 0;
   const weekdayLabels = Array.from(
@@ -153,6 +156,7 @@ export function buildPlanner(
   }
 
   return {
+    scopeLabel,
     course: config.courseName,
     timing: `${config.startTime} to ${config.endTime}`,
     updatedDisplay: formatDisplayDate(todayIso),

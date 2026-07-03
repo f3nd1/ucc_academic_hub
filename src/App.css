@@ -19,11 +19,55 @@
   color: var(--muted);
 }
 
+/* Top bar: nav + help controls */
+.app__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.nav__help {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav__helpbtn {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
+
+.nav__helpbtn[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
 /* Top navigation */
 .nav {
   display: flex;
   gap: 0.5rem;
-  margin-top: 0.75rem;
 }
 
 .nav a {
@@ -625,4 +669,316 @@ tbody tr:nth-child(even) {
 }
 .act--public {
   background: var(--plan-public);
+}
+
+/* ---------------- Field label row + tooltip + hint ---------------- */
+.field__labelrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field__labelrow h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0.3rem 0 0;
+}
+
+.tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tip__btn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+  padding: 0;
+}
+
+.tip__bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 240px;
+  background: var(--ink);
+  color: var(--panel);
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.35;
+  z-index: 40;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ---------------- Wizard ---------------- */
+.wizard__head,
+.setup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.wizard__head h2 {
+  margin: 0;
+}
+
+.stepper {
+  display: flex;
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.stepper__item {
+  flex: 1;
+  min-width: 64px;
+}
+
+.stepper__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.2rem;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  border-top: 3px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.stepper__num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--border);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.stepper__item--active .stepper__btn {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+.stepper__item--active .stepper__num {
+  background: var(--accent);
+  color: #fff;
+}
+.stepper__item--done .stepper__btn {
+  color: var(--ink);
+  border-top-color: var(--accent);
+}
+.stepper__item--done .stepper__num {
+  background: var(--accent);
+  color: #fff;
+}
+
+.wizard__body {
+  min-height: 260px;
+}
+
+.wizard__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+/* Step 1 intent cards */
+.intent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .intent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.intent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  text-align: left;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  cursor: pointer;
+  font: inherit;
+}
+
+.intent-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.intent__thumb {
+  width: 100%;
+  height: 40px;
+  fill: var(--accent);
+}
+
+.intent-card__title {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.intent-card__desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Step 2 scope cards */
+.scope-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.scope-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.scope-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+}
+
+.scope-card__desc {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* Step 5 review */
+.review__grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1rem;
+  margin: 0;
+}
+
+.review__grid dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.review__grid dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  width: 100%;
+}
+
+/* ---------------- Tour ---------------- */
+.tour__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.55);
+  z-index: 1000;
+}
+
+.tour__ring {
+  position: fixed;
+  border: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.35);
+  pointer-events: none;
+  z-index: 1001;
+  transition: all 0.15s ease;
+}
+
+.tour__card {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  z-index: 1002;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.tour__step {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tour__title {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.tour__body {
+  margin: 0 0 1rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.tour__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.tour__nav {
+  display: flex;
+  gap: 0.4rem;
 }
