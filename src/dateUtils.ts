@@ -54,3 +54,11 @@ export const isWeekend = (d: Date): boolean => {
 
 /** Matches the required date shape for holiday inputs. */
 export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * True when `s` is YYYY-MM-DD AND a real calendar date. JS Date silently rolls
+ * invalid dates over (2026-02-30 → 02 March), which would suppress the wrong
+ * day if used as a holiday — the round-trip check catches that.
+ */
+export const isValidIsoDate = (s: string): boolean =>
+  DATE_PATTERN.test(s) && formatDate(parseLocal(s)) === s;

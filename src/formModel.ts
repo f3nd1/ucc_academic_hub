@@ -1,5 +1,5 @@
 import type { ClassGroupConfig, HolidaySet, NamedHoliday } from './types';
-import { DATE_PATTERN } from './dateUtils';
+import { DATE_PATTERN, isValidIsoDate } from './dateUtils';
 
 export type SchedulingMode = 'weekday' | 'permonth';
 
@@ -78,6 +78,18 @@ export const parseLines = (raw: string): string[] =>
     .filter((s) => s.length > 0);
 
 /**
+ * Split a textarea into trimmed lines PRESERVING interior blanks, so entries
+ * keep their line positions. Used for activities, which pair to lesson names
+ * by index — a blank line means "this lesson has no activity" and must not
+ * shift later lines up. Trailing blank lines are dropped.
+ */
+export const parseAlignedLines = (raw: string): string[] => {
+  const lines = raw.split('\n').map((s) => s.trim());
+  while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+};
+
+/**
  * Parse one holiday line into { date, name }. Accepts "YYYY-MM-DD" or
  * "YYYY-MM-DD, name" (only the first comma splits date from name).
  */
@@ -126,7 +138,13 @@ export function validateDetails(
       );
   }
 
-  if (!form.startDate.trim()) errors.push('Start date is required.');
+  if (!form.startDate.trim()) {
+    errors.push('Start date is required.');
+  } else if (!isValidIsoDate(form.startDate.trim())) {
+    // The date picker always emits valid dates, but ERPNext import can inject
+    // arbitrary values — catch rollover dates before they shift silently.
+    errors.push('Start date must be a real YYYY-MM-DD calendar date.');
+  }
 
   if (!form.startTime.trim() || !form.endTime.trim()) {
     errors.push('Start time and end time are required.');
@@ -141,16 +159,21 @@ export function validateDetails(
 /** Validate the "calendar rules" inputs (holiday date formats). */
 export function validateRules(form: RawForm): string[] {
   const errors: string[] = [];
-  // Validate the DATE PART only; an optional ", name" may follow.
+  // Validate the DATE PART only; an optional ", name" may follow. Two tiers:
+  // shape (YYYY-MM-DD) and reality (no 2026-02-30 rollover).
   for (const line of parseLines(form.uccHolidaysRaw)) {
     const { date } = parseHolidayLine(line);
     if (!DATE_PATTERN.test(date))
       errors.push(`UCC holiday "${line}" must start with a YYYY-MM-DD date.`);
+    else if (!isValidIsoDate(date))
+      errors.push(`UCC holiday "${line}" is not a real calendar date.`);
   }
   for (const line of parseLines(form.publicHolidaysRaw)) {
     const { date } = parseHolidayLine(line);
     if (!DATE_PATTERN.test(date))
       errors.push(`Public holiday "${line}" must start with a YYYY-MM-DD date.`);
+    else if (!isValidIsoDate(date))
+      errors.push(`Public holiday "${line}" is not a real calendar date.`);
   }
   return errors;
 }
@@ -174,7 +197,8 @@ export function buildConfig(form: RawForm): ClassGroupConfig {
     teacher: form.teacher.trim(),
     classroom: form.classroom.trim(),
     lessonNames: parseLines(form.lessonNamesRaw),
-    activities: parseLines(form.activitiesRaw),
+    // Aligned (blank-preserving) so activities stay paired to lesson lines.
+    activities: parseAlignedLines(form.activitiesRaw),
     totalLessons: Number(form.totalLessons),
     lessonsPerMonth:
       form.mode === 'permonth' ? Number(form.lessonsPerMonth) : null,

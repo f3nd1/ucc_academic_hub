@@ -17,6 +17,7 @@ import { useSettings, type FirstDayOfWeek } from '../settings';
 import { formatDisplayDate, formatDate } from '../dateUtils';
 import { buildPlanner } from '../planner';
 import { exportPlannerCsv, exportPlannerToSheets } from '../plannerExports';
+import { openTabForAsyncUrl } from '../popup';
 import { ListView } from '../views/ListView';
 import { MonthView } from '../views/MonthView';
 import { HybridView } from '../views/HybridView';
@@ -158,6 +159,8 @@ export function TimetablePage() {
       setMessages([EXPORT_EMPTY_MESSAGE]);
       return;
     }
+    // Open the tab now, inside the click gesture, so it isn't popup-blocked.
+    const navigateTab = openTabForAsyncUrl();
     setBusy(true);
     setBanner(null);
     const result = await exportToGoogleSheets(
@@ -165,7 +168,7 @@ export function TimetablePage() {
       config,
       settings.googleClientId,
     );
-    if (result.ok && result.url) window.open(result.url, '_blank', 'noopener');
+    navigateTab(result.url);
     setBanner({ ok: result.ok, message: result.message });
     setBusy(false);
   };
@@ -183,13 +186,15 @@ export function TimetablePage() {
       setMessages([EXPORT_EMPTY_MESSAGE]);
       return;
     }
+    // Open the tab now, inside the click gesture, so it isn't popup-blocked.
+    const navigateTab = openTabForAsyncUrl();
     setBusy(true);
     setBanner(null);
     const result = await exportPlannerToSheets(
       plannerModel,
       settings.googleClientId,
     );
-    if (result.ok && result.url) window.open(result.url, '_blank', 'noopener');
+    navigateTab(result.url);
     setBanner({ ok: result.ok, message: result.message });
     setBusy(false);
   };
