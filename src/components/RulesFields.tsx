@@ -1,10 +1,10 @@
-import type { RawForm } from '../formModel';
+import type { CourseForm } from '../formModel';
 import type { FirstDayOfWeek } from '../settings';
 import { LabeledField } from './LabeledField';
 
 interface Props {
-  form: RawForm;
-  update: (patch: Partial<RawForm>) => void;
+  form: CourseForm;
+  update: (patch: Partial<CourseForm>) => void;
   firstDayOfWeek: FirstDayOfWeek;
   setFirstDayOfWeek: (day: FirstDayOfWeek) => void;
 }

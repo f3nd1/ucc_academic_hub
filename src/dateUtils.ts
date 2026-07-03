@@ -85,3 +85,25 @@ export const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  */
 export const isValidIsoDate = (s: string): boolean =>
   DATE_PATTERN.test(s) && formatDate(parseLocal(s)) === s;
+
+/** Matches the YYYY-MM shape used for the course start month. */
+export const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+/** True when `s` is a real YYYY-MM month (01–12). */
+export const isValidIsoMonth = (s: string): boolean => {
+  if (!MONTH_PATTERN.test(s)) return false;
+  const m = Number(s.slice(5, 7));
+  return m >= 1 && m <= 12;
+};
+
+/** Parse YYYY-MM into { year, month } with month 0-based (Date convention). */
+export const parseMonth = (s: string): { year: number; month: number } => {
+  const [y, m] = s.split('-').map(Number);
+  return { year: y, month: m - 1 };
+};
+
+/** Human display for a YYYY-MM month: "July 2026". */
+export const formatDisplayMonth = (ym: string): string => {
+  const { year, month } = parseMonth(ym);
+  return `${MONTH_NAMES[month]} ${year}`;
+};

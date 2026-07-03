@@ -3,7 +3,7 @@ import {
   parseLines,
   validateDetails,
   validateRules,
-  type RawForm,
+  type CourseForm,
 } from '../formModel';
 import type { FirstDayOfWeek } from '../settings';
 import { SCOPE_LABELS } from '../help/helpText';
@@ -18,7 +18,7 @@ export type Scope = 'course' | 'module' | 'classGroup';
 export interface WizardState {
   intent: Intent;
   scope: Scope;
-  form: RawForm;
+  form: CourseForm;
   firstDayOfWeek: FirstDayOfWeek;
 }
 
@@ -41,7 +41,10 @@ export const makeInitialWizard = (
 });
 
 // --- Persistence (prefill last-used values after first generation) ----------
-const STATE_KEY = 'ucc-wizard-state';
+// Key bumped for the v5 course-shaped form: merging an old flat RawForm into
+// the new CourseForm shape would produce a broken hybrid, so stale state from
+// the previous key is deliberately ignored.
+const STATE_KEY = 'ucc-wizard-state-v5';
 
 export function loadWizard(fallbackFdow: FirstDayOfWeek): WizardState {
   try {

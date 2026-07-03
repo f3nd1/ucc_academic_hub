@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import {
   EMPTY_FORM,
   DEMO_FORM,
+  emptyModule,
   validateForm,
-  buildConfig,
+  buildCourse,
   buildHolidays,
-  type RawForm,
+  type CourseForm,
+  type ModuleForm,
 } from '../formModel';
-import { generateSchedule } from '../scheduler';
+import { generateCourseSchedule } from '../courseEngine';
 import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
@@ -52,8 +54,8 @@ export function TimetablePage() {
     setLayout,
     lessons,
     setLessons,
-    config,
-    setConfig,
+    course,
+    setCourse,
     holidays,
     setHolidays,
     view,
@@ -70,8 +72,29 @@ export function TimetablePage() {
 
   const todayIso = useMemo(() => formatDate(new Date()), []);
 
-  const updateForm = (patch: Partial<RawForm>) =>
+  const updateForm = (patch: Partial<CourseForm>) =>
     setWizard((w) => ({ ...w, form: { ...w.form, ...patch } }));
+  const updateModule = (id: string, patch: Partial<ModuleForm>) =>
+    setWizard((w) => ({
+      ...w,
+      form: {
+        ...w.form,
+        modules: w.form.modules.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      },
+    }));
+  const addModule = () =>
+    setWizard((w) => ({
+      ...w,
+      form: { ...w.form, modules: [...w.form.modules, emptyModule()] },
+    }));
+  const removeModule = (id: string) =>
+    setWizard((w) => ({
+      ...w,
+      form: {
+        ...w.form,
+        modules: w.form.modules.filter((m) => m.id !== id),
+      },
+    }));
   const setIntent = (intent: Intent) => setWizard((w) => ({ ...w, intent }));
   const setScope = (scope: Scope) => setWizard((w) => ({ ...w, scope }));
   const setFirstDayOfWeek = (firstDayOfWeek: FirstDayOfWeek) =>
@@ -79,28 +102,32 @@ export function TimetablePage() {
 
   const summary = useMemo(() => {
     if (!lessons || lessons.length === 0) return null;
+    // Real lessons only; AL buffer days pad the course but are not sessions.
+    const real = lessons.filter((l) => l.kind === 'lesson');
+    if (real.length === 0) return null;
     return {
-      total: lessons.length,
-      first: formatDisplayDate(lessons[0].date),
-      last: formatDisplayDate(lessons[lessons.length - 1].date),
+      total: real.length,
+      al: lessons.length - real.length,
+      first: formatDisplayDate(real[0].date),
+      last: formatDisplayDate(real[real.length - 1].date),
     };
   }, [lessons]);
 
   const plannerModel = useMemo(() => {
-    if (!lessons || lessons.length === 0 || !config || !holidays) return null;
+    if (!lessons || lessons.length === 0 || !course || !holidays) return null;
     return buildPlanner(
       lessons,
-      config,
+      course,
       holidays,
       wizard.firstDayOfWeek,
       todayIso,
       scopeTitleLabel(wizard.scope),
     );
-  }, [lessons, config, holidays, wizard.firstDayOfWeek, wizard.scope, todayIso]);
+  }, [lessons, course, holidays, wizard.firstDayOfWeek, wizard.scope, todayIso]);
 
   const resetResults = () => {
     setLessons(null);
-    setConfig(null);
+    setCourse(null);
     setHolidays(null);
     setMessages([]);
     setBanner(null);
@@ -112,17 +139,17 @@ export function TimetablePage() {
     if (errors.length > 0) {
       setMessages(errors);
       setLessons(null);
-      setConfig(null);
+      setCourse(null);
       setHolidays(null);
       return;
     }
 
-    const cfg = buildConfig(wizard.form);
+    const builtCourse = buildCourse(wizard.form);
     const holidaySet = buildHolidays(wizard.form);
     try {
-      const result = generateSchedule(cfg, holidaySet);
+      const result = generateCourseSchedule(builtCourse, holidaySet);
       setLessons(result);
-      setConfig(cfg);
+      setCourse(builtCourse);
       setHolidays(holidaySet);
       setMessages([]);
       setView(wizard.intent); // open in the intent chosen in Step 1
@@ -130,7 +157,7 @@ export function TimetablePage() {
     } catch (err) {
       setMessages([err instanceof Error ? err.message : String(err)]);
       setLessons(null);
-      setConfig(null);
+      setCourse(null);
       setHolidays(null);
     }
   };
@@ -164,7 +191,7 @@ export function TimetablePage() {
     if (result.ok && result.data) {
       setWizard((w) => ({ ...w, form: result.data! }));
       setLessons(null);
-      setConfig(null);
+      setCourse(null);
       setHolidays(null);
       setMessages([]);
       setErpRecords(null); // close the picker on success
@@ -174,7 +201,7 @@ export function TimetablePage() {
   };
 
   const guardedExport = (fn: () => void) => {
-    if (!lessons || lessons.length === 0 || !config) {
+    if (!lessons || lessons.length === 0 || !course) {
       setMessages([EXPORT_EMPTY_MESSAGE]);
       return;
     }
@@ -182,7 +209,7 @@ export function TimetablePage() {
   };
 
   const handleGoogleSheets = async () => {
-    if (!lessons || lessons.length === 0 || !config) {
+    if (!lessons || lessons.length === 0 || !course) {
       setMessages([EXPORT_EMPTY_MESSAGE]);
       return;
     }
@@ -192,7 +219,7 @@ export function TimetablePage() {
     setBanner(null);
     const result = await exportToGoogleSheets(
       lessons,
-      config,
+      course,
       settings.googleClientId,
     );
     navigateTab(result.url);
@@ -240,6 +267,9 @@ export function TimetablePage() {
           setScope={setScope}
           setFirstDayOfWeek={setFirstDayOfWeek}
           updateForm={updateForm}
+          updateModule={updateModule}
+          addModule={addModule}
+          removeModule={removeModule}
           onGenerate={handleGenerate}
           onSwitchToFullForm={() => setLayout('full')}
           busy={busy}
@@ -251,6 +281,9 @@ export function TimetablePage() {
           setScope={setScope}
           setFirstDayOfWeek={setFirstDayOfWeek}
           updateForm={updateForm}
+          updateModule={updateModule}
+          addModule={addModule}
+          removeModule={removeModule}
           onGenerate={handleGenerate}
           onLoadDemo={handleLoadDemo}
           onClear={handleClear}
@@ -270,7 +303,7 @@ export function TimetablePage() {
           <div className="exports" data-tour="exports">
             <button
               className="btn"
-              onClick={() => guardedExport(() => exportCsv(lessons!, config!))}
+              onClick={() => guardedExport(() => exportCsv(lessons!, course!))}
             >
               CSV
             </button>
@@ -285,7 +318,7 @@ export function TimetablePage() {
               className="btn"
               onClick={() =>
                 guardedExport(() =>
-                  exportPdf(lessons!, config!, scopeTitleLabel(wizard.scope)),
+                  exportPdf(lessons!, course!, scopeTitleLabel(wizard.scope)),
                 )
               }
             >
@@ -293,7 +326,7 @@ export function TimetablePage() {
             </button>
             <button
               className="btn"
-              onClick={() => guardedExport(() => downloadIcs(lessons!, config!))}
+              onClick={() => guardedExport(() => downloadIcs(lessons!, course!))}
             >
               .ics
             </button>
@@ -339,8 +372,13 @@ export function TimetablePage() {
         {summary && (
           <div className="summary">
             <span>
-              <strong>{summary.total}</strong> scheduled
+              <strong>{summary.total}</strong> lessons
             </span>
+            {summary.al > 0 && (
+              <span>
+                <strong>{summary.al}</strong> AL days
+              </span>
+            )}
             <span>
               First <strong>{summary.first}</strong>
             </span>
@@ -373,12 +411,12 @@ export function TimetablePage() {
 
         {hasLessons ? (
           view === 'list' ? (
-            <ListView lessons={lessons!} courseName={config!.courseName} />
+            <ListView lessons={lessons!} courseName={course!.name} />
           ) : view === 'calendar' ? (
             <MonthView
               lessons={lessons!}
               firstDayOfWeek={wizard.firstDayOfWeek}
-              courseName={config!.courseName}
+              courseName={course!.name}
             />
           ) : (
             plannerModel && <HybridView model={plannerModel} />

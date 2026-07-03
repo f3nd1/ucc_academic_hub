@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildPlannerLayout } from '../src/plannerExports';
 import { buildPlanner } from '../src/planner';
 import { generateSchedule } from '../src/scheduler';
-import type { ClassGroupConfig, HolidaySet } from '../src/types';
+import type { ClassGroupConfig, Course, HolidaySet } from '../src/types';
 
 const CONFIG: ClassGroupConfig = {
   id: 'g1',
@@ -19,13 +19,33 @@ const CONFIG: ClassGroupConfig = {
   endTime: '10:00',
 };
 
+const COURSE: Course = {
+  name: 'Course X',
+  startMonth: '2026-07',
+  deliveryMode: 'series',
+  modules: [
+    {
+      id: 'g1',
+      name: 'Course X',
+      teacher: 'Ms Tan',
+      classroom: 'R1',
+      classGroup: 'CG-1',
+      lessonNames: ['L1', 'L2'],
+      activities: ['Listening', 'Reading'],
+      totalLessons: 6,
+      startTime: '09:00',
+      endTime: '10:00',
+    },
+  ],
+};
+
 const HOLIDAYS: HolidaySet = {
   uccHolidays: [],
   publicHolidays: [{ date: '2026-07-10', name: 'Some PH' }],
 };
 
 const lessons = generateSchedule(CONFIG, HOLIDAYS);
-const model = buildPlanner(lessons, CONFIG, HOLIDAYS, 'monday', '2026-07-03', 'Module');
+const model = buildPlanner(lessons, COURSE, HOLIDAYS, 'monday', '2026-07-03', 'Module');
 const layout = buildPlannerLayout(model, ' / ');
 
 describe('buildPlannerLayout', () => {

@@ -59,6 +59,9 @@ const makeLesson = (
   d: Date,
 ): ScheduledLesson => ({
   groupId: config.id,
+  moduleId: config.id,
+  moduleName: config.courseName,
+  kind: 'lesson',
   lessonNo,
   lessonName: lessonNameFor(lessonNo, config.lessonNames),
   activity: activityFor(lessonNo, config.lessonNames, config.activities),

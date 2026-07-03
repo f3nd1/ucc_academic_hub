@@ -15,11 +15,15 @@ export const TOOLTIPS: Record<string, string> = {
     'One lesson label per line. When there are more lessons than labels, the labels repeat in order.',
   activities:
     'Optional. One activity per line, paired to the lesson on the same line. Leave blank to show the label only.',
-  totalLessons: 'How many sessions to schedule in total.',
-  mode: 'Every weekday fills each valid weekday; Per month spreads a set number of lessons evenly across each month.',
-  lessonsPerMonth: 'Used in Per month mode: how many lessons to place in each month.',
-  startDate: 'The first day the timetable may schedule a lesson.',
-  startTime: 'Daily lesson start time.',
+  totalLessons: 'How many sessions to schedule for this module in total.',
+  startMonth:
+    'Each module begins on the 1st of its start month, or the next valid teaching day if the 1st is blocked.',
+  deliveryMode:
+    'Series runs modules one after another, spreading lessons across each month and filling gaps with AL buffer days. Parallel runs all modules at once in contiguous blocks.',
+  moduleName: 'The name of this module, shown in every view and export.',
+  modules:
+    'A course can hold several modules. Add a row per module; each has its own teacher, room, lessons, and times.',
+  startTime: 'Daily lesson start time for this module.',
   endTime: 'Daily lesson end time. Must be later than the start time.',
   uccHolidays: 'Dates the school is closed. These are skipped when scheduling.',
   publicHolidays:
@@ -30,11 +34,11 @@ export const TOOLTIPS: Record<string, string> = {
 
 /** Muted inline hints under complex fields, keyed by field id. */
 export const HINTS: Record<string, string> = {
-  lessonsPerMonth: 'Only used in Per month mode.',
   uccHolidays: 'Format: "2026-09-01" or "2026-09-01, Term Break".',
   publicHolidays: 'Format: "2026-08-09, National Day" — the name shows in the planner.',
   activities: 'Paired to lesson names by position: line 1 ↔ lesson 1, and so on.',
   lessonNames: 'One per line. Labels repeat if there are more lessons than labels.',
+  deliveryMode: 'Series = one module after another with AL fill; Parallel = all at once.',
 };
 
 /** First-run guided tour steps. `selector` targets a data-tour element. */

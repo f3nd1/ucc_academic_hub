@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import type { RawForm } from '../formModel';
+import type { CourseForm, ModuleForm } from '../formModel';
 import type { FirstDayOfWeek } from '../settings';
-import { formatDisplayDate } from '../dateUtils';
+import { formatDisplayMonth } from '../dateUtils';
 import { Tooltip } from '../help/Tooltip';
 import { TOOLTIPS } from '../help/helpText';
 import { DetailsFields } from '../components/DetailsFields';
@@ -25,7 +25,10 @@ interface Props {
   setIntent: (i: Intent) => void;
   setScope: (s: Scope) => void;
   setFirstDayOfWeek: (d: FirstDayOfWeek) => void;
-  updateForm: (patch: Partial<RawForm>) => void;
+  updateForm: (patch: Partial<CourseForm>) => void;
+  updateModule: (id: string, patch: Partial<ModuleForm>) => void;
+  addModule: () => void;
+  removeModule: (id: string) => void;
   onGenerate: () => void;
   onSwitchToFullForm: () => void;
   busy: boolean;
@@ -99,6 +102,9 @@ export function Wizard({
   setScope,
   setFirstDayOfWeek,
   updateForm,
+  updateModule,
+  addModule,
+  removeModule,
   onGenerate,
   onSwitchToFullForm,
   busy,
@@ -216,6 +222,9 @@ export function Wizard({
           <DetailsFields
             form={state.form}
             update={updateForm}
+            updateModule={updateModule}
+            addModule={addModule}
+            removeModule={removeModule}
             scope={state.scope}
           />
         )}
@@ -239,25 +248,26 @@ export function Wizard({
               <dd>{SCOPES.find((s) => s.key === state.scope)?.title}</dd>
               <dt>{primaryNameLabel(state.scope)}</dt>
               <dd>{primaryName}</dd>
-              <dt>Class group</dt>
-              <dd>{state.form.classGroup || '—'}</dd>
-              <dt>Teacher</dt>
-              <dd>{state.form.teacher || '—'}</dd>
-              <dt>Classroom</dt>
-              <dd>{state.form.classroom || '—'}</dd>
-              <dt>Lessons</dt>
+              <dt>Start month</dt>
               <dd>
-                {state.form.totalLessons || '—'} total ·{' '}
-                {state.form.mode === 'permonth'
-                  ? `${state.form.lessonsPerMonth || '—'} per month`
-                  : 'every weekday'}
+                {state.form.startMonth
+                  ? formatDisplayMonth(state.form.startMonth)
+                  : '—'}
               </dd>
-              <dt>Start</dt>
+              <dt>Delivery</dt>
               <dd>
-                {state.form.startDate
-                  ? formatDisplayDate(state.form.startDate)
-                  : '—'}{' '}
-                {state.form.startTime}–{state.form.endTime}
+                {state.form.deliveryMode === 'series' ? 'Series' : 'Parallel'}
+              </dd>
+              <dt>Modules</dt>
+              <dd>
+                {state.form.modules.map((m, i) => (
+                  <div key={m.id}>
+                    {m.name || primaryName || `Module ${i + 1}`} ·{' '}
+                    {m.totalLessons || '—'} lessons · {m.teacher || '—'} ·{' '}
+                    {m.classroom || '—'} · {m.startTime || '—'}–
+                    {m.endTime || '—'}
+                  </div>
+                ))}
               </dd>
               <dt>Holidays</dt>
               <dd>

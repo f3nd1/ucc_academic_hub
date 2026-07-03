@@ -1,73 +1,119 @@
-import type { ClassGroupConfig, HolidaySet, NamedHoliday } from './types';
-import { DATE_PATTERN, isValidIsoDate } from './dateUtils';
+import type {
+  Course,
+  DeliveryMode,
+  HolidaySet,
+  Module,
+  NamedHoliday,
+} from './types';
+import {
+  DATE_PATTERN,
+  isValidIsoDate,
+  isValidIsoMonth,
+} from './dateUtils';
 
-export type SchedulingMode = 'weekday' | 'permonth';
-
-/** Raw form state — every field is a string as it comes off the inputs. */
-export interface RawForm {
-  courseName: string;
+/** Raw per-module form state — every field a string off the inputs. */
+export interface ModuleForm {
+  id: string;
+  name: string;
   classGroup: string;
   teacher: string;
   classroom: string;
   lessonNamesRaw: string; // one per line
   activitiesRaw: string; // one per line, paired to lesson names by index
   totalLessons: string;
-  mode: SchedulingMode;
-  lessonsPerMonth: string; // used only in per-month mode
-  startDate: string;
   startTime: string;
   endTime: string;
-  uccHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
-  publicHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
 }
 
-export const EMPTY_FORM: RawForm = {
-  courseName: '',
+/** Raw course form state: course-level fields plus one or more modules. */
+export interface CourseForm {
+  courseName: string;
+  startMonth: string; // YYYY-MM
+  deliveryMode: DeliveryMode;
+  modules: ModuleForm[];
+  uccHolidaysRaw: string; // one per line: "YYYY-MM-DD" or "YYYY-MM-DD, name"
+  publicHolidaysRaw: string; // one per line
+}
+
+let moduleSeq = 0;
+/** Fresh empty module row with a unique id. */
+export const emptyModule = (): ModuleForm => ({
+  id: `mod-${++moduleSeq}-${Math.random().toString(36).slice(2, 7)}`,
+  name: '',
   classGroup: '',
   teacher: '',
   classroom: '',
   lessonNamesRaw: '',
   activitiesRaw: '',
   totalLessons: '',
-  mode: 'weekday',
-  lessonsPerMonth: '',
-  startDate: '',
   startTime: '',
   endTime: '',
+});
+
+export const EMPTY_FORM: CourseForm = {
+  courseName: '',
+  startMonth: '',
+  deliveryMode: 'series',
+  modules: [
+    {
+      id: 'mod-initial',
+      name: '',
+      classGroup: '',
+      teacher: '',
+      classroom: '',
+      lessonNamesRaw: '',
+      activitiesRaw: '',
+      totalLessons: '',
+      startTime: '',
+      endTime: '',
+    },
+  ],
   uccHolidaysRaw: '',
   publicHolidaysRaw: '',
 };
 
-// Demo data loaded by the "Load demo data" button, so the app is testable in
-// two clicks: load the demo, then "Generate timetable" for the acceptance
-// result (20 sessions, no weekends, skipping the two public holidays).
-export const DEMO_FORM: RawForm = {
+// Demo course: two modules sharing a class group and classroom. Series mode
+// runs them cleanly month after month; switching to Parallel makes their
+// overlapping time ranges clash on classroom + class group — demonstrating
+// the conflict panel and highlighting in two clicks.
+export const DEMO_FORM: CourseForm = {
   courseName: 'Foundations of Data Science',
-  classGroup: 'DS-2026A',
-  teacher: 'Ms Tan',
-  classroom: 'Room 3-01',
-  lessonNamesRaw: [
-    'Introduction',
-    'Data Types',
-    'Control Flow',
-    'Functions',
-    'Data Structures',
-  ].join('\n'),
-  activitiesRaw: ['Listening', 'Reading', 'Writing', 'Speaking', 'Grammar'].join(
-    '\n',
-  ),
-  // Per-month so the demo spans July–September and showcases the planner's
-  // public/school-holiday cells (National Day, Term Break) across months.
-  totalLessons: '24',
-  mode: 'permonth',
-  lessonsPerMonth: '8',
-  startDate: '2026-07-06',
-  startTime: '09:00',
-  endTime: '10:00',
+  startMonth: '2026-07',
+  deliveryMode: 'series',
+  modules: [
+    {
+      id: 'mod-demo-1',
+      name: 'Data Fundamentals',
+      classGroup: 'DS-2026A',
+      teacher: 'Ms Tan',
+      classroom: 'Room 3-01',
+      lessonNamesRaw: [
+        'Introduction',
+        'Data Types',
+        'Control Flow',
+        'Functions',
+        'Data Structures',
+      ].join('\n'),
+      activitiesRaw: ['Listening', 'Reading', 'Writing', 'Speaking', 'Grammar'].join('\n'),
+      totalLessons: '12',
+      startTime: '09:00',
+      endTime: '10:00',
+    },
+    {
+      id: 'mod-demo-2',
+      name: 'Applied Analytics',
+      classGroup: 'DS-2026A',
+      teacher: 'Mr Lim',
+      classroom: 'Room 3-01',
+      lessonNamesRaw: ['Statistics', 'Visualisation', 'Modelling'].join('\n'),
+      activitiesRaw: '',
+      totalLessons: '10',
+      startTime: '09:30',
+      endTime: '10:30',
+    },
+  ],
   uccHolidaysRaw: '2026-09-01, Term Break',
-  publicHolidaysRaw: ['2026-08-09, National Day', '2026-12-25, Christmas'].join(
-    '\n',
-  ),
+  publicHolidaysRaw: ['2026-08-09, National Day', '2026-12-25, Christmas'].join('\n'),
 };
 
 /** Split a textarea into trimmed, non-empty lines. */
@@ -106,60 +152,54 @@ export const parseNamedHolidays = (raw: string): NamedHoliday[] =>
   parseLines(raw).map(parseHolidayLine);
 
 /**
- * Validate the "details" inputs (everything except holidays). `primaryLabel`
- * names the primary field per the chosen scope (e.g. "Module name").
+ * Validate the "details" inputs (course + modules; holidays live in rules).
+ * `primaryLabel` names the primary field per the chosen scope. When a single
+ * module is edited (module/class-group scope) its name is taken from the
+ * primary field, so the per-module name is only required with multiple rows.
  */
 export function validateDetails(
-  form: RawForm,
+  form: CourseForm,
   primaryLabel = 'Course name',
 ): string[] {
   const errors: string[] = [];
 
   if (!form.courseName.trim()) errors.push(`${primaryLabel} is required.`);
-  if (!form.classGroup.trim()) errors.push('Class group is required.');
 
-  const lessonNames = parseLines(form.lessonNamesRaw);
-  if (lessonNames.length === 0)
-    errors.push('At least one lesson name is required.');
-
-  // Whole numbers only: 20.5 would otherwise schedule 21 lessons because the
-  // scheduler loop bound is lessons.length < totalLessons.
-  const total = Number(form.totalLessons);
-  if (!form.totalLessons.trim() || !Number.isInteger(total) || total <= 0)
-    errors.push('Total lessons must be a whole number greater than 0.');
-
-  if (form.mode === 'permonth') {
-    const perMonth = Number(form.lessonsPerMonth);
-    if (
-      !form.lessonsPerMonth.trim() ||
-      !Number.isInteger(perMonth) ||
-      perMonth <= 0
-    )
-      errors.push(
-        'Lessons per month must be a whole number greater than 0 in Per month mode.',
-      );
+  if (!form.startMonth.trim()) {
+    errors.push('Start month is required.');
+  } else if (!isValidIsoMonth(form.startMonth.trim())) {
+    errors.push('Start month must be a real YYYY-MM month.');
   }
 
-  if (!form.startDate.trim()) {
-    errors.push('Start date is required.');
-  } else if (!isValidIsoDate(form.startDate.trim())) {
-    // The date picker always emits valid dates, but ERPNext import can inject
-    // arbitrary values — catch rollover dates before they shift silently.
-    errors.push('Start date must be a real YYYY-MM-DD calendar date.');
-  }
+  if (form.modules.length === 0) errors.push('Add at least one module.');
 
-  if (!form.startTime.trim() || !form.endTime.trim()) {
-    errors.push('Start time and end time are required.');
-  } else if (form.endTime <= form.startTime) {
-    // HH:mm strings compare lexically because they are zero-padded.
-    errors.push('End time must be later than start time.');
-  }
+  form.modules.forEach((mod, i) => {
+    const tag = form.modules.length > 1 ? `Module ${i + 1}: ` : '';
+
+    if (form.modules.length > 1 && !mod.name.trim())
+      errors.push(`${tag}module name is required.`);
+    if (!mod.classGroup.trim()) errors.push(`${tag}class group is required.`);
+
+    if (parseLines(mod.lessonNamesRaw).length === 0)
+      errors.push(`${tag}at least one lesson name is required.`);
+
+    const total = Number(mod.totalLessons);
+    if (!mod.totalLessons.trim() || !Number.isInteger(total) || total <= 0)
+      errors.push(`${tag}total lessons must be a whole number greater than 0.`);
+
+    if (!mod.startTime.trim() || !mod.endTime.trim()) {
+      errors.push(`${tag}start time and end time are required.`);
+    } else if (mod.endTime <= mod.startTime) {
+      // HH:mm strings compare lexically because they are zero-padded.
+      errors.push(`${tag}end time must be later than start time.`);
+    }
+  });
 
   return errors;
 }
 
 /** Validate the "calendar rules" inputs (holiday date formats). */
-export function validateRules(form: RawForm): string[] {
+export function validateRules(form: CourseForm): string[] {
   const errors: string[] = [];
   // Validate the DATE PART only; an optional ", name" may follow. Two tiers:
   // shape (YYYY-MM-DD) and reality (no 2026-02-30 rollover).
@@ -180,38 +220,45 @@ export function validateRules(form: RawForm): string[] {
   return errors;
 }
 
-/**
- * Validate the whole form. Returns one message per failing rule (empty = valid).
- * The scheduler's "too many lessons for a month" error is surfaced separately
- * at generation time into the same message area.
- */
-export function validateForm(form: RawForm, primaryLabel = 'Course name'): string[] {
+/** Validate the whole form. Returns one message per failing rule. */
+export function validateForm(
+  form: CourseForm,
+  primaryLabel = 'Course name',
+): string[] {
   return [...validateDetails(form, primaryLabel), ...validateRules(form)];
 }
 
-/** Build a ClassGroupConfig from a validated form. */
-export function buildConfig(form: RawForm): ClassGroupConfig {
+/** Build a Module from a validated module row. */
+function buildModule(mod: ModuleForm, fallbackName: string): Module {
   return {
-    // Stable-enough id for a single-group pass; multi-group will assign real ids.
-    id: form.classGroup.trim() || 'group',
-    courseName: form.courseName.trim(),
-    classGroup: form.classGroup.trim(),
-    teacher: form.teacher.trim(),
-    classroom: form.classroom.trim(),
-    lessonNames: parseLines(form.lessonNamesRaw),
+    id: mod.id,
+    name: mod.name.trim() || fallbackName,
+    classGroup: mod.classGroup.trim(),
+    teacher: mod.teacher.trim(),
+    classroom: mod.classroom.trim(),
+    lessonNames: parseLines(mod.lessonNamesRaw),
     // Aligned (blank-preserving) so activities stay paired to lesson lines.
-    activities: parseAlignedLines(form.activitiesRaw),
-    totalLessons: Number(form.totalLessons),
-    lessonsPerMonth:
-      form.mode === 'permonth' ? Number(form.lessonsPerMonth) : null,
-    startDate: form.startDate,
-    startTime: form.startTime,
-    endTime: form.endTime,
+    activities: parseAlignedLines(mod.activitiesRaw),
+    totalLessons: Number(mod.totalLessons),
+    startTime: mod.startTime,
+    endTime: mod.endTime,
+  };
+}
+
+/** Build a Course from a validated form. */
+export function buildCourse(form: CourseForm): Course {
+  return {
+    name: form.courseName.trim(),
+    startMonth: form.startMonth.trim(),
+    deliveryMode: form.deliveryMode,
+    // A lone module without its own name takes the primary (course) name —
+    // that is the "Per module" scope where one field names both.
+    modules: form.modules.map((m) => buildModule(m, form.courseName.trim())),
   };
 }
 
 /** Build a HolidaySet (named) from a validated form. */
-export function buildHolidays(form: RawForm): HolidaySet {
+export function buildHolidays(form: CourseForm): HolidaySet {
   return {
     uccHolidays: parseNamedHolidays(form.uccHolidaysRaw),
     publicHolidays: parseNamedHolidays(form.publicHolidaysRaw),

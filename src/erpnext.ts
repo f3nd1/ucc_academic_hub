@@ -1,5 +1,5 @@
 import type { AppSettings } from './settings';
-import { EMPTY_FORM, type RawForm } from './formModel';
+import { EMPTY_FORM, type CourseForm } from './formModel';
 
 // ---------------------------------------------------------------------------
 // FIELD MAPPING — adjust these to the real ERPNext DocType schema.
@@ -128,19 +128,30 @@ function linesFrom(doc: Record<string, unknown>, field: string): string {
   return typeof raw === 'string' ? raw : '';
 }
 
-/** Map one ERPNext doc into a RawForm (fields left blank stay empty). */
-export function mapDocToForm(doc: Record<string, unknown>): RawForm {
+/**
+ * Map one ERPNext doc into a CourseForm holding a single module. The start
+ * month is derived from the DocType's start date (YYYY-MM-DD -> YYYY-MM).
+ */
+export function mapDocToForm(doc: Record<string, unknown>): CourseForm {
+  const name = str(doc, ERPNEXT_FIELD_MAP.courseName);
   return {
     ...EMPTY_FORM,
-    courseName: str(doc, ERPNEXT_FIELD_MAP.courseName),
-    classGroup: str(doc, ERPNEXT_FIELD_MAP.classGroup),
-    teacher: str(doc, ERPNEXT_FIELD_MAP.teacher),
-    classroom: str(doc, ERPNEXT_FIELD_MAP.classroom),
-    startDate: str(doc, ERPNEXT_FIELD_MAP.startDate),
-    startTime: str(doc, ERPNEXT_FIELD_MAP.startTime).slice(0, 5), // HH:mm
-    endTime: str(doc, ERPNEXT_FIELD_MAP.endTime).slice(0, 5),
-    lessonNamesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.lessonNames),
-    activitiesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.activities),
+    courseName: name,
+    startMonth: str(doc, ERPNEXT_FIELD_MAP.startDate).slice(0, 7), // YYYY-MM
+    modules: [
+      {
+        id: 'mod-erpnext',
+        name,
+        classGroup: str(doc, ERPNEXT_FIELD_MAP.classGroup),
+        teacher: str(doc, ERPNEXT_FIELD_MAP.teacher),
+        classroom: str(doc, ERPNEXT_FIELD_MAP.classroom),
+        lessonNamesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.lessonNames),
+        activitiesRaw: linesFrom(doc, ERPNEXT_FIELD_MAP.activities),
+        totalLessons: '',
+        startTime: str(doc, ERPNEXT_FIELD_MAP.startTime).slice(0, 5), // HH:mm
+        endTime: str(doc, ERPNEXT_FIELD_MAP.endTime).slice(0, 5),
+      },
+    ],
   };
 }
 
@@ -225,7 +236,7 @@ export async function listErpRecords(
 export async function fetchErpRecord(
   settings: AppSettings,
   name: string,
-): Promise<ErpResult<RawForm>> {
+): Promise<ErpResult<CourseForm>> {
   const blocked = guard(settings);
   if (blocked) return blocked;
 

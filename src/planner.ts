@@ -1,8 +1,4 @@
-import type {
-  ClassGroupConfig,
-  HolidaySet,
-  ScheduledLesson,
-} from './types';
+import type { Course, HolidaySet, ScheduledLesson } from './types';
 import type { FirstDayOfWeek } from './settings';
 import {
   formatDisplayDate,
@@ -104,7 +100,7 @@ function cellForDate(
 /** Build the planner model for the given schedule. `todayIso` feeds "Updated". */
 export function buildPlanner(
   lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
+  course: Course,
   holidays: HolidaySet,
   firstDayOfWeek: FirstDayOfWeek,
   todayIso: string,
@@ -154,10 +150,20 @@ export function buildPlanner(
     }
   }
 
+  // Timing line: the shared window when every module keeps the same times,
+  // otherwise flag that it varies (parallel courses often stagger modules).
+  const first = course.modules[0];
+  const uniform =
+    !!first &&
+    course.modules.every(
+      (m) => m.startTime === first.startTime && m.endTime === first.endTime,
+    );
   return {
     scopeLabel,
-    course: config.courseName,
-    timing: `${config.startTime} to ${config.endTime}`,
+    course: course.name,
+    timing: uniform && first
+      ? `${first.startTime} to ${first.endTime}`
+      : 'varies by module',
     updatedDisplay: formatDisplayDate(todayIso),
     weekdayLabels,
     months,

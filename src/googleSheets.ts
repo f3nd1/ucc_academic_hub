@@ -1,4 +1,4 @@
-import type { ClassGroupConfig, ScheduledLesson } from './types';
+import type { Course, ScheduledLesson } from './types';
 import { DATA_COLUMN_HEADERS, dataRowFor } from './exports';
 
 // Minimal typings for the Google Identity Services token client. GIS is loaded
@@ -101,7 +101,7 @@ export interface SheetsResult {
  */
 export async function exportToGoogleSheets(
   lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
+  course: Course,
   clientId: string,
 ): Promise<SheetsResult> {
   if (!clientId.trim())
@@ -124,7 +124,7 @@ export async function exportToGoogleSheets(
   }
 
   const authHeader = { Authorization: `Bearer ${token}` };
-  const title = `${config.classGroup || 'Class'} Timetable`;
+  const title = `${course.name || 'Course'} Timetable`;
 
   try {
     // 1) Create the spreadsheet.

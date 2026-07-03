@@ -7,7 +7,7 @@ import {
   type PlannerCell,
 } from '../src/planner';
 import { generateSchedule } from '../src/scheduler';
-import type { ClassGroupConfig, HolidaySet } from '../src/types';
+import type { ClassGroupConfig, Course, HolidaySet } from '../src/types';
 
 const CONFIG: ClassGroupConfig = {
   id: 'g1',
@@ -22,6 +22,26 @@ const CONFIG: ClassGroupConfig = {
   startDate: '2026-07-06',
   startTime: '09:00',
   endTime: '10:00',
+};
+
+const COURSE: Course = {
+  name: 'Course X',
+  startMonth: '2026-07',
+  deliveryMode: 'series',
+  modules: [
+    {
+      id: 'g1',
+      name: 'Course X',
+      teacher: 'Ms Tan',
+      classroom: 'R1',
+      classGroup: 'CG-1',
+      lessonNames: ['L1', 'L2'],
+      activities: ['Listening', 'Reading'],
+      totalLessons: 6,
+      startTime: '09:00',
+      endTime: '10:00',
+    },
+  ],
 };
 
 const HOLIDAYS: HolidaySet = {
@@ -46,7 +66,7 @@ function cellFor(
 
 describe('buildPlanner structure', () => {
   const lessons = generateSchedule(CONFIG, HOLIDAYS);
-  const model = buildPlanner(lessons, CONFIG, HOLIDAYS, 'monday', '2026-07-03');
+  const model = buildPlanner(lessons, COURSE, HOLIDAYS, 'monday', '2026-07-03');
 
   it('carries the scope label, course, timing, and display Updated date', () => {
     expect(model.scopeLabel).toBe('Course');
@@ -86,7 +106,7 @@ describe('buildPlanner structure', () => {
 
 describe('cell classification', () => {
   const lessons = generateSchedule(CONFIG, HOLIDAYS);
-  const model = buildPlanner(lessons, CONFIG, HOLIDAYS, 'monday', '2026-07-03');
+  const model = buildPlanner(lessons, COURSE, HOLIDAYS, 'monday', '2026-07-03');
 
   it('teaching cell carries activity, lesson label, and teacher', () => {
     const cell = cellFor(model, '2026-07-06')!;
@@ -142,7 +162,7 @@ describe('first-day-of-week and 6-week months', () => {
     const lessons = generateSchedule(CONFIG, HOLIDAYS);
     const model = buildPlanner(
       lessons,
-      CONFIG,
+      COURSE,
       HOLIDAYS,
       'sunday',
       '2026-07-03',
@@ -166,7 +186,7 @@ describe('first-day-of-week and 6-week months', () => {
     });
     const model = buildPlanner(
       lessons,
-      cfg,
+      COURSE,
       { uccHolidays: [], publicHolidays: [] },
       'monday',
       '2026-03-01',
@@ -182,7 +202,7 @@ describe('scope label pass-through', () => {
     const lessons = generateSchedule(CONFIG, HOLIDAYS);
     const model = buildPlanner(
       lessons,
-      CONFIG,
+      COURSE,
       HOLIDAYS,
       'monday',
       '2026-07-03',

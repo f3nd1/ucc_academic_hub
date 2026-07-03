@@ -1,4 +1,4 @@
-import type { RawForm } from './formModel';
+import type { CourseForm, ModuleForm } from './formModel';
 import type { FirstDayOfWeek } from './settings';
 import type { ErpRecordSummary } from './erpnext';
 import { DetailsFields } from './components/DetailsFields';
@@ -14,7 +14,10 @@ interface Props {
   setIntent: (i: Intent) => void;
   setScope: (s: Scope) => void;
   setFirstDayOfWeek: (d: FirstDayOfWeek) => void;
-  updateForm: (patch: Partial<RawForm>) => void;
+  updateForm: (patch: Partial<CourseForm>) => void;
+  updateModule: (id: string, patch: Partial<ModuleForm>) => void;
+  addModule: () => void;
+  removeModule: (id: string) => void;
   onGenerate: () => void;
   onLoadDemo: () => void;
   onClear: () => void;
@@ -34,6 +37,9 @@ export function FullForm({
   setScope,
   setFirstDayOfWeek,
   updateForm,
+  updateModule,
+  addModule,
+  removeModule,
   onGenerate,
   onLoadDemo,
   onClear,
@@ -123,7 +129,14 @@ export function FullForm({
         </div>
       </div>
 
-      <DetailsFields form={state.form} update={updateForm} scope={state.scope} />
+      <DetailsFields
+        form={state.form}
+        update={updateForm}
+        updateModule={updateModule}
+        addModule={addModule}
+        removeModule={removeModule}
+        scope={state.scope}
+      />
 
       <h2 className="panel__subhead">Holidays &amp; week</h2>
       <RulesFields

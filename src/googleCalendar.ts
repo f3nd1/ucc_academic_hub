@@ -1,4 +1,4 @@
-import type { ClassGroupConfig, ScheduledLesson } from './types';
+import type { Course, ScheduledLesson } from './types';
 
 const TZID = 'Asia/Singapore';
 
@@ -39,7 +39,7 @@ const fileStem = (classGroup: string): string =>
  */
 export function buildIcs(
   lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
+  course: Course,
   dtstamp: string,
 ): string {
   const lines: string[] = [
@@ -58,14 +58,15 @@ export function buildIcs(
     'END:VTIMEZONE',
   ];
 
-  for (const l of lessons) {
+  // AL buffer days have no times and are not calendar events — skip them.
+  for (const l of lessons.filter((l) => l.kind !== 'AL')) {
     lines.push(
       'BEGIN:VEVENT',
-      `UID:${config.id}-${l.lessonNo}@ucc-timetable`,
+      `UID:${l.moduleId}-${l.lessonNo}@ucc-timetable`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART;TZID=${TZID}:${stamp(l.date, l.startTime)}`,
       `DTEND;TZID=${TZID}:${stamp(l.date, l.endTime)}`,
-      `SUMMARY:${icsEscape(`${config.courseName} - ${l.lessonName}`)}`,
+      `SUMMARY:${icsEscape(`${course.name} - ${l.lessonName}`)}`,
       `LOCATION:${icsEscape(l.classroom)}`,
       `DESCRIPTION:${icsEscape(`${l.teacher}, ${l.classGroup}`)}`,
       'END:VEVENT',
@@ -79,19 +80,19 @@ export function buildIcs(
 /** Trigger download of the .ics for all lessons. */
 export function downloadIcs(
   lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
+  course: Course,
 ): void {
   // App runtime (browser) — Date is fine here; DTSTAMP must be UTC "Z" form.
   const dtstamp = new Date()
     .toISOString()
     .replace(/[-:]/g, '')
     .replace(/\.\d{3}Z$/, 'Z');
-  const ics = buildIcs(lessons, config, dtstamp);
+  const ics = buildIcs(lessons, course, dtstamp);
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${fileStem(config.classGroup)}-timetable.ics`;
+  a.download = `${fileStem(course.name)}-timetable.ics`;
   document.body.appendChild(a);
   a.click();
   a.remove();

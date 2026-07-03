@@ -38,6 +38,9 @@ const groupB: ClassGroupConfig = {
 /** Minimal lesson factory for hand-built clash scenarios. */
 const lesson = (over: Partial<ScheduledLesson>): ScheduledLesson => ({
   groupId: 'a',
+  moduleId: 'a',
+  moduleName: 'Course',
+  kind: 'lesson',
   lessonNo: 1,
   lessonName: 'L1',
   date: '2026-07-06',

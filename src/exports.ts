@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { ClassGroupConfig, ScheduledLesson } from './types';
+import type { Course, ScheduledLesson } from './types';
 import { TEACHER_LABEL } from './constants';
 import { formatDisplayDate } from './dateUtils';
 
@@ -66,9 +66,9 @@ export const dataRowFor = (l: ScheduledLesson): string[] => [
   l.classGroup,
 ];
 
-/** Sanitise a class group into a safe filename stem. */
-const fileStem = (classGroup: string): string =>
-  (classGroup.trim() || 'timetable').replace(/[^\w.-]+/g, '-');
+/** Sanitise a name into a safe filename stem. */
+const fileStem = (name: string): string =>
+  (name.trim() || 'timetable').replace(/[^\w.-]+/g, '-');
 
 /** Trigger a browser download for a Blob. */
 const download = (blob: Blob, filename: string): void => {
@@ -86,10 +86,7 @@ const download = (blob: Blob, filename: string): void => {
 const csvQuote = (value: string): string => `"${value.replace(/"/g, '""')}"`;
 
 /** Export as CSV (native Blob, ISO + display date columns, every field quoted). */
-export function exportCsv(
-  lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
-): void {
+export function exportCsv(lessons: ScheduledLesson[], course: Course): void {
   const lines = [
     DATA_COLUMN_HEADERS.map(csvQuote).join(','),
     ...lessons.map((l) => dataRowFor(l).map(csvQuote).join(',')),
@@ -97,7 +94,7 @@ export function exportCsv(
   const blob = new Blob([lines.join('\r\n')], {
     type: 'text/csv;charset=utf-8;',
   });
-  download(blob, `${fileStem(config.classGroup)}-timetable.csv`);
+  download(blob, `${fileStem(course.name)}-timetable.csv`);
 }
 
 /**
@@ -109,7 +106,7 @@ export function exportCsv(
  */
 export function exportPdf(
   lessons: ScheduledLesson[],
-  config: ClassGroupConfig,
+  course: Course,
   scopeLabel = 'Course',
 ): void {
   const doc = new jsPDF({ orientation: 'landscape' });
@@ -117,11 +114,13 @@ export function exportPdf(
   // Mirror the Hybrid planner band: the title honours the chosen scope
   // ("Module: X" when scope is Per module), not a hardcoded "Course".
   doc.setFontSize(16);
-  doc.text(`${scopeLabel}: ${config.courseName}`, 14, 16);
+  doc.text(`${scopeLabel}: ${course.name}`, 14, 16);
 
   doc.setFontSize(10);
   doc.text(
-    `Class Group: ${config.classGroup}    ${TEACHER_LABEL}: ${config.teacher}    Classroom: ${config.classroom}`,
+    `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
+      course.deliveryMode === 'series' ? 'Series' : 'Parallel'
+    }`,
     14,
     23,
   );
@@ -134,7 +133,7 @@ export function exportPdf(
     headStyles: { fillColor: [37, 99, 235], textColor: 255 },
   });
 
-  doc.save(`${fileStem(config.classGroup)}-timetable.pdf`);
+  doc.save(`${fileStem(course.name)}-timetable.pdf`);
 }
 
 /**
@@ -151,7 +150,7 @@ export function exportPdf(
  */
 export function exportExcel(
   _lessons: ScheduledLesson[],
-  _config: ClassGroupConfig,
+  _course: Course,
 ): void {
   // TODO: implement with SheetJS once the 0.20.3 dependency is available.
   throw new Error('Excel export is not available in this build.');

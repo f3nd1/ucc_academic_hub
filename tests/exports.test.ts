@@ -4,6 +4,9 @@ import type { ScheduledLesson } from '../src/types';
 
 const LESSON: ScheduledLesson = {
   groupId: 'g1',
+  moduleId: 'g1',
+  moduleName: 'Module One',
+  kind: 'lesson',
   lessonNo: 3,
   lessonName: 'Part 2 Lesson 25',
   activity: 'Listening',

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import type { ScheduledLesson, ClassGroupConfig, HolidaySet } from './types';
+import type { ScheduledLesson, Course, HolidaySet } from './types';
 import { loadWizard, type WizardState } from './wizard/wizardModel';
 import { useSettings } from './settingsStore';
 import {
@@ -18,7 +18,7 @@ export function TimetableProvider({ children }: { children: ReactNode }) {
   const [wizardStep, setWizardStep] = useState(0);
   const [layout, setLayout] = useState<FormLayout>('wizard');
   const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
-  const [config, setConfig] = useState<ClassGroupConfig | null>(null);
+  const [course, setCourse] = useState<Course | null>(null);
   const [holidays, setHolidays] = useState<HolidaySet | null>(null);
   const [view, setView] = useState<ViewMode>('list');
   const [messages, setMessages] = useState<string[]>([]);
@@ -35,8 +35,8 @@ export function TimetableProvider({ children }: { children: ReactNode }) {
         setLayout,
         lessons,
         setLessons,
-        config,
-        setConfig,
+        course,
+        setCourse,
         holidays,
         setHolidays,
         view,

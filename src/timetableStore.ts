@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch, type SetStateAction } from 'react';
-import type { ScheduledLesson, ClassGroupConfig, HolidaySet } from './types';
+import type { ScheduledLesson, Course, HolidaySet } from './types';
 import type { WizardState } from './wizard/wizardModel';
 
 export type ViewMode = 'list' | 'calendar' | 'hybrid';
@@ -21,8 +21,8 @@ export interface TimetableStore {
   setLayout: Dispatch<SetStateAction<FormLayout>>;
   lessons: ScheduledLesson[] | null;
   setLessons: Dispatch<SetStateAction<ScheduledLesson[] | null>>;
-  config: ClassGroupConfig | null;
-  setConfig: Dispatch<SetStateAction<ClassGroupConfig | null>>;
+  course: Course | null;
+  setCourse: Dispatch<SetStateAction<Course | null>>;
   holidays: HolidaySet | null;
   setHolidays: Dispatch<SetStateAction<HolidaySet | null>>;
   view: ViewMode;
