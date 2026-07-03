@@ -164,25 +164,132 @@ export function generateSchedule(
 }
 
 // ---------------------------------------------------------------------------
-// Future-proofing stubs. Typed signatures only, no behaviour this pass. These
-// exist so multi-group scheduling and live clash detection can slot in without
-// changing call sites or the data model.
+// Multi-group scheduling + clash detection. No UI surface yet (the multi-group
+// dashboard is a future pass); these are the engine pieces it will call.
 // ---------------------------------------------------------------------------
 
-/** TODO: schedule multiple groups together, resolving cross-group clashes. */
+/**
+ * Schedule several groups against the same holiday calendar and merge the
+ * results, ordered by date, then start time, then group. Each group keeps its
+ * own one-session-per-day rule; DIFFERENT groups may land on the same date —
+ * surfacing shared-teacher/room conflicts is detectClashes' job, so a future
+ * dashboard can show them rather than silently reshuffling.
+ */
 export function generateMultiGroupSchedule(
   configs: ClassGroupConfig[],
   holidays: HolidaySet,
 ): ScheduledLesson[] {
-  // TODO: loop configs, merge results, and reconcile clashes via detectClashes.
-  void configs;
-  void holidays;
-  return [];
+  const all = configs.flatMap((config) => generateSchedule(config, holidays));
+  return all.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.startTime.localeCompare(b.startTime) ||
+      a.groupId.localeCompare(b.groupId),
+  );
 }
 
-/** TODO: detect teacher / classroom / class-group / holiday clashes. */
-export function detectClashes(lessons: ScheduledLesson[]): Clash[] {
-  // TODO: group by date and surface overlapping teacher/classroom/group usage.
-  void lessons;
-  return [];
+/** Two lessons overlap when their [start, end) windows intersect. */
+const overlaps = (a: ScheduledLesson, b: ScheduledLesson): boolean =>
+  a.startTime < b.endTime && b.startTime < a.endTime;
+
+/** Group an array into a Map by key, skipping empty keys. */
+const groupBy = (
+  lessons: ScheduledLesson[],
+  keyOf: (l: ScheduledLesson) => string,
+): Map<string, ScheduledLesson[]> => {
+  const map = new Map<string, ScheduledLesson[]>();
+  for (const l of lessons) {
+    const key = keyOf(l);
+    if (!key) continue;
+    const arr = map.get(key);
+    if (arr) arr.push(l);
+    else map.set(key, [l]);
+  }
+  return map;
+};
+
+/**
+ * Detect scheduling conflicts in a (possibly multi-group) lesson list:
+ *  - duplicateSession: one group scheduled more than once on a date.
+ *  - teacher / classroom / classGroup: the same resource claimed by two or
+ *    more DIFFERENT groups at overlapping times on the same date.
+ *  - uccHoliday / publicHoliday: lessons landing on a holiday — impossible
+ *    from generateSchedule, but reachable via imported or hand-merged data
+ *    (pass the HolidaySet to enable these checks).
+ * One Clash is emitted per (type, date, resource) with every involved lesson.
+ */
+export function detectClashes(
+  lessons: ScheduledLesson[],
+  holidays?: HolidaySet,
+): Clash[] {
+  const clashes: Clash[] = [];
+  const byDate = groupBy(lessons, (l) => l.date);
+
+  /** Resource contention: same key, ≥2 groups, at least one overlapping pair. */
+  const checkResource = (
+    day: ScheduledLesson[],
+    date: string,
+    type: Clash['type'],
+    keyOf: (l: ScheduledLesson) => string,
+    label: string,
+  ) => {
+    for (const [key, claimants] of groupBy(day, keyOf)) {
+      const groups = new Set(claimants.map((l) => l.groupId));
+      if (groups.size < 2) continue;
+      const contested = claimants.some((a, i) =>
+        claimants.some(
+          (b, j) => j > i && a.groupId !== b.groupId && overlaps(a, b),
+        ),
+      );
+      if (contested) {
+        clashes.push({
+          type,
+          date,
+          detail: `${label} "${key}" is claimed by ${groups.size} groups at overlapping times.`,
+          lessons: claimants,
+        });
+      }
+    }
+  };
+
+  for (const [date, day] of [...byDate.entries()].sort()) {
+    // One session per day per group.
+    for (const [, sessions] of groupBy(day, (l) => l.groupId)) {
+      if (sessions.length > 1) {
+        clashes.push({
+          type: 'duplicateSession',
+          date,
+          detail: `Group "${sessions[0].classGroup}" has ${sessions.length} sessions on the same day.`,
+          lessons: sessions,
+        });
+      }
+    }
+    checkResource(day, date, 'teacher', (l) => l.teacher, 'Teacher');
+    checkResource(day, date, 'classroom', (l) => l.classroom, 'Classroom');
+    checkResource(day, date, 'classGroup', (l) => l.classGroup, 'Class group');
+  }
+
+  if (holidays) {
+    const named = (
+      list: { date: string; name?: string }[],
+      type: 'uccHoliday' | 'publicHoliday',
+      label: string,
+    ) => {
+      for (const h of list) {
+        const hit = byDate.get(h.date);
+        if (hit && hit.length > 0) {
+          clashes.push({
+            type,
+            date: h.date,
+            detail: `${hit.length} lesson(s) fall on the ${label}${h.name ? ` "${h.name}"` : ''}.`,
+            lessons: hit,
+          });
+        }
+      }
+    };
+    named(holidays.uccHolidays, 'uccHoliday', 'school holiday');
+    named(holidays.publicHolidays, 'publicHoliday', 'public holiday');
+  }
+
+  return clashes;
 }
