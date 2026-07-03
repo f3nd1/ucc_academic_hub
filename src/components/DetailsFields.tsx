@@ -1,4 +1,4 @@
-import { TEACHER_LABEL } from '../constants';
+import { TEACHER_LABEL, CLASS_GROUP_LABEL } from '../constants';
 import type { CourseForm, ModuleForm } from '../formModel';
 import { LabeledField } from './LabeledField';
 import { primaryNameLabel, type Scope } from '../wizard/wizardModel';
@@ -104,7 +104,7 @@ export function DetailsFields({
           <div className="grid-2">
             <LabeledField
               id={`modGroup-${mod.id}`}
-              label="Class group"
+              label={CLASS_GROUP_LABEL}
               helpKey="classGroup"
             >
               <input

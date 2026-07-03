@@ -23,6 +23,7 @@ import {
   type ErpRecordSummary,
 } from '../erpnext';
 import type { FirstDayOfWeek } from '../settings';
+import { CLASS_GROUP_LABEL } from '../constants';
 import { useSettings } from '../settingsStore';
 import { useTimetableStore, type ViewMode } from '../timetableStore';
 import { formatDisplayDate, formatDate } from '../dateUtils';
@@ -477,7 +478,7 @@ export function TimetablePage() {
                       ? 'Teacher clash'
                       : c.type === 'classroom'
                         ? 'Classroom clash'
-                        : 'Class-group clash'}
+                        : `${CLASS_GROUP_LABEL} clash`}
                     : {c.detail}
                   </li>
                 ))}

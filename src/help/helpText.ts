@@ -8,7 +8,8 @@ export const TOOLTIPS: Record<string, string> = {
   scope:
     'Choose what this timetable represents. It only changes labels and the output title, not the schedule.',
   primaryName: 'The name shown as the title of the generated timetable.',
-  classGroup: 'The class group these lessons are for, used in exports and titles.',
+  classGroup:
+    'The Module Class Details value these lessons belong to, used in exports and titles.',
   teacher: 'The teacher who takes these lessons. Shown in every view and export.',
   classroom: 'Where the lessons are held. Appears in exports and calendar events.',
   lessonNames:
@@ -84,5 +85,5 @@ export const TOUR_STEPS: TourStep[] = [
 export const SCOPE_LABELS = {
   course: { name: 'Course name', title: 'Course' },
   module: { name: 'Module name', title: 'Module' },
-  classGroup: { name: 'Class group name', title: 'Class group' },
+  classGroup: { name: 'Module Class Details', title: 'Module Class Details' },
 } as const;

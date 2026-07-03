@@ -6,3 +6,8 @@ export const TEACHER_LABEL = 'Teacher';
 // Label for buffer days that fill non-lesson valid teaching days in series
 // delivery mode. Change here to rename it everywhere.
 export const AL_LABEL = 'AL';
+
+// Display label for the classGroup field across the form, export headers, and
+// conflict text. The DATA KEY stays `classGroup` everywhere — only the label
+// changes, so scheduler/export/conflict logic is untouched.
+export const CLASS_GROUP_LABEL = 'Module Class Details';

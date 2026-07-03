@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Course, ScheduledLesson } from './types';
-import { TEACHER_LABEL } from './constants';
+import { TEACHER_LABEL, CLASS_GROUP_LABEL } from './constants';
 import { formatDisplayDate } from './dateUtils';
 
 // The on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
@@ -19,7 +19,7 @@ export const COLUMN_HEADERS = [
   'End Time',
   TEACHER_LABEL,
   'Classroom',
-  'Class Group',
+  CLASS_GROUP_LABEL,
 ] as const;
 
 // Data-export columns (CSV, Excel, Google Sheets). Keep ISO in "Date (ISO)" so
@@ -37,7 +37,7 @@ export const DATA_COLUMN_HEADERS = [
   'End Time',
   TEACHER_LABEL,
   'Classroom',
-  'Class Group',
+  CLASS_GROUP_LABEL,
 ] as const;
 
 /** Cells for the on-screen table / PDF (Date shown as DD MMMM YYYY). */

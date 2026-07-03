@@ -10,6 +10,7 @@ import {
   isValidIsoDate,
   isValidIsoMonth,
 } from './dateUtils';
+import { CLASS_GROUP_LABEL } from './constants';
 
 /** Raw per-module form state — every field a string off the inputs. */
 export interface ModuleForm {
@@ -178,7 +179,8 @@ export function validateDetails(
 
     if (form.modules.length > 1 && !mod.name.trim())
       errors.push(`${tag}module name is required.`);
-    if (!mod.classGroup.trim()) errors.push(`${tag}class group is required.`);
+    if (!mod.classGroup.trim())
+      errors.push(`${tag}${CLASS_GROUP_LABEL} is required.`);
 
     if (parseLines(mod.lessonNamesRaw).length === 0)
       errors.push(`${tag}at least one lesson name is required.`);

@@ -5,7 +5,7 @@ import type {
   Module,
   ScheduledLesson,
 } from './types';
-import { AL_LABEL } from './constants';
+import { AL_LABEL, CLASS_GROUP_LABEL } from './constants';
 import {
   formatDate,
   formatDisplayDate,
@@ -279,7 +279,7 @@ const CONFLICT_CHECKS: {
 }[] = [
   { type: 'teacher', key: (l) => l.teacher, label: 'Teacher' },
   { type: 'classroom', key: (l) => l.classroom, label: 'Classroom' },
-  { type: 'classGroup', key: (l) => l.classGroup, label: 'Class group' },
+  { type: 'classGroup', key: (l) => l.classGroup, label: CLASS_GROUP_LABEL },
 ];
 
 /**

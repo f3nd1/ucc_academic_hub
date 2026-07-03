@@ -32,7 +32,7 @@ describe('export column sets', () => {
       'End Time',
       'Teacher',
       'Classroom',
-      'Class Group',
+      'Module Class Details',
     ]);
   });
 
@@ -50,7 +50,7 @@ describe('export column sets', () => {
       'End Time',
       'Teacher',
       'Classroom',
-      'Class Group',
+      'Module Class Details',
     ]);
   });
 
