@@ -260,7 +260,11 @@ export function TimetablePage() {
             </button>
             <button
               className="btn"
-              onClick={() => guardedExport(() => exportPdf(lessons!, config!))}
+              onClick={() =>
+                guardedExport(() =>
+                  exportPdf(lessons!, config!, scopeTitleLabel(wizard.scope)),
+                )
+              }
             >
               PDF
             </button>

@@ -44,6 +44,20 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
     return { year: d.getFullYear(), month: d.getMonth() };
   }, [lessons]);
 
+  // Every month that contains lessons, with counts — so the user can see and
+  // jump to scheduled months instead of paging blind through empty ones.
+  const populatedMonths = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const l of lessons) {
+      const key = l.date.slice(0, 7); // YYYY-MM
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort().map(([key, count]) => {
+      const [y, m] = key.split('-').map(Number);
+      return { year: y, month: m - 1, count };
+    });
+  }, [lessons]);
+
   const [view, setView] = useState(
     () => firstLessonMonth ?? { year: 2026, month: 0 },
   );
@@ -95,6 +109,26 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
           Next ›
         </button>
       </div>
+
+      {populatedMonths.length > 0 && (
+        <div className="month__chips" role="group" aria-label="Months with lessons">
+          {populatedMonths.map((m) => {
+            const active = m.year === view.year && m.month === view.month;
+            return (
+              <button
+                key={`${m.year}-${m.month}`}
+                type="button"
+                className={`month__chip${active ? ' active' : ''}`}
+                aria-pressed={active}
+                onClick={() => setView({ year: m.year, month: m.month })}
+              >
+                {MONTH_NAMES[m.month].slice(0, 3)} {m.year}
+                <span className="month__chip-count">{m.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="month__grid">
         {headers.map((h) => (

@@ -4,12 +4,14 @@ import type { ClassGroupConfig, ScheduledLesson } from './types';
 import { TEACHER_LABEL } from './constants';
 import { formatDisplayDate } from './dateUtils';
 
-// The nine on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
+// The on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
 // header (and its field label) in a single place. The Date column shows the
-// human display format; ISO stays the internal value.
+// human display format; ISO stays the internal value. Activity (v3) sits next
+// to the lesson label it qualifies.
 export const COLUMN_HEADERS = [
   'Lesson No',
   'Lesson Name',
+  'Activity',
   'Date',
   'Day',
   'Start Time',
@@ -24,6 +26,7 @@ export const COLUMN_HEADERS = [
 export const DATA_COLUMN_HEADERS = [
   'Lesson No',
   'Lesson Name',
+  'Activity',
   'Date (ISO)',
   'Date',
   'Day',
@@ -34,10 +37,11 @@ export const DATA_COLUMN_HEADERS = [
   'Class Group',
 ] as const;
 
-/** Nine cells for the on-screen table / PDF (Date shown as DD MMMM YYYY). */
+/** Cells for the on-screen table / PDF (Date shown as DD MMMM YYYY). */
 const rowFor = (l: ScheduledLesson): string[] => [
   String(l.lessonNo),
   l.lessonName,
+  l.activity ?? '',
   formatDisplayDate(l.date),
   l.day,
   l.startTime,
@@ -47,10 +51,11 @@ const rowFor = (l: ScheduledLesson): string[] => [
   l.classGroup,
 ];
 
-/** Ten cells for data exports: ISO date plus display date. */
+/** Cells for data exports: ISO date plus display date. */
 export const dataRowFor = (l: ScheduledLesson): string[] => [
   String(l.lessonNo),
   l.lessonName,
+  l.activity ?? '',
   l.date,
   formatDisplayDate(l.date),
   l.day,
@@ -105,11 +110,14 @@ export function exportCsv(
 export function exportPdf(
   lessons: ScheduledLesson[],
   config: ClassGroupConfig,
+  scopeLabel = 'Course',
 ): void {
   const doc = new jsPDF({ orientation: 'landscape' });
 
+  // Mirror the Hybrid planner band: the title honours the chosen scope
+  // ("Module: X" when scope is Per module), not a hardcoded "Course".
   doc.setFontSize(16);
-  doc.text(config.courseName, 14, 16);
+  doc.text(`${scopeLabel}: ${config.courseName}`, 14, 16);
 
   doc.setFontSize(10);
   doc.text(

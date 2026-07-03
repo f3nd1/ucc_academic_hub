@@ -26,6 +26,7 @@ export function ListView({ lessons, courseName }: Props) {
             <tr key={l.lessonNo}>
               <td>{l.lessonNo}</td>
               <td>{l.lessonName}</td>
+              <td>{l.activity ?? ''}</td>
               <td>{formatDisplayDate(l.date)}</td>
               <td>{l.day}</td>
               <td>{l.startTime}</td>

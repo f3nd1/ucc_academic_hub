@@ -925,3 +925,44 @@ select {
   display: flex;
   gap: 0.4rem;
 }
+
+/* Calendar month chips (months containing lessons) */
+.month__chips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.month__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.month__chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.month__chip-count {
+  background: var(--accent-ring);
+  color: inherit;
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  font-size: 0.7rem;
+}
+
+.month__chip.active .month__chip-count {
+  background: rgba(255, 255, 255, 0.25);
+}
