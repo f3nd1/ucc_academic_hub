@@ -111,44 +111,133 @@ export const sortLessons = (lessons: ScheduledLesson[]): ScheduledLesson[] =>
       a.moduleId.localeCompare(b.moduleId),
   );
 
+/** Even-interval selection of `take` days across a month's valid days. */
+function evenPick(validDays: Date[], take: number): Date[] {
+  if (take >= validDays.length) return [...validDays];
+  if (take === 1) return [validDays[0]];
+  const interval = (validDays.length - 1) / (take - 1);
+  const picked: Date[] = [];
+  for (let i = 0; i < take; i++) picked.push(validDays[Math.round(i * interval)]);
+  return picked;
+}
+
+/** Result of placing one module: its entries plus its final lesson month. */
+export interface ModulePlacement {
+  entries: ScheduledLesson[];
+  /** Month (0-based) and year of the module's final lesson. */
+  endYear: number;
+  endMonth: number;
+}
+
+const nextMonth = (y: number, m: number): [number, number] =>
+  m === 11 ? [y + 1, 0] : [y, m + 1];
+
 /**
- * FIRST-CUT placement (step 1 of the v5 build): every module starts at the
- * course start month's first teaching day and takes contiguous valid days.
- * Step 2 replaces this with real series (per-month spread + AL fill) and
- * parallel (clustered) distribution.
+ * SERIES placement for one module. Starting at its start month (the 1st, or
+ * the next valid teaching day), each active month takes
+ * min(remaining, validDays) lessons spread evenly across the month's valid
+ * teaching days; every remaining valid weekday in an active month becomes an
+ * AL buffer entry. Overflow continues into the following month.
  */
-function scheduleContiguous(
+export function scheduleSeriesModule(
   mod: Module,
   startYear: number,
   startMonth: number,
   holidays: HolidaySet,
-): ScheduledLesson[] {
-  const out: ScheduledLesson[] = [];
+): ModulePlacement {
+  const entries: ScheduledLesson[] = [];
+  let remaining = mod.totalLessons;
+  let lessonNo = 1;
   let y = startYear;
   let m = startMonth;
+  let endYear = startYear;
+  let endMonth = startMonth;
+
+  for (let months = 0; months < MAX_MONTHS && remaining > 0; months++) {
+    const validDays = validTeachingDaysOfMonth(y, m, holidays);
+    if (validDays.length > 0) {
+      const take = Math.min(remaining, validDays.length);
+      const picked = new Set(evenPick(validDays, take).map((d) => formatDate(d)));
+      for (const d of validDays) {
+        if (picked.has(formatDate(d))) {
+          entries.push(makeModuleLesson(mod, lessonNo++, d));
+        } else {
+          entries.push(makeAlEntry(mod, d));
+        }
+      }
+      remaining -= take;
+      if (remaining === 0) {
+        endYear = y;
+        endMonth = m;
+      }
+    }
+    [y, m] = nextMonth(y, m);
+  }
+
+  return { entries, endYear, endMonth };
+}
+
+/**
+ * PARALLEL placement for one module: start at the month's first teaching day
+ * and take CONTIGUOUS valid teaching days (a block), crossing months as
+ * needed. No AL fill in parallel mode.
+ */
+export function scheduleParallelModule(
+  mod: Module,
+  startYear: number,
+  startMonth: number,
+  holidays: HolidaySet,
+): ModulePlacement {
+  const entries: ScheduledLesson[] = [];
   let lessonNo = 1;
+  let y = startYear;
+  let m = startMonth;
+  let endYear = startYear;
+  let endMonth = startMonth;
+
   for (let months = 0; months < MAX_MONTHS && lessonNo <= mod.totalLessons; months++) {
     for (const d of validTeachingDaysOfMonth(y, m, holidays)) {
       if (lessonNo > mod.totalLessons) break;
-      out.push(makeModuleLesson(mod, lessonNo++, d));
+      entries.push(makeModuleLesson(mod, lessonNo++, d));
+      endYear = y;
+      endMonth = m;
     }
-    m++;
-    if (m > 11) {
-      m = 0;
-      y++;
-    }
+    [y, m] = nextMonth(y, m);
   }
-  return out;
+
+  return { entries, endYear, endMonth };
 }
 
-/** Generate the whole course's schedule (all modules, full span). */
+/**
+ * Generate the whole course's schedule (all modules, full span).
+ *
+ * Series: modules run sequentially — module N+1 starts on the 1st of the month
+ * AFTER module N's final lesson month. Parallel: every module starts at the
+ * course start month and runs concurrently.
+ */
 export function generateCourseSchedule(
   course: Course,
   holidays: HolidaySet,
 ): ScheduledLesson[] {
-  const { year, month } = parseMonth(course.startMonth);
-  const all = course.modules.flatMap((mod) =>
-    scheduleContiguous(mod, year, month, holidays),
-  );
+  const start = parseMonth(course.startMonth);
+  const all: ScheduledLesson[] = [];
+
+  if (course.deliveryMode === 'series') {
+    let y = start.year;
+    let m = start.month;
+    for (const mod of course.modules) {
+      const placed = scheduleSeriesModule(mod, y, m, holidays);
+      all.push(...placed.entries);
+      [y, m] = nextMonth(placed.endYear, placed.endMonth);
+    }
+  } else {
+    for (const mod of course.modules) {
+      all.push(
+        ...scheduleParallelModule(mod, start.year, start.month, holidays)
+          .entries,
+      );
+    }
+  }
+
   return sortLessons(all);
 }
