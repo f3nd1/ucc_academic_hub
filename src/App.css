@@ -1715,3 +1715,73 @@ a.tool-card:hover {
   text-align: center;
   padding: 1.5rem 0 !important;
 }
+
+/* ==================================================================
+   Per-theme decorative treatment — Home tiles + empty states ONLY.
+   Deliberately scoped away from data tables and forms so numbers, dates,
+   and inputs stay plain and legible in every skin (see scope guards).
+   ================================================================== */
+
+/* --- Retro LCD: chunky bordered tiles, all-caps tile titles --- */
+:root[data-theme='retro-lcd'] .tool-card {
+  border-width: 3px;
+  box-shadow: 4px 4px 0 var(--border);
+}
+:root[data-theme='retro-lcd'] a.tool-card:hover {
+  box-shadow: 6px 6px 0 var(--border);
+  transform: translate(-1px, -1px);
+}
+:root[data-theme='retro-lcd'] .tool-card__icon {
+  border-radius: 2px;
+}
+:root[data-theme='retro-lcd'] .tool-card__name {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+:root[data-theme='retro-lcd'] .empty::before {
+  content: '▮ ▮ ▮';
+  display: block;
+  letter-spacing: 0.3em;
+  color: var(--muted);
+  margin-bottom: 0.6rem;
+}
+
+/* --- Y2K Pop: sparkle motifs + hard-outlined buttons --- */
+:root[data-theme='y2k-pop'] .home__head {
+  position: relative;
+}
+:root[data-theme='y2k-pop'] .home__head::after {
+  content: '✦   ✳   ❤   ★';
+  position: absolute;
+  top: 0.1rem;
+  right: 0.25rem;
+  letter-spacing: 0.3em;
+  font-size: 1rem;
+  color: var(--pop-teal);
+  pointer-events: none;
+}
+:root[data-theme='y2k-pop'] .tool-card__icon {
+  border: 2px solid #141414;
+}
+:root[data-theme='y2k-pop'] .tool-card--add {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent 0 11px,
+    rgba(255, 47, 142, 0.07) 11px 22px
+  );
+}
+:root[data-theme='y2k-pop'] .empty::before {
+  content: '★';
+  display: block;
+  font-size: 1.7rem;
+  color: var(--pop-pink);
+  margin-bottom: 0.4rem;
+}
+/* Heavy black outlines on buttons (a core Y2K trait; buttons aren't data). */
+:root[data-theme='y2k-pop'] .btn {
+  box-shadow: 2px 2px 0 #141414;
+}
+:root[data-theme='y2k-pop'] .btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 #141414;
+}
