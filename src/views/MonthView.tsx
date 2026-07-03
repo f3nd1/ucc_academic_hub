@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ScheduledLesson } from '../types';
 import type { FirstDayOfWeek } from '../settings';
-import { formatDate, parseLocal } from '../dateUtils';
+import {
+  formatDate,
+  parseLocal,
+  DAY_NAMES_SHORT,
+  MONTH_NAMES,
+} from '../dateUtils';
 import { calendarLinkFor } from '../googleCalendar';
 
 interface Props {
@@ -9,12 +14,6 @@ interface Props {
   firstDayOfWeek: FirstDayOfWeek;
   courseName: string;
 }
-
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 interface Cell {
   date: Date;
@@ -73,7 +72,7 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
 
   const headers = useMemo(
     () =>
-      Array.from({ length: 7 }, (_, i) => WEEKDAY_LABELS[(startOffset + i) % 7]),
+      Array.from({ length: 7 }, (_, i) => DAY_NAMES_SHORT[(startOffset + i) % 7]),
     [startOffset],
   );
 

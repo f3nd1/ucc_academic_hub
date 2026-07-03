@@ -411,63 +411,6 @@ tbody tr:nth-child(even) {
   text-decoration: underline;
 }
 
-/* Agenda view */
-.agenda__group {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 0.75rem;
-  overflow: hidden;
-}
-
-.agenda__date {
-  background: var(--summary-bg);
-  padding: 0.5rem 0.8rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.agenda__weekday {
-  color: var(--muted);
-  font-weight: 500;
-  font-size: 0.85rem;
-}
-
-.agenda__items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.agenda__item {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.55rem 0.8rem;
-  border-top: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-
-.agenda__time {
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  font-weight: 600;
-  min-width: 96px;
-}
-
-.agenda__body {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 140px;
-}
-
-.agenda__meta {
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
 /* Month view */
 .month__nav {
   display: flex;

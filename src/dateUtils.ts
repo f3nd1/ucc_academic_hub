@@ -18,7 +18,8 @@ export const parseLocal = (s: string): Date => {
   return new Date(y, m - 1, day);
 };
 
-const DAY_NAMES = [
+// Single source for calendar name lists — indexed by Date#getDay / #getMonth.
+export const DAY_NAMES = [
   'Sunday',
   'Monday',
   'Tuesday',
@@ -28,11 +29,33 @@ const DAY_NAMES = [
   'Saturday',
 ] as const;
 
+export const DAY_NAMES_SHORT = [
+  'Sun',
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+] as const;
+
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
 /** Weekday name for a local Date, e.g. "Monday". */
 export const dayName = (d: Date): string => DAY_NAMES[d.getDay()];
-
-/** Weekday name for an ISO YYYY-MM-DD string. */
-export const dayNameFromIso = (iso: string): string => dayName(parseLocal(iso));
 
 /**
  * Human display format for an ISO date: "01 July 2026".

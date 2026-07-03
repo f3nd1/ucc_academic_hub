@@ -4,7 +4,14 @@ import type {
   ScheduledLesson,
 } from './types';
 import type { FirstDayOfWeek } from './settings';
-import { formatDisplayDate, formatDate, parseLocal, isWeekend } from './dateUtils';
+import {
+  formatDisplayDate,
+  formatDate,
+  parseLocal,
+  isWeekend,
+  DAY_NAMES,
+  MONTH_NAMES,
+} from './dateUtils';
 
 // The course-planner (Hybrid) model. Rows are weekdays (in first-day-of-week
 // order), columns are the calendar weeks of a month, and each intersection is
@@ -47,14 +54,6 @@ export interface PlannerModel {
   weekdayLabels: string[]; // 7, in first-day-of-week order
   months: PlannerMonth[];
 }
-
-const WEEKDAY_FULL = [
-  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
-];
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 /** Classify + populate the cell for a given in-month date. */
 function cellForDate(
@@ -114,7 +113,7 @@ export function buildPlanner(
   const startOffset = firstDayOfWeek === 'monday' ? 1 : 0;
   const weekdayLabels = Array.from(
     { length: 7 },
-    (_, i) => WEEKDAY_FULL[(startOffset + i) % 7],
+    (_, i) => DAY_NAMES[(startOffset + i) % 7],
   );
 
   const lessonMap = new Map(lessons.map((l) => [l.date, l]));

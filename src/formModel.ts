@@ -122,19 +122,21 @@ export function validateDetails(
   if (lessonNames.length === 0)
     errors.push('At least one lesson name is required.');
 
+  // Whole numbers only: 20.5 would otherwise schedule 21 lessons because the
+  // scheduler loop bound is lessons.length < totalLessons.
   const total = Number(form.totalLessons);
-  if (!form.totalLessons.trim() || !Number.isFinite(total) || total <= 0)
-    errors.push('Total lessons must be a number greater than 0.');
+  if (!form.totalLessons.trim() || !Number.isInteger(total) || total <= 0)
+    errors.push('Total lessons must be a whole number greater than 0.');
 
   if (form.mode === 'permonth') {
     const perMonth = Number(form.lessonsPerMonth);
     if (
       !form.lessonsPerMonth.trim() ||
-      !Number.isFinite(perMonth) ||
+      !Number.isInteger(perMonth) ||
       perMonth <= 0
     )
       errors.push(
-        'Lessons per month must be a number greater than 0 in Per month mode.',
+        'Lessons per month must be a whole number greater than 0 in Per month mode.',
       );
   }
 

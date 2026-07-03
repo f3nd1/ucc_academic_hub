@@ -119,7 +119,7 @@ export function exportPdf(
   );
 
   autoTable(doc, {
-    head: [COLUMN_HEADERS as unknown as string[]],
+    head: [[...COLUMN_HEADERS]],
     body: lessons.map(rowFor),
     startY: 28,
     styles: { fontSize: 9, cellPadding: 2 },
@@ -139,7 +139,7 @@ export function exportPdf(
  * tarball required by the build spec is blocked by this environment's network
  * policy, and the public npm `xlsx` build was explicitly ruled out, so Excel
  * export is deferred. Wire this up once SheetJS is installable, then re-enable
- * the button in App.tsx.
+ * the button in src/pages/TimetablePage.tsx.
  */
 export function exportExcel(
   _lessons: ScheduledLesson[],

@@ -1,25 +1,10 @@
 import type { ClassGroupConfig, HolidaySet, ScheduledLesson, Clash } from './types';
-import { formatDate, parseLocal, dayName, isWeekend } from './dateUtils';
+import { formatDate, parseLocal, dayName, isWeekend, MONTH_NAMES } from './dateUtils';
 
 // Safety caps to guarantee termination if inputs can never satisfy totalLessons
 // (e.g. everything is a holiday). Generous enough never to bite real use.
 const MAX_DAYS_SCAN = 366 * 5; // ~5 years of every-weekday scanning
 const MAX_MONTHS_SCAN = 12 * 6; // ~6 years of per-month advancing
-
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
 
 /**
  * Pick the lesson name for a 1-based lesson number.
