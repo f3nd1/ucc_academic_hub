@@ -18,8 +18,7 @@ const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
 
 function App() {
-  // Start pre-filled with demo data so the app is testable in one click.
-  const [form, setForm] = useState<RawForm>(DEMO_FORM);
+  const [form, setForm] = useState<RawForm>(EMPTY_FORM);
   const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
   const [config, setConfig] = useState<ClassGroupConfig | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
@@ -64,6 +63,13 @@ function App() {
     }
   };
 
+  const handleLoadDemo = () => {
+    setForm(DEMO_FORM);
+    setLessons(null);
+    setConfig(null);
+    setMessages([]);
+  };
+
   const handleClear = () => {
     setForm(EMPTY_FORM);
     setLessons(null);
@@ -94,7 +100,16 @@ function App() {
       <div className="layout">
         {/* ---------------- Left: setup + holidays ---------------- */}
         <section className="panel">
-          <h2>Setup</h2>
+          <div className="setup-head">
+            <h2>Setup</h2>
+            <button
+              type="button"
+              className="btn btn--demo"
+              onClick={handleLoadDemo}
+            >
+              Load demo data
+            </button>
+          </div>
 
           <div className="field">
             <label htmlFor="courseName">Course name</label>

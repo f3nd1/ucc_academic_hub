@@ -17,8 +17,8 @@ Then open the forwarded port **5173** from the Codespace **Ports** tab. The dev
 server binds to all interfaces (`server.host = true`) so the forwarded port
 works.
 
-The form starts pre-filled with demo data, so you can click **Generate
-timetable** straight away to see a result. Use **Clear** to empty the form.
+Click **Load demo data** to fill the form with a sample class group, then
+**Generate timetable** to see a result. Use **Clear** to empty the form.
 
 Other scripts:
 
