@@ -8,45 +8,45 @@ import {
   buildHolidays,
   type CourseForm,
   type ModuleForm,
-} from '../formModel';
+} from '../../formModel';
 import {
   generateCourseSchedule,
   detectConflicts,
   shiftModuleLater,
-} from '../courseEngine';
-import { exportCsv, exportListPdf, exportCalendarPdf } from '../exports';
-import { downloadIcs } from '../googleCalendar';
-import { exportToGoogleSheets } from '../googleSheets';
+} from '../../courseEngine';
+import { exportCsv, exportListPdf, exportCalendarPdf } from '../../exports';
+import { downloadIcs } from '../../googleCalendar';
+import { exportToGoogleSheets } from '../../googleSheets';
 import {
   listErpRecords,
   fetchErpRecord,
   type ErpRecordSummary,
-} from '../erpnext';
-import { loadErpFieldMapping } from '../erpFieldMapping';
-import type { FirstDayOfWeek } from '../shared/settings';
-import { CLASS_GROUP_LABEL } from '../constants';
-import { useSettings } from '../shared/settingsStore';
-import { useTimetableStore, type ViewMode } from '../timetableStore';
-import { formatDisplayDate, formatDate } from '../shared/dates';
-import { buildPlanner } from '../planner';
+} from '../../erpnext';
+import { loadErpFieldMapping } from '../../erpFieldMapping';
+import type { FirstDayOfWeek } from '../../shared/settings';
+import { CLASS_GROUP_LABEL } from '../../constants';
+import { useSettings } from '../../shared/settingsStore';
+import { useTimetableStore, type ViewMode } from '../../timetableStore';
+import { formatDisplayDate, formatDate } from '../../shared/dates';
+import { buildPlanner } from '../../planner';
 import {
   exportPlannerCsv,
   exportPlannerToSheets,
   exportPlannerPdf,
-} from '../plannerExports';
-import { openTabForAsyncUrl } from '../popup';
-import { ListView } from '../views/ListView';
-import { MonthView } from '../views/MonthView';
-import { HybridView } from '../views/HybridView';
-import { Wizard } from '../wizard/Wizard';
-import { FullForm } from '../FullForm';
+} from '../../plannerExports';
+import { openTabForAsyncUrl } from '../../popup';
+import { ListView } from '../../views/ListView';
+import { MonthView } from '../../views/MonthView';
+import { HybridView } from '../../views/HybridView';
+import { Wizard } from '../../wizard/Wizard';
+import { FullForm } from '../../FullForm';
 import {
   saveWizard,
   primaryNameLabel,
   scopeTitleLabel,
   type Intent,
   type Scope,
-} from '../wizard/wizardModel';
+} from '../../wizard/wizardModel';
 
 const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
@@ -587,3 +587,5 @@ export function TimetablePage() {
     </div>
   );
 }
+
+export default TimetablePage;
