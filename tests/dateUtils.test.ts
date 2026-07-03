@@ -8,7 +8,7 @@ import {
   isValidIsoDate,
   DAY_NAMES,
   MONTH_NAMES,
-} from '../src/dateUtils';
+} from '../src/shared/dates';
 
 describe('formatDate / parseLocal', () => {
   it('round-trips an ISO date with no timezone shift', () => {

@@ -1,11 +1,11 @@
 import type { CourseForm, HolidayRow } from '../formModel';
 import { emptyHolidayRow, holidayRowInvalid } from '../formModel';
-import type { FirstDayOfWeek } from '../settings';
-import { formatDisplayDate } from '../dateUtils';
+import type { FirstDayOfWeek } from '../shared/settings';
+import { formatDisplayDate } from '../shared/dates';
 import { LabeledField } from './LabeledField';
-import { Hint } from '../help/Hint';
-import { Tooltip } from '../help/Tooltip';
-import { TOOLTIPS, HINTS } from '../help/helpText';
+import { Hint } from '../shared/help/Hint';
+import { Tooltip } from '../shared/help/Tooltip';
+import { TOOLTIPS, HINTS } from '../shared/help/helpText';
 
 interface Props {
   form: CourseForm;

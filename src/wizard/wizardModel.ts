@@ -4,8 +4,8 @@ import {
   validateRules,
   type CourseForm,
 } from '../formModel';
-import type { FirstDayOfWeek } from '../settings';
-import { SCOPE_LABELS } from '../help/helpText';
+import type { FirstDayOfWeek } from '../shared/settings';
+import { SCOPE_LABELS } from '../shared/help/helpText';
 
 /** What the user primarily wants to produce (also the initial view). */
 export type Intent = 'list' | 'calendar' | 'hybrid';

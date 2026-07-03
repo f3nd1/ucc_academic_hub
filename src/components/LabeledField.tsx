@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { Tooltip } from '../help/Tooltip';
-import { Hint } from '../help/Hint';
-import { TOOLTIPS, HINTS } from '../help/helpText';
+import { Tooltip } from '../shared/help/Tooltip';
+import { Hint } from '../shared/help/Hint';
+import { TOOLTIPS, HINTS } from '../shared/help/helpText';
 
 interface Props {
   id?: string;

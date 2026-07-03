@@ -1,6 +1,6 @@
 import type { ScheduledLesson } from './types';
-import type { FirstDayOfWeek } from './settings';
-import { formatDate, parseLocal, MONTH_NAMES, DAY_NAMES_SHORT } from './dateUtils';
+import type { FirstDayOfWeek } from './shared/settings';
+import { formatDate, parseLocal, MONTH_NAMES, DAY_NAMES_SHORT } from './shared/dates';
 
 // Pure month-grid model shared by the Calendar-view PDF export (and testable
 // without jsPDF). Mirrors MonthView's cell computation: rows of 7 weekday

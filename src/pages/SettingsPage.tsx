@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { FirstDayOfWeek, ThemeMode } from '../settings';
-import { useSettings } from '../settingsStore';
+import type { FirstDayOfWeek, ThemeMode } from '../shared/settings';
+import { useSettings } from '../shared/settingsStore';
 import { testErpConnection, fetchSampleFields } from '../erpnext';
 import {
   APP_TARGET_FIELDS,
@@ -8,7 +8,7 @@ import {
   saveErpFieldMapping,
   type ErpFieldMapping,
 } from '../erpFieldMapping';
-import { Hint } from '../help/Hint';
+import { Hint } from '../shared/help/Hint';
 
 const NOT_MAPPED = '';
 

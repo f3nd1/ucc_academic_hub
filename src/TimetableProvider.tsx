@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import type { ScheduledLesson, Course, Conflict, HolidaySet } from './types';
 import { loadWizard, type WizardState } from './wizard/wizardModel';
-import { useSettings } from './settingsStore';
+import { useSettings } from './shared/settingsStore';
 import {
   TimetableCtx,
   type ViewMode,

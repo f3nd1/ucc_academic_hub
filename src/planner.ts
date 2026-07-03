@@ -1,5 +1,5 @@
 import type { Course, HolidaySet, ScheduledLesson } from './types';
-import type { FirstDayOfWeek } from './settings';
+import type { FirstDayOfWeek } from './shared/settings';
 import { AL_LABEL } from './constants';
 import {
   formatDisplayDate,
@@ -8,7 +8,7 @@ import {
   isWeekend,
   DAY_NAMES,
   MONTH_NAMES,
-} from './dateUtils';
+} from './shared/dates';
 
 // The course-planner (Hybrid) model. Rows are weekdays (in first-day-of-week
 // order), columns are the calendar weeks of a month, and each intersection is

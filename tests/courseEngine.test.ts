@@ -7,7 +7,7 @@ import {
   generateCourseSchedule,
 } from '../src/courseEngine';
 import { AL_LABEL } from '../src/constants';
-import { formatDate } from '../src/dateUtils';
+import { formatDate } from '../src/shared/dates';
 import type { Course, HolidaySet, Module } from '../src/types';
 
 const NO_HOLIDAYS: HolidaySet = { uccHolidays: [], publicHolidays: [] };

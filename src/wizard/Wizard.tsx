@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { CourseForm, ModuleForm } from '../formModel';
-import type { FirstDayOfWeek } from '../settings';
-import { formatDisplayMonth } from '../dateUtils';
-import { Tooltip } from '../help/Tooltip';
-import { TOOLTIPS } from '../help/helpText';
+import type { FirstDayOfWeek } from '../shared/settings';
+import { formatDisplayMonth } from '../shared/dates';
+import { Tooltip } from '../shared/help/Tooltip';
+import { TOOLTIPS } from '../shared/help/helpText';
 import { DetailsFields } from '../components/DetailsFields';
 import { RulesFields } from '../components/RulesFields';
 import { Stepper } from './Stepper';

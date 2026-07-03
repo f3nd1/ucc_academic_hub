@@ -1,9 +1,9 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Course, ScheduledLesson } from './types';
-import type { FirstDayOfWeek } from './settings';
+import type { FirstDayOfWeek } from './shared/settings';
 import { TEACHER_LABEL, CLASS_GROUP_LABEL, AL_LABEL } from './constants';
-import { formatDisplayDate } from './dateUtils';
+import { formatDisplayDate } from './shared/dates';
 import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
 
 // The on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"

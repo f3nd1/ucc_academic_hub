@@ -13,7 +13,7 @@ import {
   dayName,
   isWeekend,
   parseMonth,
-} from './dateUtils';
+} from './shared/dates';
 
 // Course scheduling engine (v5). Modules start month-anchored: on the 1st of
 // their start month, or the next valid teaching day when the 1st is blocked.

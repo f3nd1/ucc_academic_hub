@@ -5,7 +5,7 @@ import type {
   Module,
   NamedHoliday,
 } from './types';
-import { isValidIsoDate, isValidIsoMonth } from './dateUtils';
+import { isValidIsoDate, isValidIsoMonth } from './shared/dates';
 import { CLASS_GROUP_LABEL } from './constants';
 
 /** Raw per-module form state — every field a string off the inputs. */

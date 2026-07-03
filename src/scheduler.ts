@@ -1,5 +1,5 @@
 import type { ClassGroupConfig, HolidaySet, ScheduledLesson, Clash } from './types';
-import { formatDate, parseLocal, dayName, isWeekend, MONTH_NAMES } from './dateUtils';
+import { formatDate, parseLocal, dayName, isWeekend, MONTH_NAMES } from './shared/dates';
 
 // Safety caps to guarantee termination if inputs can never satisfy totalLessons
 // (e.g. everything is a holiday). Generous enough never to bite real use.

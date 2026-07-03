@@ -1,5 +1,5 @@
 import type { CourseForm, ModuleForm } from './formModel';
-import type { FirstDayOfWeek } from './settings';
+import type { FirstDayOfWeek } from './shared/settings';
 import type { ErpRecordSummary } from './erpnext';
 import { DetailsFields } from './components/DetailsFields';
 import { RulesFields } from './components/RulesFields';

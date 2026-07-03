@@ -2,10 +2,10 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 import { TimetablePage } from './pages/TimetablePage';
 import { SettingsPage } from './pages/SettingsPage';
-import { HelpProvider } from './help/HelpContext';
-import { useHelp } from './help/helpStore';
-import { Tour } from './help/Tour';
-import { SettingsProvider } from './SettingsProvider';
+import { HelpProvider } from './shared/help/HelpContext';
+import { useHelp } from './shared/help/helpStore';
+import { Tour } from './shared/help/Tour';
+import { SettingsProvider } from './shared/SettingsProvider';
 import { TimetableProvider } from './TimetableProvider';
 
 /** Nav help controls: master toggle + restart tour. */

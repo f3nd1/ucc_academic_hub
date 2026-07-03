@@ -1,4 +1,4 @@
-import type { AppSettings } from './settings';
+import type { AppSettings } from './shared/settings';
 import { EMPTY_FORM, type CourseForm } from './formModel';
 import type { ErpFieldMapping } from './erpFieldMapping';
 

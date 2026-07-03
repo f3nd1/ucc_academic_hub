@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ScheduledLesson } from '../types';
-import type { FirstDayOfWeek } from '../settings';
+import type { FirstDayOfWeek } from '../shared/settings';
 import {
   formatDate,
   parseLocal,
   DAY_NAMES_SHORT,
   MONTH_NAMES,
-} from '../dateUtils';
+} from '../shared/dates';
 import { calendarLinkFor } from '../googleCalendar';
 
 interface Props {

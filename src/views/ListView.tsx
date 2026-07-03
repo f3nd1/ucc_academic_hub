@@ -1,6 +1,6 @@
 import type { ScheduledLesson } from '../types';
 import { COLUMN_HEADERS } from '../exports';
-import { formatDisplayDate } from '../dateUtils';
+import { formatDisplayDate } from '../shared/dates';
 import { calendarLinkFor } from '../googleCalendar';
 
 interface Props {

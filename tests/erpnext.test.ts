@@ -7,7 +7,7 @@ import {
   fetchErpRecord,
   fetchSampleFields,
 } from '../src/erpnext';
-import { DEFAULT_SETTINGS, type AppSettings } from '../src/settings';
+import { DEFAULT_SETTINGS, type AppSettings } from '../src/shared/settings';
 import type { ErpFieldMapping } from '../src/erpFieldMapping';
 
 const SETTINGS: AppSettings = {
