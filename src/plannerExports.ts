@@ -1,3 +1,5 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { PlannerModel, PlannerCell } from './planner';
 import { activityText, dateText, teacherLines } from './planner';
 import { requestSheetsToken } from './googleSheets';
@@ -319,4 +321,103 @@ export async function exportPlannerToSheets(
       }`,
     };
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Planner (Hybrid) PDF — the matrix layout, matching the on-screen view and
+// the Planner Sheets export: month blocks, weekday rows, Week N columns with
+// Date/Activity/Teacher sub-cells, colour-coded special days. Every visible
+// date stays DD MMMM YYYY (the planner model only carries display text).
+// ---------------------------------------------------------------------------
+
+const to255 = (rgb: [number, number, number]): [number, number, number] =>
+  [Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255)];
+
+export function exportPlannerPdf(model: PlannerModel): void {
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  doc.setFontSize(16);
+  doc.text(`${model.scopeLabel}: ${model.course}`, 14, 16);
+  doc.setFontSize(10);
+  doc.text(`Timing: ${model.timing}    Updated: ${model.updatedDisplay}`, 14, 23);
+
+  let y = 28;
+  for (const m of model.months) {
+    // Head: merged corner + Week N groups over Date/Activity/Teacher.
+    const head = [
+      [
+        { content: `${m.monthName} ${m.year}`, colSpan: 2, rowSpan: 2 },
+        ...Array.from({ length: m.weeks }, (_, w) => ({
+          content: `Week ${w + 1}`,
+          colSpan: 3,
+        })),
+      ],
+      Array.from({ length: m.weeks }).flatMap(() => [
+        'Date',
+        'Activity',
+        'Teacher',
+      ]),
+    ];
+
+    // Body: month label merged down 7 weekday rows; cells from the shared
+    // planner helpers so wording matches the view and the Sheets export.
+    const cellsByRow: PlannerCell[][] = m.grid;
+    const body = m.grid.map((rowCells, r) => {
+      const cells: (string | { content: string; rowSpan?: number })[] = [];
+      if (r === 0) cells.push({ content: m.monthName, rowSpan: 7 });
+      cells.push(model.weekdayLabels[r]);
+      for (const cell of rowCells) {
+        cells.push(
+          dateText(cell),
+          activityText(cell),
+          teacherLines(cell).join('\n'),
+        );
+      }
+      return cells;
+    });
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: y,
+      styles: { fontSize: 6.5, cellPadding: 1.2, valign: 'top' },
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: 255,
+        halign: 'center',
+      },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return;
+        const col = data.column.index;
+        if (col < 2 || (col - 2) % 3 !== 1) {
+          if (col === 0) {
+            data.cell.styles.fillColor = [37, 99, 235];
+            data.cell.styles.textColor = 255;
+            data.cell.styles.halign = 'center';
+            data.cell.styles.valign = 'middle';
+          }
+          return;
+        }
+        const week = Math.floor((col - 2) / 3);
+        const cell = cellsByRow[data.row.index]?.[week];
+        if (!cell) return;
+        const rgb = cell.conflict ? FILL.conflict : FILL[cell.kind];
+        if (rgb) data.cell.styles.fillColor = to255(rgb);
+      },
+    });
+    y =
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
+        ?.finalY ?? y;
+    y += 8;
+    if (
+      y > doc.internal.pageSize.getHeight() - 60 &&
+      m !== model.months[model.months.length - 1]
+    ) {
+      doc.addPage();
+      y = 14;
+    }
+  }
+
+  doc.save(`${fileStem(model.course)}-planner.pdf`);
 }

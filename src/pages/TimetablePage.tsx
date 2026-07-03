@@ -14,7 +14,7 @@ import {
   detectConflicts,
   shiftModuleLater,
 } from '../courseEngine';
-import { exportCsv, exportPdf } from '../exports';
+import { exportCsv, exportListPdf, exportCalendarPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
 import {
@@ -28,7 +28,11 @@ import { useSettings } from '../settingsStore';
 import { useTimetableStore, type ViewMode } from '../timetableStore';
 import { formatDisplayDate, formatDate } from '../dateUtils';
 import { buildPlanner } from '../planner';
-import { exportPlannerCsv, exportPlannerToSheets } from '../plannerExports';
+import {
+  exportPlannerCsv,
+  exportPlannerToSheets,
+  exportPlannerPdf,
+} from '../plannerExports';
 import { openTabForAsyncUrl } from '../popup';
 import { ListView } from '../views/ListView';
 import { MonthView } from '../views/MonthView';
@@ -241,6 +245,24 @@ export function TimetablePage() {
     fn();
   };
 
+  // PDF follows the ACTIVE view: List -> table, Calendar -> month grids,
+  // Hybrid -> the planner matrix (matching the Planner Sheets export).
+  const handlePdf = () =>
+    guardedExport(() => {
+      if (view === 'calendar') {
+        exportCalendarPdf(
+          lessons!,
+          course!,
+          wizard.firstDayOfWeek,
+          scopeTitleLabel(wizard.scope),
+        );
+      } else if (view === 'hybrid' && plannerModel) {
+        exportPlannerPdf(plannerModel);
+      } else {
+        exportListPdf(lessons!, course!, scopeTitleLabel(wizard.scope));
+      }
+    });
+
   const handleGoogleSheets = async () => {
     if (!lessons || lessons.length === 0 || !course) {
       setMessages([EXPORT_EMPTY_MESSAGE]);
@@ -336,26 +358,24 @@ export function TimetablePage() {
           <div className="exports" data-tour="exports">
             <button
               className="btn"
+              title="Always exports the list-style table, whatever view is active."
               onClick={() => guardedExport(() => exportCsv(lessons!, course!))}
             >
-              CSV
+              CSV (list)
             </button>
             <button
               className="btn"
               title="Excel export is unavailable in this build (SheetJS dependency blocked by network policy)."
               disabled
             >
-              Excel
+              Excel (list)
             </button>
             <button
               className="btn"
-              onClick={() =>
-                guardedExport(() =>
-                  exportPdf(lessons!, course!, scopeTitleLabel(wizard.scope)),
-                )
-              }
+              title="Exports whichever view is currently selected."
+              onClick={handlePdf}
             >
-              PDF
+              PDF (current view)
             </button>
             <button
               className="btn"
@@ -363,8 +383,13 @@ export function TimetablePage() {
             >
               .ics
             </button>
-            <button className="btn" onClick={handleGoogleSheets} disabled={busy}>
-              Google Sheets
+            <button
+              className="btn"
+              title="Always exports the list-style table to Google Sheets."
+              onClick={handleGoogleSheets}
+              disabled={busy}
+            >
+              Sheets (list)
             </button>
             {view === 'hybrid' && (
               <>
