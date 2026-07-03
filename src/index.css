@@ -1,4 +1,18 @@
+/*
+ * TWO THEMING AXES, kept on separate root attributes so they compose:
+ *   data-mode  = light | dark  (the existing System/Light/Dark colour scheme)
+ *   data-theme = classic | retro-lcd | y2k-pop  (the workspace skin)
+ * Both are stamped before first paint by the inline script in index.html and
+ * kept current by SettingsProvider (mode) and ThemeProvider (skin). Every
+ * themeable value below is a CSS variable; components read variables only, so a
+ * skin never needs theme-specific component code (Home/empty-state decoration
+ * is the one deliberate, table-free exception — see App.css).
+ *
+ * The base :root here is the Classic light palette and also the ultimate
+ * fallback if no skin is stamped.
+ */
 :root {
+  /* Surfaces + text */
   --ink: #0f172a;
   --muted: #64748b;
   --bg: #f1f5f9;
@@ -8,8 +22,17 @@
   --disabled-bg: #f1f5f9;
   --row-alt: #f8fafc;
   --summary-bg: #f8fafc;
+
+  /* Accent + contrast text on accent */
   --accent: #2563eb;
   --accent-ring: rgba(37, 99, 235, 0.2);
+  --on-accent: #ffffff;
+
+  /* Data-table header (its own tokens so each skin can guarantee contrast) */
+  --th-bg: var(--accent);
+  --th-ink: var(--on-accent);
+
+  /* Semantic banners */
   --error-bg: #fef2f2;
   --error-border: #fecaca;
   --error-ink: #b91c1c;
@@ -19,6 +42,8 @@
   --ok-bg: #f0fdf4;
   --ok-border: #bbf7d0;
   --ok-ink: #15803d;
+
+  /* Planner matrix fills (stay light with dark ink so it prints cleanly) */
   --plan-teach: #d9f0d9;
   --plan-al: #e5e9f2;
   --plan-weekend: #ededed;
@@ -26,7 +51,25 @@
   --plan-public: #fadede;
   --plan-ink: #0f172a;
 
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Shape */
+  --radius: 8px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --card-border-width: 1px;
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --card-shadow-hover: 0 6px 18px rgba(15, 23, 42, 0.1);
+
+  /* Typography — data always stays in --font-body (a legible sans); only
+     --font-heading may become decorative per skin. */
+  --font-body: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: var(--font-body);
+  --label-transform: none;
+  --label-spacing: normal;
+
+  /* Decorative page-background layer (never applied behind tables) */
+  --page-texture: none;
+
+  font-family: var(--font-body);
   line-height: 1.5;
   color: var(--ink);
   background: var(--bg);
@@ -35,13 +78,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/*
- * Theme switching keys off data-theme on <html>, stamped before first paint
- * by the inline script in index.html and kept current by SettingsProvider
- * (Settings → Appearance: System / Light / Dark; "System" resolves the OS
- * preference in JS so this single dark block covers both paths).
- */
-:root[data-theme='dark'] {
+/* Classic — dark colour scheme (only Classic follows data-mode; the other
+   skins pin their own fixed palette, documented in their blocks). */
+:root[data-mode='dark'] {
   --ink: #e2e8f0;
   --muted: #94a3b8;
   --bg: #0b1120;
@@ -53,6 +92,7 @@
   --summary-bg: #172033;
   --accent: #3b82f6;
   --accent-ring: rgba(59, 130, 246, 0.3);
+  --on-accent: #ffffff;
   --error-bg: #2a1416;
   --error-border: #7f1d1d;
   --error-ink: #fca5a5;
@@ -62,13 +102,14 @@
   --ok-bg: #0f2417;
   --ok-border: #166534;
   --ok-ink: #86efac;
-  /* Keep planner fills light with dark ink so the matrix stays print-like. */
   --plan-teach: #cdeccd;
   --plan-al: #d8dde8;
   --plan-weekend: #e2e2e2;
   --plan-school: #f6ecc0;
   --plan-public: #f5d5d5;
   --plan-ink: #0f172a;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --card-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;
 }
@@ -80,9 +121,15 @@
 body {
   margin: 0;
   min-height: 100vh;
+  font-family: var(--font-body);
+  background: var(--bg);
+  background-image: var(--page-texture);
+  background-attachment: fixed;
 }
 
 h1,
-h2 {
+h2,
+h3 {
   font-weight: 600;
+  font-family: var(--font-heading);
 }

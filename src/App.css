@@ -85,7 +85,7 @@
 }
 
 .nav a.active {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
 }
 
@@ -105,10 +105,10 @@
 
 .panel {
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: var(--card-border-width) solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 1.25rem;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--card-shadow);
 }
 
 .panel h2 {
@@ -134,6 +134,8 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--ink);
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-spacing);
 }
 
 .field input,
@@ -210,15 +212,15 @@
 
 .segmented button.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn {
   font: inherit;
-  border: 1px solid var(--border);
+  border: var(--card-border-width) solid var(--border);
   background: var(--input-bg);
   color: var(--ink);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.55rem 0.9rem;
   cursor: pointer;
   font-weight: 600;
@@ -241,7 +243,7 @@
 
 .btn--primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
   flex: 1;
   padding: 0.7rem;
@@ -338,11 +340,13 @@ table {
 thead th {
   position: sticky;
   top: 0;
-  background: var(--accent);
-  color: #fff;
+  background: var(--th-bg);
+  color: var(--th-ink);
   text-align: left;
   padding: 0.55rem 0.7rem;
   white-space: nowrap;
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-spacing);
 }
 
 tbody td {
@@ -470,7 +474,7 @@ tbody tr:nth-child(even) {
   display: flex;
   flex-direction: column;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-radius: 5px;
   padding: 0.25rem 0.35rem;
   font-size: 0.68rem;
@@ -570,7 +574,7 @@ tbody tr:nth-child(even) {
 .planner__corner,
 .planner__monthlabel {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 700;
   text-align: center;
   vertical-align: middle;
@@ -585,7 +589,7 @@ tbody tr:nth-child(even) {
 
 .planner__weekhead {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .planner__weekday {
@@ -741,7 +745,7 @@ tbody tr:nth-child(even) {
 }
 .stepper__item--active .stepper__num {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .stepper__item--done .stepper__btn {
   color: var(--ink);
@@ -749,7 +753,7 @@ tbody tr:nth-child(even) {
 }
 .stepper__item--done .stepper__num {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .wizard__body {
@@ -959,7 +963,7 @@ select {
 .month__chip.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .month__chip-count {
@@ -1337,12 +1341,14 @@ select {
   align-items: center;
   gap: 0.65rem;
   padding: 0.55rem 0.65rem;
-  border-radius: 9px;
+  border-radius: var(--radius);
   text-decoration: none;
   color: var(--muted);
   font-weight: 600;
   font-size: 0.9rem;
   border: 1px solid transparent;
+  text-transform: var(--label-transform);
+  letter-spacing: var(--label-spacing);
 }
 
 .sidebar__link svg {
@@ -1395,7 +1401,7 @@ select {
 }
 
 .chip--new {
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }
@@ -1435,10 +1441,10 @@ select {
   gap: 0.45rem;
   padding: 1.1rem 1.15rem 1.25rem;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: var(--card-border-width) solid var(--border);
+  border-radius: var(--radius-lg);
   text-decoration: none;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--card-shadow);
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease,
@@ -1447,7 +1453,7 @@ select {
 
 a.tool-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--card-shadow-hover);
   transform: translateY(-2px);
 }
 
@@ -1467,7 +1473,7 @@ a.tool-card:hover {
   width: 44px;
   height: 44px;
   border-radius: 11px;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
 }
 
@@ -1584,8 +1590,8 @@ a.tool-card:hover {
 }
 
 .rv-table thead th {
-  background: var(--accent);
-  color: #fff;
+  background: var(--th-bg);
+  color: var(--th-ink);
   font-size: 0.78rem;
   font-weight: 700;
 }

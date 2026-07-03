@@ -20,10 +20,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Apply the theme by stamping data-theme on <html>. "system" resolves via
-  // the OS preference and tracks live changes; the CSS keys everything off
-  // :root[data-theme='dark']. An inline script in index.html stamps the same
-  // attribute before first paint so there is no flash of the wrong theme.
+  // Apply the colour scheme by stamping data-MODE on <html>. "system" resolves
+  // via the OS preference and tracks live changes; the CSS keys the dark
+  // palette off :root[data-mode='dark']. (data-THEME carries the skin instead,
+  // set by ThemeProvider.) An inline script in index.html stamps the same
+  // attribute before first paint so there is no flash of the wrong scheme.
   useEffect(() => {
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
@@ -33,7 +34,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             ? 'dark'
             : 'light'
           : settings.theme;
-      document.documentElement.dataset.theme = resolved;
+      document.documentElement.dataset.mode = resolved;
     };
     apply();
     if (settings.theme === 'system') {

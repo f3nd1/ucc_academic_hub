@@ -6,19 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UCC School Timetable Generator</title>
     <script>
-      // Stamp the theme BEFORE first paint so a dark-mode user never sees a
-      // light flash. SettingsProvider keeps the attribute current afterwards.
+      // Stamp the colour scheme BEFORE first paint so a dark-mode user never
+      // sees a light flash. SettingsProvider keeps data-mode current afterwards.
       try {
         var s = JSON.parse(
           localStorage.getItem('ucc-timetable-settings') || '{}',
         );
-        var theme =
+        var mode =
           s.theme === 'light' || s.theme === 'dark'
             ? s.theme
             : window.matchMedia('(prefers-color-scheme: dark)').matches
               ? 'dark'
               : 'light';
-        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.mode = mode;
       } catch (e) {
         /* default light */
       }
