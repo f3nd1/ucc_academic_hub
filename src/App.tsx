@@ -5,6 +5,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { HelpProvider } from './help/HelpContext';
 import { useHelp } from './help/helpStore';
 import { Tour } from './help/Tour';
+import { SettingsProvider } from './SettingsProvider';
+import { TimetableProvider } from './TimetableProvider';
 
 /** Nav help controls: master toggle + restart tour. */
 function HelpControls() {
@@ -59,9 +61,16 @@ function Shell() {
 function App() {
   return (
     <HelpProvider>
-      <BrowserRouter>
-        <Shell />
-      </BrowserRouter>
+      {/* Settings + timetable state live ABOVE the routes so navigating to
+          /settings and back preserves the generated timetable and wizard
+          progress (the page component itself unmounts on route change). */}
+      <SettingsProvider>
+        <TimetableProvider>
+          <BrowserRouter>
+            <Shell />
+          </BrowserRouter>
+        </TimetableProvider>
+      </SettingsProvider>
     </HelpProvider>
   );
 }

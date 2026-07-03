@@ -19,6 +19,9 @@ import {
 
 interface Props {
   state: WizardState;
+  /** Controlled step so progress survives layout toggles and route changes. */
+  step: number;
+  setStep: (updater: (s: number) => number) => void;
   setIntent: (i: Intent) => void;
   setScope: (s: Scope) => void;
   setFirstDayOfWeek: (d: FirstDayOfWeek) => void;
@@ -90,6 +93,8 @@ const SCOPES: { key: Scope; title: string; desc: string }[] = [
 
 export function Wizard({
   state,
+  step,
+  setStep,
   setIntent,
   setScope,
   setFirstDayOfWeek,
@@ -98,7 +103,6 @@ export function Wizard({
   onSwitchToFullForm,
   busy,
 }: Props) {
-  const [step, setStep] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
 
   const stepErrors = validateStep(step, state);
@@ -121,7 +125,7 @@ export function Wizard({
     if (target <= step) {
       // Back navigation is always allowed.
       setShowErrors(false);
-      setStep(target);
+      setStep(() => target);
       return;
     }
     // Forward only if every step in between is valid.
@@ -132,7 +136,7 @@ export function Wizard({
       }
     }
     setShowErrors(false);
-    setStep(target);
+    setStep(() => target);
   };
 
   const primaryName = state.form.courseName || '—';

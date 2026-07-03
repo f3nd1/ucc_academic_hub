@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { ScheduledLesson, ClassGroupConfig, HolidaySet } from '../types';
 import {
   EMPTY_FORM,
   DEMO_FORM,
@@ -13,7 +12,9 @@ import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
 import { importFromErpnext } from '../erpnext';
-import { useSettings, type FirstDayOfWeek } from '../settings';
+import type { FirstDayOfWeek } from '../settings';
+import { useSettings } from '../settingsStore';
+import { useTimetableStore, type ViewMode } from '../timetableStore';
 import { formatDisplayDate, formatDate } from '../dateUtils';
 import { buildPlanner } from '../planner';
 import { exportPlannerCsv, exportPlannerToSheets } from '../plannerExports';
@@ -24,11 +25,9 @@ import { HybridView } from '../views/HybridView';
 import { Wizard } from '../wizard/Wizard';
 import { FullForm } from '../FullForm';
 import {
-  loadWizard,
   saveWizard,
   primaryNameLabel,
   scopeTitleLabel,
-  type WizardState,
   type Intent,
   type Scope,
 } from '../wizard/wizardModel';
@@ -36,22 +35,30 @@ import {
 const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
 
-type ViewMode = 'list' | 'calendar' | 'hybrid';
-type Banner = { ok: boolean; message: string } | null;
-type Layout = 'wizard' | 'full';
-
 export function TimetablePage() {
   const [settings] = useSettings();
-  const [wizard, setWizard] = useState<WizardState>(() =>
-    loadWizard(settings.firstDayOfWeek),
-  );
-  const [layout, setLayout] = useState<Layout>('wizard');
-  const [lessons, setLessons] = useState<ScheduledLesson[] | null>(null);
-  const [config, setConfig] = useState<ClassGroupConfig | null>(null);
-  const [holidays, setHolidays] = useState<HolidaySet | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [view, setView] = useState<ViewMode>('list');
-  const [banner, setBanner] = useState<Banner>(null);
+  // All of this lives in the route-persistent store so a trip to /settings and
+  // back loses neither the generated timetable nor the wizard progress.
+  const {
+    wizard,
+    setWizard,
+    wizardStep,
+    setWizardStep,
+    layout,
+    setLayout,
+    lessons,
+    setLessons,
+    config,
+    setConfig,
+    holidays,
+    setHolidays,
+    view,
+    setView,
+    messages,
+    setMessages,
+    banner,
+    setBanner,
+  } = useTimetableStore();
   const [busy, setBusy] = useState(false);
 
   const todayIso = useMemo(() => formatDate(new Date()), []);
@@ -207,6 +214,8 @@ export function TimetablePage() {
       {layout === 'wizard' ? (
         <Wizard
           state={wizard}
+          step={wizardStep}
+          setStep={setWizardStep}
           setIntent={setIntent}
           setScope={setScope}
           setFirstDayOfWeek={setFirstDayOfWeek}

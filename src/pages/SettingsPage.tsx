@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useSettings, type FirstDayOfWeek } from '../settings';
+import type { FirstDayOfWeek } from '../settings';
+import { useSettings } from '../settingsStore';
 import { testErpConnection } from '../erpnext';
 
 export function SettingsPage() {

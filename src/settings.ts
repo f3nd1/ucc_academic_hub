@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useState } from 'react';
-
 export type FirstDayOfWeek = 'sunday' | 'monday';
 
 /** App settings persisted to localStorage. */
@@ -21,7 +19,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   firstDayOfWeek: 'monday',
 };
 
-const STORAGE_KEY = 'ucc-timetable-settings';
+export const SETTINGS_STORAGE_KEY = 'ucc-timetable-settings';
+const STORAGE_KEY = SETTINGS_STORAGE_KEY;
 
 /** Read settings from localStorage, falling back to defaults for any gap. */
 export function loadSettings(): AppSettings {
@@ -43,32 +42,7 @@ export function saveSettings(settings: AppSettings): void {
   }
 }
 
-/**
- * React hook exposing the current settings and a setter that persists to
- * localStorage. Cross-tab updates are picked up via the storage event so the
- * Timetable and Settings pages stay in sync.
- */
-export function useSettings(): [
-  AppSettings,
-  (patch: Partial<AppSettings>) => void,
-] {
-  const [settings, setSettings] = useState<AppSettings>(loadSettings);
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setSettings(loadSettings());
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  const update = useCallback((patch: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      return next;
-    });
-  }, []);
-
-  return [settings, update];
-}
+// The useSettings hook lives in settingsStore.ts (context-based) so every
+// consumer shares ONE state instance. The old per-caller hook here meant
+// same-tab writes never propagated between pages — the storage event does not
+// fire in the document that wrote it; it only worked by remount coincidence.
