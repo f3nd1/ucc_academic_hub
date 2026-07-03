@@ -20,6 +20,28 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // Apply the theme by stamping data-theme on <html>. "system" resolves via
+  // the OS preference and tracks live changes; the CSS keys everything off
+  // :root[data-theme='dark']. An inline script in index.html stamps the same
+  // attribute before first paint so there is no flash of the wrong theme.
+  useEffect(() => {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const resolved =
+        settings.theme === 'system'
+          ? mql.matches
+            ? 'dark'
+            : 'light'
+          : settings.theme;
+      document.documentElement.dataset.theme = resolved;
+    };
+    apply();
+    if (settings.theme === 'system') {
+      mql.addEventListener('change', apply);
+      return () => mql.removeEventListener('change', apply);
+    }
+  }, [settings.theme]);
+
   const update = useCallback((patch: Partial<AppSettings>) => {
     setSettings((prev) => {
       const next = { ...prev, ...patch };

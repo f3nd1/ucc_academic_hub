@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { FirstDayOfWeek } from '../settings';
+import type { FirstDayOfWeek, ThemeMode } from '../settings';
 import { useSettings } from '../settingsStore';
 import { testErpConnection } from '../erpnext';
 
@@ -117,6 +117,34 @@ export function SettingsPage() {
             </label>
           ))}
         </div>
+      </div>
+
+      <h3 className="settings__subhead">Appearance</h3>
+      <div className="field">
+        <label>Theme</label>
+        <div className="radio-row">
+          {(
+            [
+              ['system', 'System'],
+              ['light', 'Light'],
+              ['dark', 'Dark'],
+            ] as [ThemeMode, string][]
+          ).map(([mode, label]) => (
+            <label className="radio" key={mode}>
+              <input
+                type="radio"
+                name="theme"
+                checked={settings.theme === mode}
+                onChange={() => update({ theme: mode })}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <p className="field__help">
+          System follows your operating-system preference; Light and Dark force
+          the mode. Applies immediately and is remembered on this device.
+        </p>
       </div>
 
       <p className="settings__saved">Changes are saved automatically.</p>

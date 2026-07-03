@@ -1,5 +1,8 @@
 export type FirstDayOfWeek = 'sunday' | 'monday';
 
+/** UI theme: follow the OS, or force light / dark. */
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 /** App settings persisted to localStorage. */
 export interface AppSettings {
   erpBaseUrl: string;
@@ -8,6 +11,7 @@ export interface AppSettings {
   erpDocType: string;
   googleClientId: string;
   firstDayOfWeek: FirstDayOfWeek;
+  theme: ThemeMode;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -17,6 +21,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   erpDocType: '',
   googleClientId: '',
   firstDayOfWeek: 'monday',
+  theme: 'system',
 };
 
 export const SETTINGS_STORAGE_KEY = 'ucc-timetable-settings';

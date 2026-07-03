@@ -30,41 +30,47 @@
   line-height: 1.5;
   color: var(--ink);
   background: var(--bg);
-  color-scheme: light dark;
+  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e2e8f0;
-    --muted: #94a3b8;
-    --bg: #0b1120;
-    --panel: #131a2b;
-    --border: #243049;
-    --input-bg: #0f1626;
-    --disabled-bg: #1a2233;
-    --row-alt: #172033;
-    --summary-bg: #172033;
-    --accent: #3b82f6;
-    --accent-ring: rgba(59, 130, 246, 0.3);
-    --error-bg: #2a1416;
-    --error-border: #7f1d1d;
-    --error-ink: #fca5a5;
-    --warn-bg: #2a2410;
-    --warn-border: #78560f;
-    --warn-ink: #fcd34d;
-    --ok-bg: #0f2417;
-    --ok-border: #166534;
-    --ok-ink: #86efac;
-    /* Keep planner fills light with dark ink so the matrix stays print-like. */
-    --plan-teach: #cdeccd;
-    --plan-al: #d8dde8;
-    --plan-weekend: #e2e2e2;
-    --plan-school: #f6ecc0;
-    --plan-public: #f5d5d5;
-    --plan-ink: #0f172a;
-  }
+/*
+ * Theme switching keys off data-theme on <html>, stamped before first paint
+ * by the inline script in index.html and kept current by SettingsProvider
+ * (Settings → Appearance: System / Light / Dark; "System" resolves the OS
+ * preference in JS so this single dark block covers both paths).
+ */
+:root[data-theme='dark'] {
+  --ink: #e2e8f0;
+  --muted: #94a3b8;
+  --bg: #0b1120;
+  --panel: #131a2b;
+  --border: #243049;
+  --input-bg: #0f1626;
+  --disabled-bg: #1a2233;
+  --row-alt: #172033;
+  --summary-bg: #172033;
+  --accent: #3b82f6;
+  --accent-ring: rgba(59, 130, 246, 0.3);
+  --error-bg: #2a1416;
+  --error-border: #7f1d1d;
+  --error-ink: #fca5a5;
+  --warn-bg: #2a2410;
+  --warn-border: #78560f;
+  --warn-ink: #fcd34d;
+  --ok-bg: #0f2417;
+  --ok-border: #166534;
+  --ok-ink: #86efac;
+  /* Keep planner fills light with dark ink so the matrix stays print-like. */
+  --plan-teach: #cdeccd;
+  --plan-al: #d8dde8;
+  --plan-weekend: #e2e2e2;
+  --plan-school: #f6ecc0;
+  --plan-public: #f5d5d5;
+  --plan-ink: #0f172a;
+
+  color-scheme: dark;
 }
 
 * {
