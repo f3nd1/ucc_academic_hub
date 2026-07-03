@@ -191,3 +191,70 @@ describe('generateCourseSchedule (whole course)', () => {
     expect(lessons.some((l) => l.date === '2026-07-10')).toBe(false);
   });
 });
+
+describe('detectConflicts', () => {
+  const holidays = NO_HOLIDAYS;
+  const m1 = mod({ id: 'a', name: 'A', teacher: 'Ms Tan', classroom: 'R1', classGroup: 'CG', totalLessons: 5 });
+
+  const parallelWith = (m2over: Partial<Module>) =>
+    generateCourseSchedule(
+      course({
+        deliveryMode: 'parallel',
+        modules: [m1, mod({ id: 'b', name: 'B', teacher: 'Mr Lim', classroom: 'R2', classGroup: 'CG-2', totalLessons: 5, ...m2over })],
+      }),
+      holidays,
+    );
+
+  // detectConflicts is imported lazily here to keep the earlier imports stable.
+  it('flags classroom clashes on overlapping ranges across modules', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const scan = detectConflicts(parallelWith({ classroom: 'R1', startTime: '09:30', endTime: '10:30' }));
+    const rooms = scan.conflicts.filter((c) => c.type === 'classroom');
+    expect(rooms.length).toBe(5); // one per shared day
+    expect(rooms[0].moduleIds).toEqual(['a', 'b']);
+    expect(rooms[0].detail).toContain('R1');
+    expect(rooms[0].detail).toContain('09:00–10:00');
+  });
+
+  it('flags teacher and class-group clashes independently', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const scan = detectConflicts(parallelWith({ teacher: 'Ms Tan', classGroup: 'CG', startTime: '09:00', endTime: '10:00' }));
+    expect(scan.conflicts.some((c) => c.type === 'teacher')).toBe(true);
+    expect(scan.conflicts.some((c) => c.type === 'classGroup')).toBe(true);
+    expect(scan.conflicts.some((c) => c.type === 'classroom')).toBe(false); // rooms differ
+  });
+
+  it('non-overlapping time ranges never clash', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const scan = detectConflicts(parallelWith({ teacher: 'Ms Tan', classroom: 'R1', classGroup: 'CG', startTime: '10:00', endTime: '11:00' }));
+    expect(scan.conflicts).toEqual([]);
+  });
+
+  it('series mode (different months) has no conflicts even with shared resources', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const lessons = generateCourseSchedule(
+      course({
+        deliveryMode: 'series',
+        modules: [m1, mod({ id: 'b', name: 'B', teacher: 'Ms Tan', classroom: 'R1', classGroup: 'CG', totalLessons: 5 })],
+      }),
+      holidays,
+    );
+    expect(detectConflicts(lessons).conflicts).toEqual([]);
+  });
+
+  it('attaches conflicts to both affected lessons and leaves others clean', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const scan = detectConflicts(parallelWith({ classroom: 'R1', startTime: '09:30', endTime: '10:30' }));
+    const conflicted = scan.lessons.filter((l) => (l.conflicts?.length ?? 0) > 0);
+    expect(conflicted.length).toBe(10); // 5 days x 2 modules
+    const clean = scan.lessons.filter((l) => (l.conflicts?.length ?? 0) === 0);
+    expect(clean.every((l) => l.conflicts === undefined)).toBe(true);
+  });
+
+  it('AL entries are excluded from conflict scanning', async () => {
+    const { detectConflicts } = await import('../src/courseEngine');
+    const lessons = generateCourseSchedule(course({ deliveryMode: 'series' }), holidays);
+    const scan = detectConflicts(lessons);
+    expect(scan.lessons.filter((l) => l.kind === 'AL').every((l) => !l.conflicts)).toBe(true);
+  });
+});

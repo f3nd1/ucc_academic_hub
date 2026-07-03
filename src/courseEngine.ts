@@ -1,4 +1,5 @@
 import type {
+  Conflict,
   Course,
   HolidaySet,
   Module,
@@ -240,4 +241,84 @@ export function generateCourseSchedule(
   }
 
   return sortLessons(all);
+}
+
+// ---------------------------------------------------------------------------
+// Conflict detection (requirement 4). Real lessons only — AL days are buffers.
+// ---------------------------------------------------------------------------
+
+/** Time ranges overlap when startA < endB && startB < endA. */
+const overlaps = (a: ScheduledLesson, b: ScheduledLesson): boolean =>
+  a.startTime < b.endTime && b.startTime < a.endTime;
+
+export interface ConflictScan {
+  /** Copy of the input with `conflicts` attached to every affected lesson. */
+  lessons: ScheduledLesson[];
+  conflicts: Conflict[];
+}
+
+const CONFLICT_CHECKS: {
+  type: Conflict['type'];
+  key: (l: ScheduledLesson) => string;
+  label: string;
+}[] = [
+  { type: 'teacher', key: (l) => l.teacher, label: 'Teacher' },
+  { type: 'classroom', key: (l) => l.classroom, label: 'Classroom' },
+  { type: 'classGroup', key: (l) => l.classGroup, label: 'Class group' },
+];
+
+/**
+ * Scan all real lessons (AL excluded) for same-date, overlapping-time clashes
+ * between DIFFERENT modules sharing a teacher, classroom, or class group.
+ * Returns the conflict list plus a lesson list with `conflicts` attached to
+ * each affected lesson, ready for highlighting in every view.
+ */
+export function detectConflicts(lessons: ScheduledLesson[]): ConflictScan {
+  const conflicts: Conflict[] = [];
+  // moduleId|date|index → conflicts hitting that lesson.
+  const hits = new Map<ScheduledLesson, Conflict[]>();
+
+  const byDate = new Map<string, ScheduledLesson[]>();
+  for (const l of lessons) {
+    if (l.kind !== 'lesson') continue;
+    const arr = byDate.get(l.date);
+    if (arr) arr.push(l);
+    else byDate.set(l.date, [l]);
+  }
+
+  for (const [date, day] of [...byDate.entries()].sort()) {
+    for (let i = 0; i < day.length; i++) {
+      for (let j = i + 1; j < day.length; j++) {
+        const a = day[i];
+        const b = day[j];
+        if (a.moduleId === b.moduleId || !overlaps(a, b)) continue;
+        for (const check of CONFLICT_CHECKS) {
+          const ka = check.key(a);
+          if (!ka || ka !== check.key(b)) continue;
+          const conflict: Conflict = {
+            type: check.type,
+            date,
+            moduleIds: [a.moduleId, b.moduleId],
+            detail:
+              `${check.label} "${ka}": ${a.moduleName} (${a.startTime}–${a.endTime}) ` +
+              `and ${b.moduleName} (${b.startTime}–${b.endTime}) overlap.`,
+          };
+          conflicts.push(conflict);
+          for (const l of [a, b]) {
+            const list = hits.get(l);
+            if (list) list.push(conflict);
+            else hits.set(l, [conflict]);
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    lessons: lessons.map((l) => {
+      const found = hits.get(l);
+      return found ? { ...l, conflicts: found } : { ...l, conflicts: undefined };
+    }),
+    conflicts,
+  };
 }

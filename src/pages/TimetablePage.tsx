@@ -9,7 +9,7 @@ import {
   type CourseForm,
   type ModuleForm,
 } from '../formModel';
-import { generateCourseSchedule } from '../courseEngine';
+import { generateCourseSchedule, detectConflicts } from '../courseEngine';
 import { exportCsv, exportPdf } from '../exports';
 import { downloadIcs } from '../googleCalendar';
 import { exportToGoogleSheets } from '../googleSheets';
@@ -58,6 +58,8 @@ export function TimetablePage() {
     setCourse,
     holidays,
     setHolidays,
+    conflicts,
+    setConflicts,
     view,
     setView,
     messages,
@@ -129,6 +131,7 @@ export function TimetablePage() {
     setLessons(null);
     setCourse(null);
     setHolidays(null);
+    setConflicts([]);
     setMessages([]);
     setBanner(null);
   };
@@ -147,8 +150,11 @@ export function TimetablePage() {
     const builtCourse = buildCourse(wizard.form);
     const holidaySet = buildHolidays(wizard.form);
     try {
-      const result = generateCourseSchedule(builtCourse, holidaySet);
-      setLessons(result);
+      const generated = generateCourseSchedule(builtCourse, holidaySet);
+      // Scan for cross-module clashes and attach them for highlighting.
+      const scanned = detectConflicts(generated);
+      setLessons(scanned.lessons);
+      setConflicts(scanned.conflicts);
       setCourse(builtCourse);
       setHolidays(holidaySet);
       setMessages([]);
@@ -159,6 +165,7 @@ export function TimetablePage() {
       setLessons(null);
       setCourse(null);
       setHolidays(null);
+      setConflicts([]);
     }
   };
 
@@ -387,6 +394,34 @@ export function TimetablePage() {
             </span>
           </div>
         )}
+
+        {hasLessons &&
+          (conflicts.length > 0 ? (
+            <div className="conflicts" role="alert" data-tour="conflicts">
+              <p className="conflicts__title">
+                ⚠ {conflicts.length} conflict{conflicts.length > 1 ? 's' : ''}{' '}
+                detected
+              </p>
+              <ul className="conflicts__list">
+                {conflicts.map((c, i) => (
+                  <li className="conflicts__item" key={i}>
+                    <strong>{formatDisplayDate(c.date)}</strong> —{' '}
+                    {c.type === 'teacher'
+                      ? 'Teacher clash'
+                      : c.type === 'classroom'
+                        ? 'Classroom clash'
+                        : 'Class-group clash'}
+                    : {c.detail}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="conflicts conflicts--clear" role="status">
+              ✓ No conflicts — teachers, classrooms, and class groups are clear
+              across all modules.
+            </div>
+          ))}
 
         {hasLessons && (
           <div
