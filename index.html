@@ -39,7 +39,10 @@
           localStorage.getItem('ucc:workspace:theme') || '""',
         );
         document.documentElement.dataset.theme =
-          t === 'classic' || t === 'retro-lcd' || t === 'y2k-pop'
+          t === 'classic' ||
+          t === 'retro-lcd' ||
+          t === 'y2k-pop' ||
+          t === 'cult-of-the-lamb'
             ? t
             : 'y2k-pop';
       } catch (e) {

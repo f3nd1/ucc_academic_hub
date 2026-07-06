@@ -1,7 +1,7 @@
 import { loadNamespaced, saveNamespaced } from './persistence';
 
 /** Workspace skin. Composes with the light/dark colour mode (data-mode). */
-export type Skin = 'classic' | 'retro-lcd' | 'y2k-pop';
+export type Skin = 'classic' | 'retro-lcd' | 'y2k-pop' | 'cult-of-the-lamb';
 
 export const SKINS: { value: Skin; label: string; hint: string }[] = [
   {
@@ -19,6 +19,11 @@ export const SKINS: { value: Skin; label: string; hint: string }[] = [
     label: 'Y2K Pop',
     hint: 'Bold pink/teal pop with heavy black outlines and a playful heading font.',
   },
+  {
+    value: 'cult-of-the-lamb',
+    label: 'Cult of the Lamb',
+    hint: 'Dark gothic-cult palette: crimson, muted gold, and parchment form fields.',
+  },
 ];
 
 // Default skin. NOTE: dense tables read best on Classic — consider making
@@ -30,7 +35,10 @@ const TOOL_ID = 'workspace';
 const KEY = 'theme';
 
 const isSkin = (v: unknown): v is Skin =>
-  v === 'classic' || v === 'retro-lcd' || v === 'y2k-pop';
+  v === 'classic' ||
+  v === 'retro-lcd' ||
+  v === 'y2k-pop' ||
+  v === 'cult-of-the-lamb';
 
 export function loadSkin(): Skin {
   const v = loadNamespaced<unknown>(TOOL_ID, KEY, DEFAULT_SKIN);

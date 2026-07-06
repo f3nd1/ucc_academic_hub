@@ -241,6 +241,91 @@
   color-scheme: light;
 }
 
+/* ========================================================= CULT OF THE LAMB ===
+   Dark gothic-cult palette. PINS ITS OWN PALETTE — ignores data-mode. The
+   accent crimson is a FILL only (primary buttons, headers); accent TEXT/icons
+   use muted gold (--accent-text) which passes contrast on the dark surfaces.
+   Form fields are a light parchment surface with charcoal text (--field-*),
+   while buttons/cards stay dark. Active tab/nav uses cult purple (--active),
+   distinct from the crimson primary-action fill.
+
+   Contrast (WCAG AA, normal text ≥ 4.5):
+     bone #EDE6D6 on near-black #1A1512 ....... ~15:1  ✅
+     bone #EDE6D6 on charcoal #2B1F2E ......... ~12:1  ✅
+     charcoal #2B1F2E on parchment #D8CBA8 .... ~8.8:1 ✅ (form fields)
+     bone #EDE6D6 on crimson #8B1E2C .......... ~6.0:1 ✅ (danger / headers / buttons)
+     bone #EDE6D6 on blood-orange #B5502C ..... ~4.6:1 ✅ (warning)
+     near-black #1A1512 on gold #C9A24B ....... ~7.4:1 ✅ (success)
+     gold #C9A24B on dark surfaces ............ high    ✅ (accent text)
+   The "planned" dark-gold #8A6D2F cannot reach 4.5 for small text with any
+   dark ink, so it is used only for the planner-matrix fill (large cells,
+   near-black ink ≈ 3.3:1, AA-large), never as a small badge. */
+:root[data-theme='cult-of-the-lamb'] {
+  --ink: #ede6d6; /* bone white — primary text */
+  --muted: #d8cba8; /* aged parchment — secondary text (stays legible on dark) */
+  --bg: #1a1512; /* near-black page */
+  --panel: #2b1f2e; /* charcoal purple — cards, panels */
+  --border: rgba(201, 162, 75, 0.25); /* muted gold, low opacity */
+  --border-strong: rgba(201, 162, 75, 0.5);
+  --input-bg: #3a2c3f; /* raised charcoal — buttons/chips/cards */
+  --disabled-bg: #241a22;
+  --row-alt: #241a22;
+  --summary-bg: #241a22; /* raised dark — summary + computed cells */
+
+  /* Light-surface variant: parchment form fields + charcoal text. */
+  --field-bg: #d8cba8;
+  --field-ink: #2b1f2e;
+
+  --accent: #8b1e2c; /* deep crimson — primary buttons, headers (FILL) */
+  --accent-ring: rgba(139, 30, 44, 0.35);
+  --on-accent: #ede6d6; /* bone white on crimson */
+  --accent-text: #c9a24b; /* muted gold — accent TEXT/icons on dark */
+  --active: #4b2e4d; /* cult purple — active tab/nav, distinct from crimson */
+  --active-ring: rgba(75, 46, 77, 0.5);
+
+  --th-bg: #8b1e2c; /* crimson table headers */
+  --th-ink: #ede6d6;
+
+  /* Status/badge roles — every existing chip/banner picks these up. */
+  --error-bg: #8b1e2c; /* danger: white on deep crimson */
+  --error-border: #c9a24b;
+  --error-ink: #ede6d6;
+  --warn-bg: #b5502c; /* warning/late: blood orange */
+  --warn-border: #c9a24b;
+  /* Bone (#ede6d6) only reaches 4.07:1 on this orange; nudged to pure white
+     (4.93:1, AA) — a text-only fix, the brand orange is untouched. */
+  --warn-ink: #ffffff;
+  --ok-bg: #c9a24b; /* success: near-black on muted gold */
+  --ok-border: #8a6d2f;
+  --ok-ink: #1a1512;
+
+  /* Planner-matrix fills stay light with near-black ink so data cells read. */
+  --plan-teach: #c9a24b;
+  --plan-al: #c7b790;
+  --plan-weekend: #b7a98a;
+  --plan-school: #d8b968;
+  --plan-public: #cf9a6a;
+  --plan-ink: #1a1512;
+
+  --card-border-width: 1.5px;
+  --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  --card-shadow-hover: 0 10px 24px rgba(0, 0, 0, 0.6);
+
+  /* A system serif gives the gothic feel with no web-font dependency. */
+  --font-heading: Georgia, 'Times New Roman', serif;
+  --label-transform: none;
+  --label-spacing: normal;
+
+  /* Subtle vignette on the page only (panels sit above it — never behind tables). */
+  --page-texture: radial-gradient(
+    ellipse at 50% 0%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -1803,3 +1803,18 @@ a.tool-card:hover {
   transform: translate(-1px, -1px);
   box-shadow: 3px 3px 0 #141414;
 }
+
+/* --- Cult of the Lamb: gold-ringed tiles + a crescent on empty states --- */
+:root[data-theme='cult-of-the-lamb'] .tool-card {
+  border-color: var(--border-strong);
+}
+:root[data-theme='cult-of-the-lamb'] .tool-card__icon {
+  border: 1.5px solid var(--accent-text);
+}
+:root[data-theme='cult-of-the-lamb'] .empty::before {
+  content: '\263E';
+  display: block;
+  font-size: 1.7rem;
+  color: var(--accent-text);
+  margin-bottom: 0.4rem;
+}
