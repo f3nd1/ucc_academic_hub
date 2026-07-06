@@ -145,6 +145,28 @@ describe('fetchSampleFields', () => {
     expect(result.message).toContain('Authentication failed (403 Forbidden)');
   });
 
+  it('surfaces a network/CORS failure (fetch throws)', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    const result = await fetchSampleFields(SETTINGS, 'Course Schedule');
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('network or CORS');
+  });
+
+  it('errors (not silent success) when the record has no scalar fields', async () => {
+    stubFetch((url) =>
+      url.includes('limit_page_length=1')
+        ? Promise.resolve(jsonResponse(200, { data: [{ name: 'CS-0001' }] }))
+        : Promise.resolve(
+            jsonResponse(200, {
+              data: { rows: [{ x: 1 }], link_obj: { a: 1 } },
+            }),
+          ),
+    );
+    const result = await fetchSampleFields(SETTINGS, 'Course Schedule');
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('no simple fields to map');
+  });
+
   it('requires a DocType before fetching', async () => {
     const result = await fetchSampleFields(SETTINGS, '');
     expect(result.ok).toBe(false);

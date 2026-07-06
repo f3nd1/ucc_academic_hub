@@ -170,51 +170,69 @@ export async function fetchSampleFields(
   if (!docType.trim())
     return { ok: false, message: 'Enter a DocType first.' };
 
+  // Each step is logged so the browser console shows exactly where a failure
+  // happens (which request, what status) instead of the dropdowns silently
+  // staying empty.
+  const fail = (message: string): ErpResult<ErpSampleFields> => {
+    console.error('[ERPNext] Load sample fields failed:', message);
+    return { ok: false, message };
+  };
+
+  const base = erpBase(settings);
   const listUrl =
-    `${erpBase(settings)}/api/resource/${encodeURIComponent(docType)}` +
-    `?limit_page_length=1`;
+    `${base}/api/resource/${encodeURIComponent(docType)}?limit_page_length=1`;
   try {
+    console.info('[ERPNext] Load sample fields — listing:', listUrl);
     const listRes = await fetch(listUrl, { headers: authHeaders(settings) });
-    if (!listRes.ok)
-      return {
-        ok: false,
-        message: statusMessage(listRes, ` listing "${docType}"`),
-      };
+    console.info(
+      `[ERPNext] list response: ${listRes.status} ${listRes.statusText}`,
+    );
+    if (!listRes.ok) return fail(statusMessage(listRes, ` listing "${docType}"`));
+
     const listBody = (await listRes.json()) as {
       data?: Record<string, unknown>[];
     };
     const first = listBody.data?.[0];
     const recordName = first ? str(first, 'name') : '';
+    console.info('[ERPNext] first record name:', recordName || '(none)');
     if (!recordName)
-      return {
-        ok: false,
-        message: `No "${docType}" records found — create one in ERPNext first.`,
-      };
+      return fail(
+        `No "${docType}" records found. Check the DocType name (it is ` +
+          `case-sensitive, e.g. "Course") and that this user can read it, then ` +
+          `create at least one record in ERPNext.`,
+      );
 
     const docUrl =
-      `${erpBase(settings)}/api/resource/${encodeURIComponent(docType)}` +
+      `${base}/api/resource/${encodeURIComponent(docType)}` +
       `/${encodeURIComponent(recordName)}`;
+    console.info('[ERPNext] fetching record:', docUrl);
     const docRes = await fetch(docUrl, { headers: authHeaders(settings) });
-    if (!docRes.ok)
-      return {
-        ok: false,
-        message: statusMessage(docRes, ` fetching "${recordName}"`),
-      };
+    console.info(
+      `[ERPNext] record response: ${docRes.status} ${docRes.statusText}`,
+    );
+    if (!docRes.ok) return fail(statusMessage(docRes, ` fetching "${recordName}"`));
+
     const docBody = (await docRes.json()) as { data?: Record<string, unknown> };
-    if (!docBody.data)
-      return { ok: false, message: `Record "${recordName}" came back empty.` };
+    if (!docBody.data) return fail(`Record "${recordName}" came back empty.`);
 
     const fields = Object.entries(docBody.data)
       .filter(([, v]) => isScalar(v))
       .map(([key]) => key)
       .sort();
+    console.info(`[ERPNext] ${fields.length} scalar field(s):`, fields);
+    if (fields.length === 0)
+      return fail(
+        `Record "${recordName}" has no simple fields to map — it only holds ` +
+          `child tables or links. Pick a DocType with plain fields.`,
+      );
+
     return {
       ok: true,
-      message: `Loaded ${fields.length} field(s) from "${recordName}".`,
+      message: `Loaded ${fields.length} field(s) from record "${recordName}".`,
       data: { recordName, fields },
     };
   } catch (err) {
-    return { ok: false, message: networkFailure(err) };
+    return fail(networkFailure(err));
   }
 }
 

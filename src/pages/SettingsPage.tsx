@@ -56,6 +56,9 @@ export function SettingsPage() {
   const handleLoadFields = async () => {
     setLoadingFields(true);
     setFieldsResult(null);
+    console.info(
+      `[ERPNext] "Load sample fields" clicked for DocType "${settings.erpDocType}"`,
+    );
     const result = await fetchSampleFields(settings, settings.erpDocType);
     if (result.ok && result.data) {
       setSampleFields(result.data.fields);
@@ -67,6 +70,8 @@ export function SettingsPage() {
     setFieldsResult({ ok: result.ok, message: result.message });
     setLoadingFields(false);
   };
+
+  const docTypeEmpty = !settings.erpDocType.trim();
 
   const handleMapField = (appField: string, erpField: string) => {
     const next: ErpFieldMapping = {
@@ -139,11 +144,18 @@ export function SettingsPage() {
         <button
           className="btn"
           onClick={handleLoadFields}
-          disabled={loadingFields || !settings.erpDocType.trim()}
+          disabled={loadingFields || docTypeEmpty}
+          title={docTypeEmpty ? 'Enter a DocType above first.' : undefined}
         >
           {loadingFields ? 'Loading…' : 'Load sample fields'}
         </button>
       </div>
+      {docTypeEmpty && (
+        <p className="hint">
+          Enter a <strong>DocType</strong> above first (e.g. “Course”) to enable{' '}
+          <em>Load sample fields</em>.
+        </p>
+      )}
       {testResult && (
         <div
           className={`banner ${testResult.ok ? 'banner--ok' : 'banner--error'}`}
