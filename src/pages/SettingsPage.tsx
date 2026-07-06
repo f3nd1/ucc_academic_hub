@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FirstDayOfWeek, ThemeMode } from '../shared/settings';
 import { useSettings } from '../shared/settingsStore';
-import { testErpConnection, fetchSampleFields } from '../erpnext';
+import { testErpConnection, fetchSampleFields, listErpDocTypes } from '../erpnext';
 import {
   APP_TARGET_FIELDS,
   loadErpFieldMapping,
@@ -37,6 +37,17 @@ export function SettingsPage() {
     loadErpFieldMapping(settings.erpDocType),
   );
 
+  // DocType picker: fetches real DocType names from ERPNext so the field can
+  // be picked from a searchable list instead of typed blind (names are
+  // case-sensitive). `docTypes` non-null means the picker is open.
+  const [docTypes, setDocTypes] = useState<string[] | null>(null);
+  const [docTypeFilter, setDocTypeFilter] = useState('');
+  const [loadingDocTypes, setLoadingDocTypes] = useState(false);
+  const [docTypesResult, setDocTypesResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
   useEffect(() => {
     setMapping(loadErpFieldMapping(settings.erpDocType));
     setSampleFields([]);
@@ -70,6 +81,33 @@ export function SettingsPage() {
     setFieldsResult({ ok: result.ok, message: result.message });
     setLoadingFields(false);
   };
+
+  const handleBrowseDocTypes = async () => {
+    setLoadingDocTypes(true);
+    setDocTypesResult(null);
+    const result = await listErpDocTypes(settings);
+    if (result.ok && result.data) {
+      setDocTypes(result.data);
+      setDocTypeFilter('');
+    } else {
+      setDocTypes(null);
+    }
+    setDocTypesResult({ ok: result.ok, message: result.message });
+    setLoadingDocTypes(false);
+  };
+
+  const handlePickDocType = (name: string) => {
+    update({ erpDocType: name });
+    setDocTypes(null);
+  };
+
+  const filteredDocTypes = useMemo(() => {
+    if (!docTypes) return [];
+    const needle = docTypeFilter.trim().toLowerCase();
+    return needle
+      ? docTypes.filter((n) => n.toLowerCase().includes(needle))
+      : docTypes;
+  }, [docTypes, docTypeFilter]);
 
   const docTypeEmpty = !settings.erpDocType.trim();
 
@@ -135,13 +173,75 @@ export function SettingsPage() {
       </div>
       <div className="field">
         <label htmlFor="erpDocType">DocType to import from</label>
-        <input
-          id="erpDocType"
-          value={settings.erpDocType}
-          onChange={(e) => update({ erpDocType: e.target.value })}
-          placeholder="e.g. Course"
-        />
+        <div className="field__row">
+          <input
+            id="erpDocType"
+            value={settings.erpDocType}
+            onChange={(e) => update({ erpDocType: e.target.value })}
+            placeholder="e.g. Course"
+          />
+          <button
+            type="button"
+            className="btn"
+            onClick={handleBrowseDocTypes}
+            disabled={loadingDocTypes}
+          >
+            {loadingDocTypes ? 'Loading…' : 'Browse DocTypes'}
+          </button>
+        </div>
+        <p className="hint">
+          Fetches real DocType names from ERPNext to pick from — needs the API
+          user to have read permission on "DocType" (usually a System Manager
+          role). If that permission is missing, type the DocType name here
+          manually instead.
+        </p>
       </div>
+      {docTypesResult && !docTypes && (
+        <div
+          className={`banner ${docTypesResult.ok ? 'banner--ok' : 'banner--error'}`}
+          role="status"
+        >
+          {docTypesResult.message}
+        </div>
+      )}
+      {docTypes && (
+        <div className="erp-picker" role="region" aria-label="ERPNext DocTypes">
+          <div className="erp-picker__head">
+            <strong>Pick a DocType</strong>
+            <button
+              type="button"
+              className="linkbtn"
+              onClick={() => setDocTypes(null)}
+            >
+              Cancel
+            </button>
+          </div>
+          <input
+            className="erp-picker__filter"
+            value={docTypeFilter}
+            onChange={(e) => setDocTypeFilter(e.target.value)}
+            placeholder="Filter DocTypes…"
+            aria-label="Filter DocTypes"
+            autoFocus
+          />
+          <ul className="erp-picker__list">
+            {filteredDocTypes.map((name) => (
+              <li key={name}>
+                <button
+                  type="button"
+                  className="erp-picker__item"
+                  onClick={() => handlePickDocType(name)}
+                >
+                  <span>{name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {filteredDocTypes.length === 0 && (
+            <p className="hint">No DocTypes match "{docTypeFilter}".</p>
+          )}
+        </div>
+      )}
       <div className="actions">
         <button className="btn" onClick={handleTest} disabled={testing}>
           {testing ? 'Testing…' : 'Test ERPNext connection'}

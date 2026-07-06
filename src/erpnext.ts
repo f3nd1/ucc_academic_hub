@@ -240,6 +240,57 @@ export async function fetchSampleFields(
   }
 }
 
+/**
+ * List real DocType names from ERPNext so the "DocType to import from" box
+ * can be picked from a searchable list instead of typed blind (DocType names
+ * are case-sensitive and easy to mistype). Requires the API user to have read
+ * permission on the "DocType" doctype itself — usually a System Manager-only
+ * permission; a 403 here just means that's missing, and the field can still
+ * be typed manually. Child-table doctypes (istable=1) are excluded — they are
+ * never valid top-level import sources.
+ */
+export async function listErpDocTypes(
+  settings: AppSettings,
+): Promise<ErpResult<string[]>> {
+  if (!settings.erpBaseUrl.trim())
+    return { ok: false, message: 'Set an ERPNext base URL in Settings first.' };
+  if (!settings.erpApiKey.trim() || !settings.erpApiSecret.trim())
+    return { ok: false, message: 'Set an ERPNext API key and secret first.' };
+
+  const fields = JSON.stringify(['name', 'istable']);
+  // limit_page_length=0 is Frappe's "no limit" — a site can have hundreds of
+  // DocTypes and the picker filters client-side, so fetch them all at once.
+  const url =
+    `${erpBase(settings)}/api/resource/DocType` +
+    `?fields=${encodeURIComponent(fields)}&limit_page_length=0`;
+
+  try {
+    const res = await fetch(url, { headers: authHeaders(settings) });
+    if (!res.ok)
+      return { ok: false, message: statusMessage(res, ' listing DocTypes') };
+    const body = (await res.json()) as {
+      data?: { name: string; istable?: 0 | 1 }[];
+    };
+    const names = (body.data ?? [])
+      .filter((d) => !d.istable)
+      .map((d) => d.name)
+      .sort((a, b) => a.localeCompare(b));
+    if (names.length === 0)
+      return {
+        ok: false,
+        message:
+          'No DocTypes found — check that this API user has read permission on "DocType".',
+      };
+    return {
+      ok: true,
+      message: `Found ${names.length} DocType(s). Pick one to import from.`,
+      data: names,
+    };
+  } catch (err) {
+    return { ok: false, message: networkFailure(err) };
+  }
+}
+
 /** One row of the record picker. */
 export interface ErpRecordSummary {
   /** Frappe document name (the id used to fetch the full doc). */

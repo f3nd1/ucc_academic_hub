@@ -6,6 +6,7 @@ import {
   listErpRecords,
   fetchErpRecord,
   fetchSampleFields,
+  listErpDocTypes,
 } from '../src/erpnext';
 import { DEFAULT_SETTINGS, type AppSettings } from '../src/shared/settings';
 import type { ErpFieldMapping } from '../src/erpFieldMapping';
@@ -171,6 +172,49 @@ describe('fetchSampleFields', () => {
     const result = await fetchSampleFields(SETTINGS, '');
     expect(result.ok).toBe(false);
     expect(result.message).toContain('DocType');
+  });
+});
+
+describe('listErpDocTypes', () => {
+  it('lists real DocType names, sorted, excluding child tables', async () => {
+    const calls = stubFetch(() =>
+      Promise.resolve(
+        jsonResponse(200, {
+          data: [
+            { name: 'Course', istable: 0 },
+            { name: 'Course Schedule Item', istable: 1 }, // child table — excluded
+            { name: 'Batch', istable: 0 },
+          ],
+        }),
+      ),
+    );
+    const result = await listErpDocTypes(SETTINGS);
+    expect(result.ok).toBe(true);
+    expect(result.data).toEqual(['Batch', 'Course']); // sorted, child table dropped
+    expect(calls[0].url).toMatch(/^\/erp\/api\/resource\/DocType\?fields=/);
+    expect(calls[0].url).not.toContain('the-secret');
+  });
+
+  it('reports when no DocTypes are readable', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(200, { data: [] })));
+    const result = await listErpDocTypes(SETTINGS);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('No DocTypes found');
+  });
+
+  it('surfaces a 403 as an auth/permission failure', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(403, {})));
+    const result = await listErpDocTypes(SETTINGS);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('Authentication failed (403 Forbidden)');
+    expect(result.message).toContain('listing DocTypes');
+  });
+
+  it('surfaces a network/CORS failure (fetch throws)', async () => {
+    stubFetch(() => Promise.reject(new TypeError('Failed to fetch')));
+    const result = await listErpDocTypes(SETTINGS);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('network or CORS');
   });
 });
 

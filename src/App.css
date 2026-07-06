@@ -169,6 +169,23 @@
   font-size: 0.85rem;
 }
 
+/* Input + inline action button, e.g. DocType field + "Browse DocTypes" */
+.field__row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.field__row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.field__row .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -993,6 +1010,25 @@ select {
   justify-content: space-between;
   margin-bottom: 0.6rem;
   font-size: 0.9rem;
+}
+
+.erp-picker__filter {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--field-ink);
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+}
+
+.erp-picker__filter:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .erp-picker__list {
