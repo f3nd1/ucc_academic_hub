@@ -6,16 +6,19 @@ import type { ErpFieldMapping } from './erpFieldMapping';
 // CORS / networking note
 // ---------------------------------------------------------------------------
 // This is a browser app calling the ERPNext server. The ERPNext site does not
-// return CORS headers for the Codespace origin, so a direct cross-origin fetch
-// dies in the browser with "Failed to fetch" (curl works — no CORS there).
+// return CORS headers, so a DIRECT cross-origin fetch from the browser dies
+// with "Failed to fetch" / a CORS preflight block (curl works — no CORS there).
 //
-//  - DEV: every request goes to same-origin '/erp/...', which the Vite dev
-//    proxy (vite.config.ts) forwards to the ERPNext server — no CORS involved.
-//    The proxy target is static at config time; restart the dev server after
-//    changing vite.config.ts.
-//  - PROD: requests use the base URL from Settings. That deployment must sit
-//    behind a real backend proxy (see the Settings security banner) — the
-//    browser must never hold the secret on a shared/public URL.
+// So the browser NEVER calls ERPNext directly. Every request goes to the
+// same-origin '/erp/...' path, and whatever serves the app forwards it to the
+// real ERPNext server:
+//   - npm run dev      → the Vite dev-server proxy (server.proxy)
+//   - npm run preview  → the Vite preview-server proxy (preview.proxy)
+//   - any other host   → must add an equivalent '/erp' reverse proxy (e.g.
+//                        an nginx `location /erp/ { proxy_pass ...; }`)
+// The proxy target is set in vite.config.ts (ERP_PROXY_TARGET), STATIC at
+// startup — restart the server after changing it. Because the call is always
+// same-origin there is no CORS in ANY mode, dev or deployed.
 // ---------------------------------------------------------------------------
 
 /** ERPNext token-auth header. The key/secret travel ONLY here — never in the
@@ -27,18 +30,17 @@ function authHeaders(settings: AppSettings): HeadersInit {
   };
 }
 
-/** Trim a trailing slash so we can join paths predictably. */
-const trimBase = (url: string) => url.replace(/\/+$/, '');
+/** Same-origin prefix that the app's serving proxy forwards to ERPNext. */
+export const ERP_PROXY_PREFIX = '/erp';
 
 /**
- * Base path for every ERPNext request. In dev this is the same-origin '/erp'
- * prefix handled by the Vite proxy; in a real deployment it is the configured
- * base URL. `dev` is injectable for tests (vitest runs with DEV=true).
+ * Base path for every ERPNext request. ALWAYS the same-origin '/erp' prefix, in
+ * dev and in a deployed build alike — the browser never calls ERPNext directly
+ * (that is what causes the CORS block). The host's '/erp' proxy (Vite dev or
+ * preview, or an nginx location) forwards it to the configured ERPNext server.
+ * `settings` is accepted for call-site symmetry and future per-site routing.
  */
-export const erpBase = (
-  settings: AppSettings,
-  dev: boolean = import.meta.env.DEV,
-): string => (dev ? '/erp' : trimBase(settings.erpBaseUrl));
+export const erpBase = (_settings?: AppSettings): string => ERP_PROXY_PREFIX;
 
 /** Turn a non-2xx response into a message that says WHICH kind of failure. */
 const statusMessage = (res: Response, context = ''): string =>
@@ -54,7 +56,9 @@ const statusMessage = (res: Response, context = ''): string =>
 const networkFailure = (err: unknown): string =>
   `Could not reach ERPNext (network or CORS preflight failure — no HTTP response): ${
     err instanceof Error ? err.message : String(err)
-  }. In dev, restart the dev server if vite.config.ts changed.`;
+  }. Requests go same-origin through the /erp proxy — serve the app with ` +
+  `"npm run dev" or "npm run preview" (a bare static host needs its own /erp ` +
+  `reverse proxy), and restart it if vite.config.ts changed.`;
 
 export interface ErpResult<T> {
   ok: boolean;

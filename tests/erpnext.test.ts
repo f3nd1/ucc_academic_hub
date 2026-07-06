@@ -54,12 +54,12 @@ const jsonResponse = (status: number, body: unknown) =>
   });
 
 describe('erpBase', () => {
-  it('is the same-origin proxy prefix in dev', () => {
-    expect(erpBase(SETTINGS, true)).toBe('/erp');
-  });
-
-  it('is the configured base URL (trailing slash trimmed) in prod', () => {
-    expect(erpBase(SETTINGS, false)).toBe('https://sms.unitedceres.edu.sg');
+  it('is always the same-origin /erp proxy prefix (never a direct cross-origin URL)', () => {
+    // Same in dev and in a deployed build: the browser never calls ERPNext
+    // directly, so the configured base URL never appears in the request path.
+    expect(erpBase(SETTINGS)).toBe('/erp');
+    expect(erpBase()).toBe('/erp');
+    expect(erpBase(SETTINGS)).not.toContain('sms.unitedceres.edu.sg');
   });
 });
 

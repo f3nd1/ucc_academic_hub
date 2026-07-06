@@ -104,9 +104,14 @@ export function SettingsPage() {
           placeholder="https://erp.unitedceres.edu.sg"
         />
         <p className="hint">
-          In dev, requests avoid CORS by going same-origin through the Vite
-          proxy (<code>/erp</code> → the server in <code>vite.config.ts</code>);
-          this URL is used by production builds.
+          Requests never hit ERPNext directly from the browser — they go
+          same-origin through the <code>/erp</code> proxy (target set in{' '}
+          <code>vite.config.ts</code>), so there is no CORS in dev or in a
+          deployed build. Serve the app with <code>npm run dev</code> or{' '}
+          <code>npm run preview</code> (a bare static host needs its own{' '}
+          <code>/erp</code> reverse proxy). This URL documents that proxy
+          target; repoint it with <code>ERP_PROXY_TARGET</code> and restart the
+          server.
         </p>
       </div>
       <div className="grid-2">
