@@ -32,10 +32,13 @@ const mod = (patch: Partial<Module>): Module => ({
   ...patch,
 });
 
-const course = (modules: Module[]): Course => ({
+const course = (
+  modules: Module[],
+  deliveryMode: Course['deliveryMode'] = 'parallel',
+): Course => ({
   name: 'Course',
   startMonth: '2026-07',
-  deliveryMode: 'series',
+  deliveryMode,
   modules,
 });
 
@@ -95,13 +98,13 @@ describe('validTeachingDatesInRange', () => {
   });
 });
 
-describe('generateCourseSchedule (windowed)', () => {
-  it('places lessons on the earliest valid teaching days of the window', () => {
+describe('generateCourseSchedule — Parallel', () => {
+  it('places lessons on consecutive valid teaching days (no gaps)', () => {
     const lessons = generateCourseSchedule(
-      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-10', totalLessons: 3 })]),
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-10', totalLessons: 3 })], 'parallel'),
       NO_HOLIDAYS,
     );
-    // Jul 1 Wed, 2 Thu, 3 Fri.
+    // Jul 1 Wed, 2 Thu, 3 Fri — the earliest three valid days, back to back.
     expect(lessons.map((l) => l.date)).toEqual([
       '2026-07-01',
       '2026-07-02',
@@ -116,7 +119,7 @@ describe('generateCourseSchedule (windowed)', () => {
       publicHolidays: [{ date: '2026-08-09', name: 'National Day' }],
     };
     const lessons = generateCourseSchedule(
-      course([mod({ moduleStartDate: '2026-08-07', moduleEndDate: '2026-08-14', totalLessons: 5 })]),
+      course([mod({ moduleStartDate: '2026-08-07', moduleEndDate: '2026-08-14', totalLessons: 5 })], 'parallel'),
       holidays,
     );
     // Valid: 07 Fri, [08/09 wknd], [10 observed], 11 Tue, [12 school], 13 Thu, 14 Fri.
@@ -130,23 +133,116 @@ describe('generateCourseSchedule (windowed)', () => {
 
   it('caps at the available teaching days and never leaves the window', () => {
     const lessons = generateCourseSchedule(
-      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-03', totalLessons: 100 })]),
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-03', totalLessons: 100 })], 'parallel'),
       NO_HOLIDAYS,
     );
     expect(lessons).toHaveLength(3); // only 3 weekdays available
     expect(lessons.every((l) => l.date >= '2026-07-01' && l.date <= '2026-07-03')).toBe(true);
   });
 
-  it('schedules each module inside its own window', () => {
+  it('pulls the next module up to the day after the previous one ends', () => {
+    // Module A finishes on 2026-07-07 (Jul 4/5 is a weekend); B originally
+    // starts 2026-07-01 but is pulled to the next valid day, 2026-07-08.
     const lessons = generateCourseSchedule(
-      course([
-        mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-10', totalLessons: 2 }),
-        mod({ id: 'b', name: 'B', moduleStartDate: '2026-08-03', moduleEndDate: '2026-08-14', totalLessons: 2 }),
-      ]),
+      course(
+        [
+          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 5 }),
+          mod({ id: 'b', name: 'B', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 2 }),
+        ],
+        'parallel',
+      ),
       NO_HOLIDAYS,
     );
-    expect(lessons.filter((l) => l.moduleId === 'a').map((l) => l.date)).toEqual(['2026-07-01', '2026-07-02']);
-    expect(lessons.filter((l) => l.moduleId === 'b').map((l) => l.date)).toEqual(['2026-08-03', '2026-08-04']);
+    expect(lessons.filter((l) => l.moduleId === 'a').map((l) => l.date)).toEqual([
+      '2026-07-01',
+      '2026-07-02',
+      '2026-07-03',
+      '2026-07-06',
+      '2026-07-07',
+    ]);
+    // No empty valid teaching day between A's last lesson and B's first.
+    expect(lessons.filter((l) => l.moduleId === 'b').map((l) => l.date)).toEqual([
+      '2026-07-08',
+      '2026-07-09',
+    ]);
+    expect(lessons.every((l) => l.kind === 'lesson')).toBe(true); // no AL in Parallel
+  });
+
+  it('never pulls a module earlier than its own start date', () => {
+    const lessons = generateCourseSchedule(
+      course(
+        [
+          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 2 }),
+          mod({ id: 'b', name: 'B', moduleStartDate: '2026-08-03', moduleEndDate: '2026-08-14', totalLessons: 2 }),
+        ],
+        'parallel',
+      ),
+      NO_HOLIDAYS,
+    );
+    // A ends 2026-07-02; B's own start (2026-08-03) is later, so it wins.
+    expect(lessons.filter((l) => l.moduleId === 'b').map((l) => l.date)).toEqual([
+      '2026-08-03',
+      '2026-08-04',
+    ]);
+  });
+});
+
+describe('generateCourseSchedule — Series', () => {
+  it('spreads lessons evenly and fills the gaps between them with AL', () => {
+    const lessons = generateCourseSchedule(
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-10', totalLessons: 3 })], 'series'),
+      NO_HOLIDAYS,
+    );
+    // Valid days: Jul 1,2,3,6,7,8,9,10 (8). 3 lessons land on 1, 7, 10.
+    const byKind = (k: string) => lessons.filter((l) => l.kind === k).map((l) => l.date);
+    expect(byKind('lesson')).toEqual(['2026-07-01', '2026-07-07', '2026-07-10']);
+    // Every valid teaching day strictly between lessons becomes AL.
+    expect(byKind('AL')).toEqual([
+      '2026-07-02',
+      '2026-07-03',
+      '2026-07-06',
+      '2026-07-08',
+      '2026-07-09',
+    ]);
+  });
+
+  it('AL entries carry no teacher, room, or times', () => {
+    const lessons = generateCourseSchedule(
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-10', totalLessons: 3 })], 'series'),
+      NO_HOLIDAYS,
+    );
+    const al = lessons.find((l) => l.kind === 'AL')!;
+    expect(al.lessonName).toBe('AL');
+    expect(al.activity).toBe('Autonomous Learning');
+    expect(al.teacher).toBe('');
+    expect(al.classroom).toBe('');
+    expect(al.startTime).toBe('');
+  });
+
+  it('produces no AL when lessons are already consecutive', () => {
+    const lessons = generateCourseSchedule(
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-03', totalLessons: 3 })], 'series'),
+      NO_HOLIDAYS,
+    );
+    expect(lessons.map((l) => l.date)).toEqual(['2026-07-01', '2026-07-02', '2026-07-03']);
+    expect(lessons.some((l) => l.kind === 'AL')).toBe(false);
+  });
+
+  it('never marks AL on weekends or blocked holidays', () => {
+    const holidays: HolidaySet = {
+      uccHolidays: [],
+      publicHolidays: [{ date: '2026-08-09', name: 'National Day' }],
+    };
+    // Window spans a weekend + Sunday public holiday + observed Monday.
+    const lessons = generateCourseSchedule(
+      course([mod({ moduleStartDate: '2026-08-05', moduleEndDate: '2026-08-14', totalLessons: 2 })], 'series'),
+      holidays,
+    );
+    const al = lessons.filter((l) => l.kind === 'AL').map((l) => l.date);
+    // No AL on 08 (Sat), 09 (Sun public), 10 (observed Mon) — all blocked.
+    expect(al).not.toContain('2026-08-08');
+    expect(al).not.toContain('2026-08-09');
+    expect(al).not.toContain('2026-08-10');
   });
 });
 

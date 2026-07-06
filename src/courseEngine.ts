@@ -136,6 +136,31 @@ export const makeModuleLesson = (
   };
 };
 
+/**
+ * Build an AL (Autonomous Learning) buffer entry for a module on an ISO date.
+ * AL days pad Series delivery between lessons: no teacher, no room, no times —
+ * they are never sessions, never conflict, and never appear as real lessons.
+ */
+export const makeModuleAL = (mod: Module, iso: string): ScheduledLesson => {
+  const d = parseLocal(iso);
+  return {
+    groupId: mod.id,
+    moduleId: mod.id,
+    moduleName: mod.name,
+    kind: 'AL',
+    lessonNo: 0,
+    lessonName: 'AL',
+    activity: 'Autonomous Learning',
+    date: iso,
+    day: dayName(d),
+    startTime: '',
+    endTime: '',
+    teacher: '',
+    classroom: '',
+    classGroup: mod.classGroup,
+  };
+};
+
 /** Stable ordering: date, then start time, then module. */
 export const sortLessons = (lessons: ScheduledLesson[]): ScheduledLesson[] =>
   [...lessons].sort(
@@ -191,18 +216,93 @@ export function validateModuleFit(
 
 // --- Generation --------------------------------------------------------------
 
+/** The first valid teaching day strictly after `iso` (bounded search). */
+export function nextValidTeachingDate(
+  iso: string,
+  blocked: Set<string>,
+): string {
+  let cand = addDaysIso(iso, 1);
+  // Bound the scan (~3 years) so a fully blocked range can never spin forever.
+  for (let i = 0; i < 1100; i++) {
+    if (isValidTeachingDay(parseLocal(cand), blocked)) return cand;
+    cand = addDaysIso(cand, 1);
+  }
+  return cand;
+}
+
 /**
- * Generate the whole course's schedule. Each module's lessons are placed on the
- * EARLIEST valid teaching days within its own [Module Start, Module End]
- * window. Lessons never land on a blocked day and never fall outside the
- * window; if fewer teaching days are available than lessons requested, only the
- * days that fit are scheduled (validateModuleFit surfaces the shortfall).
+ * Pick `count` evenly spaced dates out of `dates` (already in order). With
+ * `count >= dates.length` every day is a lesson; otherwise indices are spread
+ * across the range and any rounding collisions are back-filled from the front
+ * so exactly `count` distinct days are always returned.
  */
-export function generateCourseSchedule(
+export function pickEvenlySpacedDates(
+  dates: string[],
+  count: number,
+): string[] {
+  if (count <= 0 || dates.length === 0) return [];
+  if (count >= dates.length) return dates.slice(0, count);
+  if (count === 1) return [dates[0]];
+
+  const chosen = new Set<number>();
+  for (let i = 0; i < count; i++) {
+    chosen.add(Math.round((i * (dates.length - 1)) / (count - 1)));
+  }
+  for (let i = 0; chosen.size < count && i < dates.length; i++) chosen.add(i);
+
+  return [...chosen].sort((a, b) => a - b).map((i) => dates[i]);
+}
+
+/**
+ * PARALLEL delivery: each module's lessons land on CONSECUTIVE valid teaching
+ * days — no empty teaching-day gaps between them. When a module finishes before
+ * its own end date, the next module is pulled forward to start on the next valid
+ * teaching day after the previous module's last lesson (never earlier than the
+ * module's own start date). No AL days are produced.
+ */
+function generateParallel(
   course: Course,
-  holidays: HolidaySet,
+  blocked: Set<string>,
 ): ScheduledLesson[] {
-  const blocked = blockedDates(holidays);
+  const all: ScheduledLesson[] = [];
+  let carryStart = '';
+
+  for (const mod of course.modules) {
+    // Start from the later of the module's own start and the carried-forward
+    // date (ISO strings are zero-padded, so lexical > is chronological >).
+    const effectiveStart =
+      carryStart && mod.moduleStartDate && carryStart > mod.moduleStartDate
+        ? carryStart
+        : mod.moduleStartDate;
+
+    const dates = validTeachingDatesInRange(
+      effectiveStart,
+      mod.moduleEndDate,
+      blocked,
+    );
+    const take = Math.min(mod.totalLessons, dates.length);
+    for (let i = 0; i < take; i++) {
+      all.push(makeModuleLesson(mod, i + 1, dates[i]));
+    }
+
+    const lastDate = dates[take - 1];
+    if (lastDate) carryStart = nextValidTeachingDate(lastDate, blocked);
+  }
+
+  return sortLessons(all);
+}
+
+/**
+ * SERIES delivery: each module's lessons are spread EVENLY across its own
+ * [Module Start, Module End] window, and every valid teaching day that falls
+ * BETWEEN two scheduled lessons becomes an AL (Autonomous Learning) day. No AL
+ * is produced before the first lesson, after the last, or on blocked days; when
+ * lessons are already consecutive there is nothing to fill.
+ */
+function generateSeries(
+  course: Course,
+  blocked: Set<string>,
+): ScheduledLesson[] {
   const all: ScheduledLesson[] = [];
 
   for (const mod of course.modules) {
@@ -212,12 +312,37 @@ export function generateCourseSchedule(
       blocked,
     );
     const take = Math.min(mod.totalLessons, dates.length);
-    for (let i = 0; i < take; i++) {
-      all.push(makeModuleLesson(mod, i + 1, dates[i]));
+    const lessonDates = new Set(pickEvenlySpacedDates(dates, take));
+
+    let lessonNo = 0;
+    for (const iso of dates) {
+      if (lessonDates.has(iso)) {
+        all.push(makeModuleLesson(mod, ++lessonNo, iso));
+      } else if (lessonNo > 0 && lessonNo < take) {
+        // A valid teaching day strictly between the first and last lesson.
+        all.push(makeModuleAL(mod, iso));
+      }
     }
   }
 
   return sortLessons(all);
+}
+
+/**
+ * Generate the whole course's schedule per the course delivery mode. Lessons
+ * never land on a blocked day and never fall outside a module's window (except
+ * in Parallel, where the next module's start may be pulled forward). When fewer
+ * teaching days are available than lessons requested, only the days that fit
+ * are scheduled (validateModuleFit surfaces the shortfall).
+ */
+export function generateCourseSchedule(
+  course: Course,
+  holidays: HolidaySet,
+): ScheduledLesson[] {
+  const blocked = blockedDates(holidays);
+  return course.deliveryMode === 'parallel'
+    ? generateParallel(course, blocked)
+    : generateSeries(course, blocked);
 }
 
 // --- Conflict detection (amended rule) --------------------------------------

@@ -8,7 +8,7 @@ const NO_HOLIDAYS: HolidaySet = { uccHolidays: [], publicHolidays: [] };
 const COURSE: Course = {
   name: 'Course X',
   startMonth: '2026-07',
-  deliveryMode: 'series',
+  deliveryMode: 'parallel',
   modules: [
     {
       id: 'm1',

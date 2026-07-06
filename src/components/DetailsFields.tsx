@@ -42,6 +42,24 @@ export function DetailsFields({
         />
       </LabeledField>
 
+      <LabeledField
+        id="deliveryMode"
+        label="Delivery Mode"
+        helpKey="deliveryMode"
+        hintKey="deliveryMode"
+      >
+        <select
+          id="deliveryMode"
+          value={form.deliveryMode}
+          onChange={(e) =>
+            update({ deliveryMode: e.target.value as CourseForm['deliveryMode'] })
+          }
+        >
+          <option value="parallel">Parallel</option>
+          <option value="series">Series</option>
+        </select>
+      </LabeledField>
+
       {form.modules.map((mod, i) => (
         <fieldset className="module" key={mod.id}>
           <legend className="module__legend">
