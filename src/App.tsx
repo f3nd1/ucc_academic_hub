@@ -18,7 +18,10 @@ function App() {
       <ThemeProvider>
         <SettingsProvider>
           <TimetableProvider>
-            <BrowserRouter>
+            {/* basename picks up Vite's --base flag (e.g. a subfolder
+                deployment like /ucc_academic_hub/); defaults to '/' when the
+                app is served from the domain root. */}
+            <BrowserRouter basename={import.meta.env.BASE_URL}>
               <Routes>
                 {/* The layout is a parent route: its sidebar stays mounted
                     while the routed tool content swaps through <Outlet>. */}
