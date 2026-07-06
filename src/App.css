@@ -49,13 +49,13 @@
 
 .nav__helpbtn[aria-pressed='true'] {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .linkbtn {
   background: none;
   border: none;
-  color: var(--accent);
+  color: var(--accent-text);
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
@@ -86,7 +86,7 @@
 
 .nav a.active {
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--active);
 }
 
 /* Two-column layout: setup + holidays on the left, preview + exports right. */
@@ -141,8 +141,8 @@
 .field input,
 .field textarea {
   font: inherit;
-  color: var(--ink);
-  background: var(--input-bg);
+  color: var(--field-ink);
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
@@ -211,7 +211,7 @@
 }
 
 .segmented button.active {
-  background: var(--accent);
+  background: var(--active);
   color: var(--on-accent);
 }
 
@@ -267,7 +267,7 @@
   padding: 0.4rem 0.75rem;
   font-size: 0.85rem;
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .preview-head {
@@ -405,7 +405,7 @@ tbody tr:nth-child(even) {
 }
 
 .cal-link {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.8rem;
   text-decoration: none;
   white-space: nowrap;
@@ -740,19 +740,19 @@ tbody tr:nth-child(even) {
 }
 
 .stepper__item--active .stepper__btn {
-  color: var(--accent);
-  border-top-color: var(--accent);
+  color: var(--accent-text);
+  border-top-color: var(--active);
 }
 .stepper__item--active .stepper__num {
-  background: var(--accent);
+  background: var(--active);
   color: var(--on-accent);
 }
 .stepper__item--done .stepper__btn {
   color: var(--ink);
-  border-top-color: var(--accent);
+  border-top-color: var(--active);
 }
 .stepper__item--done .stepper__num {
-  background: var(--accent);
+  background: var(--active);
   color: var(--on-accent);
 }
 
@@ -866,8 +866,8 @@ tbody tr:nth-child(even) {
 
 select {
   font: inherit;
-  color: var(--ink);
-  background: var(--input-bg);
+  color: var(--field-ink);
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
@@ -961,8 +961,8 @@ select {
 }
 
 .month__chip.active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--active);
+  border-color: var(--active);
   color: var(--on-accent);
 }
 
@@ -1043,7 +1043,7 @@ select {
 .module__legend {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   padding: 0 0.4rem;
   display: flex;
   align-items: center;
@@ -1204,8 +1204,8 @@ select {
 .holiday-table input {
   font: inherit;
   font-size: 0.85rem;
-  color: var(--ink);
-  background: var(--panel);
+  color: var(--field-ink);
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.35rem 0.45rem;
@@ -1272,8 +1272,8 @@ select {
 .erp-mapping select {
   font: inherit;
   font-size: 0.85rem;
-  color: var(--ink);
-  background: var(--panel);
+  color: var(--field-ink);
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.35rem 0.45rem;
@@ -1327,7 +1327,7 @@ select {
 }
 
 .sidebar__brand svg {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .sidebar__nav {
@@ -1361,9 +1361,9 @@ select {
 }
 
 .sidebar__link.active {
-  color: var(--accent);
-  background: var(--accent-ring);
-  border-color: var(--accent);
+  color: var(--accent-text);
+  background: var(--active-ring);
+  border-color: var(--active);
 }
 
 .sidebar__foot {
@@ -1609,8 +1609,8 @@ a.tool-card:hover {
 .rv-input {
   font: inherit;
   font-size: 0.85rem;
-  color: var(--ink);
-  background: var(--input-bg);
+  color: var(--field-ink);
+  background: var(--field-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
@@ -1662,7 +1662,7 @@ a.tool-card:hover {
 .rv-computed__auto {
   font-size: 0.68rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-text);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }

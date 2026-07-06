@@ -18,15 +18,31 @@
   --bg: #f1f5f9;
   --panel: #ffffff;
   --border: #e2e8f0;
+  /* A stronger border variant for skins that want emphasised edges. */
+  --border-strong: var(--border);
   --input-bg: #ffffff;
   --disabled-bg: #f1f5f9;
   --row-alt: #f8fafc;
   --summary-bg: #f8fafc;
 
+  /* Form-field surface + its text. Separate from --input-bg (which buttons,
+     chips and cards also use) so a skin can make INPUT FIELDS a light surface
+     while keeping buttons dark — e.g. Cult of the Lamb's parchment inputs on a
+     dark UI. Defaults to the shared input surface so other skins are unchanged. */
+  --field-bg: var(--input-bg);
+  --field-ink: var(--ink);
+
   /* Accent + contrast text on accent */
   --accent: #2563eb;
   --accent-ring: rgba(37, 99, 235, 0.2);
   --on-accent: #ffffff;
+  /* Accent used as TEXT/ICON colour (not a fill). A dark skin can point this
+     at a lighter accent that passes contrast, while --accent stays the fill. */
+  --accent-text: var(--accent);
+  /* Active tab / nav indicator. Defaults to the accent so it matches today;
+     a skin can make active-state a distinct hue from the primary-action fill. */
+  --active: var(--accent);
+  --active-ring: var(--accent-ring);
 
   /* Data-table header (its own tokens so each skin can guarantee contrast) */
   --th-bg: var(--accent);
