@@ -10,8 +10,11 @@ import {
   moduleFieldInvalid,
   moduleReviewDate,
   moduleReviewErrors,
+  sortModuleRows,
   type CourseReview,
   type ModuleReview,
+  type ModuleSort,
+  type ModuleSortField,
 } from './reviewModel';
 import { loadReviewData, saveReviewData } from './reviewStore';
 import {
@@ -20,50 +23,83 @@ import {
   exportReviewPdf,
 } from './reviewExports';
 
-/** Read-only computed date cell: DD MMMM YYYY, or a muted dash when blank. */
-function Computed({ value, title }: { value: string; title: string }) {
+/**
+ * Read-only computed date cell: a single DD MMMM YYYY value (or a muted dash),
+ * with an optional "auto-calculated" note. Never renders an editable input, so
+ * a derived date is shown once — not as a raw date input plus a caption.
+ */
+function ComputedDate({
+  value,
+  title,
+  auto,
+}: {
+  value: string;
+  title: string;
+  auto?: boolean;
+}) {
   return (
     <div className="rv-computed" title={title}>
-      {value ? (
-        formatDisplayDate(value)
-      ) : (
-        <span className="rv-computed__blank">—</span>
-      )}
+      <span className="rv-computed__val">
+        {value ? formatDisplayDate(value) : <span className="rv-computed__blank">—</span>}
+      </span>
+      {auto && <span className="rv-computed__auto">auto-calculated</span>}
     </div>
   );
 }
 
-/** Editable date input with a DD MMMM YYYY caption beneath it. */
-function DateField({
+/** Editable native date input — a single control, no formatted caption below. */
+function DateInput({
   value,
   onChange,
   invalid,
-  disabled,
   label,
-  autoNote,
 }: {
   value: string;
   onChange: (v: string) => void;
   invalid?: boolean;
-  disabled?: boolean;
   label: string;
-  autoNote?: boolean;
 }) {
   return (
-    <div className="rv-datecell">
-      <input
-        type="date"
-        className={`rv-input${invalid ? ' input--invalid' : ''}`}
-        value={value}
-        disabled={disabled}
-        aria-label={label}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      <span className="rv-datecell__display">
-        {value ? formatDisplayDate(value) : '—'}
-        {autoNote && <em className="rv-auto"> · auto-calculated</em>}
-      </span>
-    </div>
+    <input
+      type="date"
+      className={`rv-input${invalid ? ' input--invalid' : ''}`}
+      value={value}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+/** A sortable Module Review column header (click to sort / toggle direction). */
+function SortHeader({
+  field,
+  label,
+  sort,
+  onSort,
+}: {
+  field: ModuleSortField;
+  label: string;
+  sort: ModuleSort | null;
+  onSort: (field: ModuleSortField) => void;
+}) {
+  const active = sort?.field === field;
+  const arrow = active ? (sort!.dir === 'asc' ? '▲' : '▼') : '↕';
+  return (
+    <th>
+      <button
+        type="button"
+        className={`rv-sort${active ? ' rv-sort--active' : ''}`}
+        onClick={() => onSort(field)}
+        aria-label={`Sort by ${label}${
+          active ? (sort!.dir === 'asc' ? ', ascending' : ', descending') : ''
+        }`}
+      >
+        {label}
+        <span className="rv-sort__arrow" aria-hidden="true">
+          {arrow}
+        </span>
+      </button>
+    </th>
   );
 }
 
@@ -72,6 +108,7 @@ export function ReviewPlannerPage() {
   const [modules, setModules] = useState<ModuleReview[]>(initial.modules);
   const [courses, setCourses] = useState<CourseReview[]>(initial.courses);
   const [banner, setBanner] = useState<string | null>(null);
+  const [sort, setSort] = useState<ModuleSort | null>(null);
 
   // Persist to the tool's namespaced localStorage slice on every change.
   useEffect(() => {
@@ -83,6 +120,20 @@ export function ReviewPlannerPage() {
     () => courses.map((c) => computeCourse(c, modules)),
     [courses, modules],
   );
+
+  // Sorting is a display-only view over the source rows — the stored order and
+  // row identity are untouched, so edit/delete by id keep working.
+  const displayModules = useMemo(
+    () => sortModuleRows(modules, sort),
+    [modules, sort],
+  );
+
+  const onSort = (field: ModuleSortField) =>
+    setSort((prev) =>
+      prev && prev.field === field
+        ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: 'asc' },
+    );
 
   // --- Module row handlers ---
   const addModule = () => setModules((rows) => [...rows, emptyModuleReview()]);
@@ -138,29 +189,29 @@ export function ReviewPlannerPage() {
       <section className="panel rvp__section">
         <div className="rvp__section-head">
           <h2>Module Review</h2>
-          <Hint text="Module Review Date is the Actual Start Date plus one month, clamped to the month's last day when the next month is shorter." />
+          <Hint text="Module Review Date is the Actual Start Date plus one month, clamped to the month's last day when the next month is shorter. Click a column header to sort." />
         </div>
         <div className="table-wrap">
           <table className="rv-table">
             <thead>
               <tr>
-                <th>Course name</th>
-                <th>Module name</th>
-                <th>Planned start</th>
-                <th>Actual start</th>
+                <SortHeader field="courseName" label="Course name" sort={sort} onSort={onSort} />
+                <SortHeader field="moduleName" label="Module name" sort={sort} onSort={onSort} />
+                <SortHeader field="plannedStartDate" label="Planned start" sort={sort} onSort={onSort} />
+                <SortHeader field="actualStartDate" label="Actual start" sort={sort} onSort={onSort} />
                 <th>Module Review Date</th>
                 <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {modules.length === 0 && (
+              {displayModules.length === 0 && (
                 <tr>
                   <td colSpan={6} className="rv-empty">
                     No modules yet. Add one to start.
                   </td>
                 </tr>
               )}
-              {modules.map((m) => {
+              {displayModules.map((m) => {
                 const inv = moduleFieldInvalid(m);
                 const errs = moduleReviewErrors(m);
                 return (
@@ -189,7 +240,7 @@ export function ReviewPlannerPage() {
                         />
                       </td>
                       <td>
-                        <DateField
+                        <DateInput
                           label="Planned start date"
                           value={m.plannedStartDate}
                           invalid={inv.plannedStartDate}
@@ -199,7 +250,7 @@ export function ReviewPlannerPage() {
                         />
                       </td>
                       <td>
-                        <DateField
+                        <DateInput
                           label="Actual start date"
                           value={m.actualStartDate}
                           invalid={inv.actualStartDate}
@@ -209,7 +260,7 @@ export function ReviewPlannerPage() {
                         />
                       </td>
                       <td>
-                        <Computed
+                        <ComputedDate
                           value={moduleReviewDate(m)}
                           title="Actual Start Date + 1 month"
                         />
@@ -251,7 +302,7 @@ export function ReviewPlannerPage() {
       <section className="panel rvp__section">
         <div className="rvp__section-head">
           <h2>Course Review</h2>
-          <Hint text="Per Cycle Review Date is the latest Module Review Date across modules with the same course name; with no matching modules, enter it manually. Scheduled Review Date is Per Cycle plus 2 years." />
+          <Hint text="Planned Start, Actual Start and Per Cycle Review Date roll up from modules with the same course name (earliest start, and latest module review for Per Cycle). With no matching modules they fall back to manual entry. Scheduled Review Date is Per Cycle plus 2 years." />
         </div>
         <div className="table-wrap">
           <table className="rv-table">
@@ -277,10 +328,8 @@ export function ReviewPlannerPage() {
               {courses.map((c, i) => {
                 const inv = courseFieldInvalid(c);
                 const errs = courseReviewErrors(c);
-                const { perCycle, scheduled } = courseComputed[i];
-                const perCycleValue = perCycle.auto
-                  ? perCycle.date
-                  : c.manualPerCycleReviewDate;
+                const { plannedStart, actualStart, perCycle, scheduled } =
+                  courseComputed[i];
                 return (
                   <Fragment key={c.id}>
                     <tr>
@@ -311,45 +360,66 @@ export function ReviewPlannerPage() {
                           }
                         />
                       </td>
+                      {/* Planned / Actual / Per Cycle: auto-rolled-up from
+                          matching modules (read-only), else manual entry. */}
                       <td>
-                        <DateField
-                          label="Planned start date"
-                          value={c.plannedStartDate}
-                          invalid={inv.plannedStartDate}
-                          onChange={(v) =>
-                            updateCourse(c.id, { plannedStartDate: v })
-                          }
-                        />
+                        {plannedStart.hasMatchingModules ? (
+                          <ComputedDate
+                            value={plannedStart.date}
+                            title="Earliest Planned Start among matching modules"
+                            auto
+                          />
+                        ) : (
+                          <DateInput
+                            label="Planned start date"
+                            value={c.plannedStartDate}
+                            invalid={inv.plannedStartDate}
+                            onChange={(v) =>
+                              updateCourse(c.id, { plannedStartDate: v })
+                            }
+                          />
+                        )}
                       </td>
                       <td>
-                        <DateField
-                          label="Actual start date"
-                          value={c.actualStartDate}
-                          invalid={inv.actualStartDate}
-                          onChange={(v) =>
-                            updateCourse(c.id, { actualStartDate: v })
-                          }
-                        />
+                        {actualStart.hasMatchingModules ? (
+                          <ComputedDate
+                            value={actualStart.date}
+                            title="Earliest Actual Start among matching modules"
+                            auto
+                          />
+                        ) : (
+                          <DateInput
+                            label="Actual start date"
+                            value={c.actualStartDate}
+                            invalid={inv.actualStartDate}
+                            onChange={(v) =>
+                              updateCourse(c.id, { actualStartDate: v })
+                            }
+                          />
+                        )}
                       </td>
                       <td>
-                        {/* Disabled + auto-filled when matching modules exist;
-                            manual entry otherwise. */}
-                        <DateField
-                          label="Per Cycle Review Date"
-                          value={perCycleValue}
-                          disabled={perCycle.hasMatchingModules}
-                          invalid={
-                            !perCycle.hasMatchingModules &&
-                            inv.manualPerCycleReviewDate
-                          }
-                          autoNote={perCycle.hasMatchingModules}
-                          onChange={(v) =>
-                            updateCourse(c.id, { manualPerCycleReviewDate: v })
-                          }
-                        />
+                        {perCycle.hasMatchingModules ? (
+                          <ComputedDate
+                            value={perCycle.date}
+                            title="Latest Module Review Date among matching modules"
+                            auto
+                          />
+                        ) : (
+                          <DateInput
+                            label="Per Cycle Review Date"
+                            value={c.manualPerCycleReviewDate}
+                            invalid={inv.manualPerCycleReviewDate}
+                            onChange={(v) =>
+                              updateCourse(c.id, {
+                                manualPerCycleReviewDate: v,
+                              })
+                            }
+                          />
+                        )}
                       </td>
                       <td>
-                        <Computed
+                        <ComputedDate
                           value={scheduled}
                           title="Per Cycle Review Date + 2 years"
                         />

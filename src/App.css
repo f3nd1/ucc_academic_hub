@@ -1641,42 +1641,60 @@ a.tool-card:hover {
   box-shadow: 0 0 0 2px var(--error-border);
 }
 
-.rv-datecell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 8.5rem;
-}
-
-.rv-datecell__display {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.rv-auto {
-  color: var(--accent);
-  font-style: normal;
-  font-weight: 700;
-}
-
 .rv-computed {
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.1rem;
   min-height: 2rem;
-  padding: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem;
   border-radius: 6px;
   background: var(--summary-bg);
   border: 1px dashed var(--border);
+  white-space: nowrap;
+}
+
+.rv-computed__val {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--ink);
-  white-space: nowrap;
+}
+
+.rv-computed__auto {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .rv-computed__blank {
   color: var(--muted);
   font-weight: 400;
+}
+
+/* Sortable Module Review headers */
+.rv-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+
+.rv-sort__arrow {
+  font-size: 0.7rem;
+  opacity: 0.5;
+}
+
+.rv-sort--active .rv-sort__arrow {
+  opacity: 1;
 }
 
 .rv-del {

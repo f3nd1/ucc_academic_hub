@@ -121,12 +121,45 @@ export function coursePerCycleDate(
   return { date: manual, auto: false, hasMatchingModules };
 }
 
+/**
+ * Course Planned/Actual Start rolled up from modules: the EARLIEST matching
+ * module date (same trim + case-insensitive course-name match as Per Cycle).
+ * With no matching modules it falls back to the course's own manually entered
+ * value, mirroring Per Cycle's manual fallback. `field` selects which module
+ * date to roll up and which manual course field to fall back to.
+ */
+export function courseRollupStart(
+  course: CourseReview,
+  modules: ModuleReview[],
+  field: 'plannedStartDate' | 'actualStartDate',
+): PerCycleResult {
+  const key = normalise(course.courseName);
+  const matching = key
+    ? modules.filter((m) => normalise(m.courseName) === key)
+    : [];
+  const hasMatchingModules = matching.length > 0;
+
+  if (hasMatchingModules) {
+    // ISO strings sort chronologically; the earliest is the first.
+    const dates = matching
+      .map((m) => m[field])
+      .filter((d) => isValidIsoDate(d))
+      .sort();
+    return { date: dates.length ? dates[0] : '', auto: true, hasMatchingModules };
+  }
+
+  const manual = isValidIsoDate(course[field]) ? course[field] : '';
+  return { date: manual, auto: false, hasMatchingModules };
+}
+
 /** Course Scheduled Review Date = Per Cycle Review Date + 2 years. */
 export const courseScheduledDate = (perCycle: string): string =>
   perCycle ? addYearsClamped(perCycle, 2) : '';
 
 /** Everything computed for one course row, ready for the table to render. */
 export interface CourseComputed {
+  plannedStart: PerCycleResult;
+  actualStart: PerCycleResult;
   perCycle: PerCycleResult;
   scheduled: string;
 }
@@ -136,7 +169,12 @@ export const computeCourse = (
   modules: ModuleReview[],
 ): CourseComputed => {
   const perCycle = coursePerCycleDate(course, modules);
-  return { perCycle, scheduled: courseScheduledDate(perCycle.date) };
+  return {
+    plannedStart: courseRollupStart(course, modules, 'plannedStartDate'),
+    actualStart: courseRollupStart(course, modules, 'actualStartDate'),
+    perCycle,
+    scheduled: courseScheduledDate(perCycle.date),
+  };
 };
 
 // --- Validation -------------------------------------------------------------
@@ -186,3 +224,56 @@ export const courseFieldInvalid = (c: CourseReview) => ({
   actualStartDate: badDate(c.actualStartDate),
   manualPerCycleReviewDate: badDate(c.manualPerCycleReviewDate),
 });
+
+// --- Module table sorting ---------------------------------------------------
+
+/** Columns the Module Review table can be sorted by. */
+export type ModuleSortField =
+  | 'courseName'
+  | 'moduleName'
+  | 'plannedStartDate'
+  | 'actualStartDate';
+
+export type SortDir = 'asc' | 'desc';
+
+export interface ModuleSort {
+  field: ModuleSortField;
+  dir: SortDir;
+}
+
+const isDateField = (f: ModuleSortField): boolean =>
+  f === 'plannedStartDate' || f === 'actualStartDate';
+
+/**
+ * Return a sorted COPY of the module rows (never mutates the source, so
+ * persistence order and row identity are untouched). Text columns compare
+ * case-insensitively; date columns compare chronologically (parsed as local
+ * dates, not string-compared). Rows whose sort value is empty always sink to
+ * the end, regardless of direction.
+ */
+export function sortModuleRows(
+  rows: ModuleReview[],
+  sort: ModuleSort | null,
+): ModuleReview[] {
+  if (!sort) return rows;
+  const { field, dir } = sort;
+  const dateField = isDateField(field);
+  return [...rows].sort((a, b) => {
+    const av = a[field].trim();
+    const bv = b[field].trim();
+    const aEmpty = av === '';
+    const bEmpty = bv === '';
+    // Empty always last, whichever the direction.
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+
+    let cmp: number;
+    if (dateField) {
+      cmp = parseLocal(av).getTime() - parseLocal(bv).getTime();
+    } else {
+      cmp = av.toLowerCase().localeCompare(bv.toLowerCase());
+    }
+    return dir === 'asc' ? cmp : -cmp;
+  });
+}

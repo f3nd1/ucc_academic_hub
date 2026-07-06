@@ -4,8 +4,10 @@ import {
   addYearsClamped,
   moduleReviewDate,
   coursePerCycleDate,
+  courseRollupStart,
   courseScheduledDate,
   computeCourse,
+  sortModuleRows,
   isPositiveInt,
   moduleReviewErrors,
   courseReviewErrors,
@@ -118,6 +120,108 @@ describe('coursePerCycleDate', () => {
       [],
     );
     expect(res.date).toBe('');
+  });
+});
+
+describe('courseRollupStart (earliest matching module date, else manual)', () => {
+  it('rolls up the EARLIEST planned start among matching modules', () => {
+    const modules = [
+      mod({ courseName: 'X', plannedStartDate: '2026-09-01' }),
+      mod({ courseName: 'X', plannedStartDate: '2026-07-01' }), // earliest
+      mod({ courseName: 'X', plannedStartDate: '2026-08-01' }),
+    ];
+    const res = courseRollupStart(course({ courseName: 'X' }), modules, 'plannedStartDate');
+    expect(res).toEqual({ date: '2026-07-01', auto: true, hasMatchingModules: true });
+  });
+
+  it('rolls up the earliest actual start, matching name case-insensitively', () => {
+    const modules = [
+      mod({ courseName: ' data science ', actualStartDate: '2026-08-31' }),
+      mod({ courseName: 'DATA SCIENCE', actualStartDate: '2026-07-06' }), // earliest
+    ];
+    const res = courseRollupStart(course({ courseName: 'Data Science' }), modules, 'actualStartDate');
+    expect(res.date).toBe('2026-07-06');
+    expect(res.auto).toBe(true);
+  });
+
+  it('falls back to the course manual field when no modules match', () => {
+    const res = courseRollupStart(
+      course({ courseName: 'Solo', plannedStartDate: '2026-05-04' }),
+      [mod({ courseName: 'Other', plannedStartDate: '2026-01-01' })],
+      'plannedStartDate',
+    );
+    expect(res).toEqual({ date: '2026-05-04', auto: false, hasMatchingModules: false });
+  });
+
+  it('is auto+blank when matching modules exist but have no dates', () => {
+    const res = courseRollupStart(
+      course({ courseName: 'X', plannedStartDate: '2026-05-04' }),
+      [mod({ courseName: 'X', plannedStartDate: '' })],
+      'plannedStartDate',
+    );
+    // Matching modules make the field read-only, so the manual value is ignored.
+    expect(res).toEqual({ date: '', auto: true, hasMatchingModules: true });
+  });
+});
+
+describe('computeCourse exposes all four course dates', () => {
+  it('rolls up planned/actual/perCycle and derives scheduled together', () => {
+    const modules = [
+      mod({ courseName: 'X', plannedStartDate: '2026-07-01', actualStartDate: '2026-07-06' }), // review 2026-08-06
+      mod({ courseName: 'X', plannedStartDate: '2026-08-01', actualStartDate: '2026-08-31' }), // review 2026-09-30
+    ];
+    const res = computeCourse(course({ courseName: 'X' }), modules);
+    expect(res.plannedStart.date).toBe('2026-07-01'); // earliest planned
+    expect(res.actualStart.date).toBe('2026-07-06'); // earliest actual
+    expect(res.perCycle.date).toBe('2026-09-30'); // latest review
+    expect(res.scheduled).toBe('2028-09-30'); // +2 years
+  });
+});
+
+describe('sortModuleRows', () => {
+  const rows = [
+    mod({ courseName: 'Beta', moduleName: 'm', plannedStartDate: '2026-08-01' }),
+    mod({ courseName: 'alpha', moduleName: 'm', plannedStartDate: '2026-07-01' }),
+    mod({ courseName: 'Gamma', moduleName: 'm', plannedStartDate: '' }),
+  ];
+
+  it('returns the source unchanged when no sort is set', () => {
+    expect(sortModuleRows(rows, null)).toBe(rows);
+  });
+
+  it('sorts text case-insensitively ascending, and does not mutate the source', () => {
+    const out = sortModuleRows(rows, { field: 'courseName', dir: 'asc' });
+    expect(out.map((r) => r.courseName)).toEqual(['alpha', 'Beta', 'Gamma']);
+    expect(rows.map((r) => r.courseName)).toEqual(['Beta', 'alpha', 'Gamma']); // untouched
+  });
+
+  it('reverses on descending', () => {
+    const out = sortModuleRows(rows, { field: 'courseName', dir: 'desc' });
+    expect(out.map((r) => r.courseName)).toEqual(['Gamma', 'Beta', 'alpha']);
+  });
+
+  it('sorts dates chronologically, not by string', () => {
+    const dated = [
+      mod({ plannedStartDate: '2026-12-01' }),
+      mod({ plannedStartDate: '2026-02-28' }),
+      mod({ plannedStartDate: '2026-09-05' }),
+    ];
+    const out = sortModuleRows(dated, { field: 'plannedStartDate', dir: 'asc' });
+    expect(out.map((r) => r.plannedStartDate)).toEqual([
+      '2026-02-28',
+      '2026-09-05',
+      '2026-12-01',
+    ]);
+  });
+
+  it('sends empty values to the end in ascending order', () => {
+    const out = sortModuleRows(rows, { field: 'plannedStartDate', dir: 'asc' });
+    expect(out.map((r) => r.plannedStartDate)).toEqual(['2026-07-01', '2026-08-01', '']);
+  });
+
+  it('keeps empty values at the end in descending order too', () => {
+    const out = sortModuleRows(rows, { field: 'plannedStartDate', dir: 'desc' });
+    expect(out.map((r) => r.plannedStartDate)).toEqual(['2026-08-01', '2026-07-01', '']);
   });
 });
 
