@@ -45,4 +45,15 @@ const reviewPlanner: ToolDef = {
   component: lazy(() => import('./review-planner/ReviewPlannerPage')),
 };
 
-export const TOOLS: ToolDef[] = [timetable, reviewPlanner];
+const changelog: ToolDef = {
+  id: 'changelog',
+  name: 'Changelog',
+  description:
+    'Every change to the workspace, generated straight from git history — date, commit, author, and the files that changed. Never goes stale.',
+  icon: 'git-commit',
+  path: '/changelog',
+  status: 'new',
+  component: lazy(() => import('./changelog/ChangelogPage')),
+};
+
+export const TOOLS: ToolDef[] = [timetable, reviewPlanner, changelog];

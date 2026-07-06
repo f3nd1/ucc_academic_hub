@@ -29,6 +29,11 @@ const PATHS: Record<string, string[]> = {
     'M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0',
   ],
   plus: ['M12 5l0 14', 'M5 12l14 0'],
+  'git-commit': [
+    'M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0',
+    'M3 12h6',
+    'M15 12h6',
+  ],
 };
 
 interface IconProps {

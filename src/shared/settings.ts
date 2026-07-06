@@ -10,6 +10,8 @@ export interface AppSettings {
   erpApiSecret: string;
   erpDocType: string;
   googleClientId: string;
+  /** Base GitHub repo URL (e.g. https://github.com/owner/repo) — links Changelog commits. */
+  repoUrl: string;
   firstDayOfWeek: FirstDayOfWeek;
   theme: ThemeMode;
 }
@@ -20,6 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   erpApiSecret: '',
   erpDocType: '',
   googleClientId: '',
+  repoUrl: '',
   firstDayOfWeek: 'monday',
   theme: 'system',
 };

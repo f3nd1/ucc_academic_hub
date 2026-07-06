@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "changelog": "node --experimental-strip-types scripts/generate-changelog.ts",
+    "prebuild": "npm run changelog",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",

@@ -217,6 +217,21 @@ export function SettingsPage() {
         </p>
       </div>
 
+      <h3 className="settings__subhead">Changelog</h3>
+      <div className="field">
+        <label htmlFor="repoUrl">GitHub repository URL</label>
+        <input
+          id="repoUrl"
+          value={settings.repoUrl}
+          onChange={(e) => update({ repoUrl: e.target.value })}
+          placeholder="https://github.com/owner/repo"
+        />
+        <p className="field__help">
+          Optional. When set, each commit in the Changelog links to
+          <code> {'{repo}'}/commit/{'{hash}'}</code> on GitHub.
+        </p>
+      </div>
+
       <h3 className="settings__subhead">Calendar</h3>
       <div className="field">
         <label>First day of week</label>
