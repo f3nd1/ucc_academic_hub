@@ -12,7 +12,8 @@ import {
 import {
   generateCourseSchedule,
   detectConflicts,
-  shiftModuleLater,
+  validateModuleFit,
+  observedPublicHolidays,
 } from '../../courseEngine';
 import { exportCsv, exportListPdf, exportCalendarPdf } from '../../exports';
 import { downloadIcs } from '../../googleCalendar';
@@ -24,10 +25,14 @@ import {
 } from '../../erpnext';
 import { loadErpFieldMapping } from '../../erpFieldMapping';
 import type { FirstDayOfWeek } from '../../shared/settings';
-import { CLASS_GROUP_LABEL } from '../../constants';
 import { useSettings } from '../../shared/settingsStore';
 import { useTimetableStore, type ViewMode } from '../../timetableStore';
-import { formatDisplayDate, formatDate } from '../../shared/dates';
+import {
+  formatDisplayDate,
+  formatDate,
+  dayName,
+  parseLocal,
+} from '../../shared/dates';
 import { buildPlanner } from '../../planner';
 import {
   exportPlannerCsv,
@@ -38,6 +43,7 @@ import { openTabForAsyncUrl } from '../../popup';
 import { ListView } from '../../views/ListView';
 import { MonthView } from '../../views/MonthView';
 import { HybridView } from '../../views/HybridView';
+import { AmendView, type AmendableField } from '../../views/AmendView';
 import { Wizard } from '../../wizard/Wizard';
 import { FullForm } from '../../FullForm';
 import {
@@ -99,6 +105,22 @@ export function TimetablePage() {
       ...w,
       form: { ...w.form, modules: [...w.form.modules, emptyModule()] },
     }));
+  // Duplicate a module: copy every field into a new, independently-editable row
+  // inserted right after the original (a fresh id, name suffixed "Copy").
+  const duplicateModule = (id: string) =>
+    setWizard((w) => {
+      const source = w.form.modules.find((m) => m.id === id);
+      if (!source) return w;
+      const copy: ModuleForm = {
+        ...source,
+        id: emptyModule().id,
+        name: source.name ? `${source.name} Copy` : '',
+      };
+      const idx = w.form.modules.findIndex((m) => m.id === id);
+      const modules = [...w.form.modules];
+      modules.splice(idx + 1, 0, copy);
+      return { ...w, form: { ...w.form, modules } };
+    });
   const removeModule = (id: string) =>
     setWizard((w) => ({
       ...w,
@@ -167,7 +189,9 @@ export function TimetablePage() {
       setConflicts(scanned.conflicts);
       setCourse(builtCourse);
       setHolidays(holidaySet);
-      setMessages([]);
+      // Non-blocking warnings for modules whose lessons don't fit their window
+      // after excluding weekends/holidays (only the days that fit are placed).
+      setMessages(validateModuleFit(builtCourse, holidaySet));
       setView(wizard.intent); // open in the intent chosen in Step 1
       saveWizard(wizard); // prefill next visit with these values
     } catch (err) {
@@ -241,25 +265,31 @@ export function TimetablePage() {
     setBusy(false);
   };
 
-  // Shift a module later by 1|2 valid teaching days (consumes AL buffer in
-  // series mode). Rejected with a warning when it would pass the module's
-  // end-of-month deadline; conflicts re-scan after every applied shift.
-  const handleShift = (moduleId: string, days: 1 | 2) => {
-    if (!lessons || !holidays) return;
-    setBanner(null);
-    const result = shiftModuleLater(lessons, moduleId, days, holidays);
-    if (!result.ok) {
-      setBanner({ ok: false, message: result.message });
-      return;
-    }
-    const scanned = detectConflicts(result.lessons);
+  // Manual amendment: edit a generated entry in place. The timetable updates
+  // immediately and conflicts are re-detected, so an edit that makes two
+  // different modules share a teacher + classroom + overlapping time on the
+  // same date is highlighted at once (here and in every other view).
+  const handleAmendEdit = (
+    moduleId: string,
+    lessonNo: number,
+    field: AmendableField,
+    value: string,
+  ) => {
+    if (!lessons) return;
+    const updated = lessons.map((l) =>
+      l.moduleId === moduleId && l.lessonNo === lessonNo
+        ? {
+            ...l,
+            [field]: value,
+            ...(field === 'date' && value
+              ? { day: dayName(parseLocal(value)) }
+              : {}),
+          }
+        : l,
+    );
+    const scanned = detectConflicts(updated);
     setLessons(scanned.lessons);
     setConflicts(scanned.conflicts);
-    const name = course?.modules.find((m) => m.id === moduleId)?.name ?? 'Module';
-    setBanner({
-      ok: true,
-      message: `${name} shifted ${days} teaching day${days > 1 ? 's' : ''} later.`,
-    });
   };
 
   const guardedExport = (fn: () => void) => {
@@ -334,6 +364,10 @@ export function TimetablePage() {
   };
 
   const hasLessons = !!lessons && lessons.length > 0;
+  // Sunday public holidays auto-observe the following Monday; surfaced as a note.
+  const observed = holidays
+    ? observedPublicHolidays(holidays.publicHolidays)
+    : [];
 
   return (
     <div className="layout">
@@ -349,6 +383,7 @@ export function TimetablePage() {
           updateForm={updateForm}
           updateModule={updateModule}
           addModule={addModule}
+          duplicateModule={duplicateModule}
           removeModule={removeModule}
           onGenerate={handleGenerate}
           onSwitchToFullForm={() => setLayout('full')}
@@ -364,6 +399,7 @@ export function TimetablePage() {
           updateForm={updateForm}
           updateModule={updateModule}
           addModule={addModule}
+          duplicateModule={duplicateModule}
           removeModule={removeModule}
           onGenerate={handleGenerate}
           onLoadDemo={handleLoadDemo}
@@ -472,45 +508,14 @@ export function TimetablePage() {
           </div>
         )}
 
-        {hasLessons && course && (
-          <div className="modules-panel" data-tour="shift">
-            <p className="modules-panel__title">Modules</p>
-            {course.modules.map((m) => {
-              const modLessons = (lessons ?? []).filter(
-                (l) => l.moduleId === m.id && l.kind === 'lesson',
-              );
-              if (modLessons.length === 0) return null;
-              const first = formatDisplayDate(modLessons[0].date);
-              const last = formatDisplayDate(
-                modLessons[modLessons.length - 1].date,
-              );
-              return (
-                <div className="modules-panel__row" key={m.id}>
-                  <span>
-                    <strong>{m.name}</strong>{' '}
-                    <span className="modules-panel__meta">
-                      {modLessons.length} lessons · {first} – {last}
-                    </span>
-                  </span>
-                  <span className="modules-panel__actions">
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => handleShift(m.id, 1)}
-                    >
-                      Shift +1 day
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => handleShift(m.id, 2)}
-                    >
-                      +2 days
-                    </button>
-                  </span>
-                </div>
-              );
-            })}
+        {observed.length > 0 && (
+          <div className="banner banner--warn" role="note">
+            <strong>Automatically observed:</strong>{' '}
+            {observed
+              .map((h) => `${formatDisplayDate(h.date)} — ${h.name}`)
+              .join('; ')}
+            . These fall the Monday after a Sunday public holiday and are
+            blocked for scheduling.
           </div>
         )}
 
@@ -524,21 +529,16 @@ export function TimetablePage() {
               <ul className="conflicts__list">
                 {conflicts.map((c, i) => (
                   <li className="conflicts__item" key={i}>
-                    <strong>{formatDisplayDate(c.date)}</strong> —{' '}
-                    {c.type === 'teacher'
-                      ? 'Teacher clash'
-                      : c.type === 'classroom'
-                        ? 'Classroom clash'
-                        : `${CLASS_GROUP_LABEL} clash`}
-                    : {c.detail}
+                    <strong>{formatDisplayDate(c.date)}</strong> — Teacher, time
+                    &amp; classroom clash: {c.detail}
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
             <div className="conflicts conflicts--clear" role="status">
-              ✓ No conflicts — teachers, classrooms, and class groups are clear
-              across all modules.
+              ✓ No conflicts — no two modules share the same teacher, classroom,
+              and overlapping time on any date.
             </div>
           ))}
 
@@ -549,7 +549,7 @@ export function TimetablePage() {
             aria-label="View"
             data-tour="view-switch"
           >
-            {(['list', 'calendar', 'hybrid'] as ViewMode[]).map((v) => (
+            {(['list', 'calendar', 'hybrid', 'amend'] as ViewMode[]).map((v) => (
               <button
                 key={v}
                 type="button"
@@ -557,7 +557,13 @@ export function TimetablePage() {
                 aria-pressed={view === v}
                 onClick={() => setView(v)}
               >
-                {v === 'list' ? 'List' : v === 'calendar' ? 'Calendar' : 'Hybrid'}
+                {v === 'list'
+                  ? 'List'
+                  : v === 'calendar'
+                    ? 'Calendar'
+                    : v === 'hybrid'
+                      ? 'Hybrid'
+                      : 'Amend'}
               </button>
             ))}
           </div>
@@ -572,6 +578,8 @@ export function TimetablePage() {
               firstDayOfWeek={wizard.firstDayOfWeek}
               courseName={course!.name}
             />
+          ) : view === 'amend' ? (
+            <AmendView lessons={lessons!} onEdit={handleAmendEdit} />
           ) : (
             plannerModel && <HybridView model={plannerModel} />
           )

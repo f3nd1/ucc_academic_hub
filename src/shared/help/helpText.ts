@@ -17,6 +17,10 @@ export const TOOLTIPS: Record<string, string> = {
   activities:
     'Optional. One activity per line, paired to the lesson on the same line. Leave blank to show the label only.',
   totalLessons: 'How many sessions to schedule for this module in total.',
+  moduleStartDate:
+    'The first date this module may be scheduled on. Lessons land on valid teaching days from here onward.',
+  moduleEndDate:
+    'The last date this module may be scheduled on. Lessons never fall after this date.',
   startMonth:
     'Each module begins on the 1st of its start month, or the next valid teaching day if the 1st is blocked.',
   deliveryMode:

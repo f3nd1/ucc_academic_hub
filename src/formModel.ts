@@ -5,7 +5,7 @@ import type {
   Module,
   NamedHoliday,
 } from './types';
-import { isValidIsoDate, isValidIsoMonth } from './shared/dates';
+import { isValidIsoDate } from './shared/dates';
 import { CLASS_GROUP_LABEL } from './constants';
 
 /** Raw per-module form state — every field a string off the inputs. */
@@ -15,6 +15,8 @@ export interface ModuleForm {
   classGroup: string;
   teacher: string;
   classroom: string;
+  moduleStartDate: string; // YYYY-MM-DD — the module's own scheduling window
+  moduleEndDate: string; // YYYY-MM-DD
   lessonNamesRaw: string; // one per line
   activitiesRaw: string; // one per line, paired to lesson names by index
   totalLessons: string;
@@ -55,6 +57,8 @@ export const emptyModule = (): ModuleForm => ({
   classGroup: '',
   teacher: '',
   classroom: '',
+  moduleStartDate: '',
+  moduleEndDate: '',
   lessonNamesRaw: '',
   activitiesRaw: '',
   totalLessons: '',
@@ -73,6 +77,8 @@ export const EMPTY_FORM: CourseForm = {
       classGroup: '',
       teacher: '',
       classroom: '',
+      moduleStartDate: '',
+      moduleEndDate: '',
       lessonNamesRaw: '',
       activitiesRaw: '',
       totalLessons: '',
@@ -84,10 +90,11 @@ export const EMPTY_FORM: CourseForm = {
   publicHolidays: [],
 };
 
-// Demo course: two modules sharing a class group and classroom. Series mode
-// runs them cleanly month after month; switching to Parallel makes their
-// overlapping time ranges clash on classroom + class group — demonstrating
-// the conflict panel and highlighting in two clicks.
+// Demo course: two modules with their own scheduling windows. National Day
+// 2026-08-09 falls on a Sunday, so 2026-08-10 (Monday) is auto-observed and
+// blocked — module 2's window spans it, showing observed-holiday skipping. The
+// windows and rooms don't overlap, so the demo generates cleanly; editing an
+// entry to share a teacher + room + time on one date reveals the conflict rule.
 export const DEMO_FORM: CourseForm = {
   courseName: 'Foundations of Data Science',
   startMonth: '2026-07',
@@ -99,6 +106,8 @@ export const DEMO_FORM: CourseForm = {
       classGroup: 'DS-2026A',
       teacher: 'Ms Tan',
       classroom: 'Room 3-01',
+      moduleStartDate: '2026-07-01',
+      moduleEndDate: '2026-07-20',
       lessonNamesRaw: [
         'Introduction',
         'Data Types',
@@ -116,12 +125,14 @@ export const DEMO_FORM: CourseForm = {
       name: 'Applied Analytics',
       classGroup: 'DS-2026A',
       teacher: 'Mr Lim',
-      classroom: 'Room 3-01',
+      classroom: 'Room 3-02',
+      moduleStartDate: '2026-07-21',
+      moduleEndDate: '2026-08-14',
       lessonNamesRaw: ['Statistics', 'Visualisation', 'Modelling'].join('\n'),
       activitiesRaw: '',
       totalLessons: '10',
-      startTime: '09:30',
-      endTime: '10:30',
+      startTime: '11:00',
+      endTime: '12:00',
     },
   ],
   uccHolidays: [{ id: 'hol-demo-1', date: '2026-09-01', name: 'Term Break' }],
@@ -164,12 +175,6 @@ export function validateDetails(
 
   if (!form.courseName.trim()) errors.push(`${primaryLabel} is required.`);
 
-  if (!form.startMonth.trim()) {
-    errors.push('Start month is required.');
-  } else if (!isValidIsoMonth(form.startMonth.trim())) {
-    errors.push('Start month must be a real YYYY-MM month.');
-  }
-
   if (form.modules.length === 0) errors.push('Add at least one module.');
 
   form.modules.forEach((mod, i) => {
@@ -179,6 +184,20 @@ export function validateDetails(
       errors.push(`${tag}module name is required.`);
     if (!mod.classGroup.trim())
       errors.push(`${tag}${CLASS_GROUP_LABEL} is required.`);
+
+    // Each module schedules within its own start/end window.
+    const start = mod.moduleStartDate.trim();
+    const end = mod.moduleEndDate.trim();
+    if (!start || !end) {
+      errors.push(`${tag}module start date and module end date are required.`);
+    } else {
+      if (!isValidIsoDate(start))
+        errors.push(`${tag}module start date is not a real calendar date.`);
+      if (!isValidIsoDate(end))
+        errors.push(`${tag}module end date is not a real calendar date.`);
+      if (isValidIsoDate(start) && isValidIsoDate(end) && end < start)
+        errors.push(`${tag}module end date must be on or after the start date.`);
+    }
 
     if (parseLines(mod.lessonNamesRaw).length === 0)
       errors.push(`${tag}at least one lesson name is required.`);
@@ -241,6 +260,8 @@ function buildModule(mod: ModuleForm, fallbackName: string): Module {
     classGroup: mod.classGroup.trim(),
     teacher: mod.teacher.trim(),
     classroom: mod.classroom.trim(),
+    moduleStartDate: mod.moduleStartDate.trim(),
+    moduleEndDate: mod.moduleEndDate.trim(),
     lessonNames: parseLines(mod.lessonNamesRaw),
     // Aligned (blank-preserving) so activities stay paired to lesson lines.
     activities: parseAlignedLines(mod.activitiesRaw),

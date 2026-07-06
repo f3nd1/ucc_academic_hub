@@ -8,6 +8,7 @@ interface Props {
   update: (patch: Partial<CourseForm>) => void;
   updateModule: (id: string, patch: Partial<ModuleForm>) => void;
   addModule: () => void;
+  duplicateModule: (id: string) => void;
   removeModule: (id: string) => void;
   scope: Scope;
 }
@@ -23,6 +24,7 @@ export function DetailsFields({
   update,
   updateModule,
   addModule,
+  duplicateModule,
   removeModule,
   scope,
 }: Props) {
@@ -40,50 +42,28 @@ export function DetailsFields({
         />
       </LabeledField>
 
-      <div className="grid-2">
-        <LabeledField id="startMonth" label="Start month" helpKey="startMonth">
-          <input
-            id="startMonth"
-            type="month"
-            value={form.startMonth}
-            onChange={(e) => update({ startMonth: e.target.value })}
-          />
-        </LabeledField>
-        <LabeledField label="Delivery mode" helpKey="deliveryMode" hintKey="deliveryMode">
-          <div className="segmented" role="group" aria-label="Delivery mode">
-            <button
-              type="button"
-              className={form.deliveryMode === 'series' ? 'active' : ''}
-              aria-pressed={form.deliveryMode === 'series'}
-              onClick={() => update({ deliveryMode: 'series' })}
-            >
-              Series
-            </button>
-            <button
-              type="button"
-              className={form.deliveryMode === 'parallel' ? 'active' : ''}
-              aria-pressed={form.deliveryMode === 'parallel'}
-              onClick={() => update({ deliveryMode: 'parallel' })}
-            >
-              Parallel
-            </button>
-          </div>
-        </LabeledField>
-      </div>
-
       {form.modules.map((mod, i) => (
         <fieldset className="module" key={mod.id}>
           <legend className="module__legend">
             {multi ? `Module ${i + 1}` : 'Module details'}
-            {multi && form.modules.length > 1 && (
+            <span className="module__legend-actions">
               <button
                 type="button"
-                className="linkbtn module__remove"
-                onClick={() => removeModule(mod.id)}
+                className="linkbtn"
+                onClick={() => duplicateModule(mod.id)}
               >
-                Remove
+                Duplicate
               </button>
-            )}
+              {multi && form.modules.length > 1 && (
+                <button
+                  type="button"
+                  className="linkbtn module__remove"
+                  onClick={() => removeModule(mod.id)}
+                >
+                  Remove
+                </button>
+              )}
+            </span>
           </legend>
 
           {showModuleName && (
@@ -142,6 +122,37 @@ export function DetailsFields({
               placeholder="e.g. Room 3-01"
             />
           </LabeledField>
+
+          <div className="grid-2">
+            <LabeledField
+              id={`modStartDate-${mod.id}`}
+              label="Module Start Date"
+              helpKey="moduleStartDate"
+            >
+              <input
+                id={`modStartDate-${mod.id}`}
+                type="date"
+                value={mod.moduleStartDate}
+                onChange={(e) =>
+                  updateModule(mod.id, { moduleStartDate: e.target.value })
+                }
+              />
+            </LabeledField>
+            <LabeledField
+              id={`modEndDate-${mod.id}`}
+              label="Module End Date"
+              helpKey="moduleEndDate"
+            >
+              <input
+                id={`modEndDate-${mod.id}`}
+                type="date"
+                value={mod.moduleEndDate}
+                onChange={(e) =>
+                  updateModule(mod.id, { moduleEndDate: e.target.value })
+                }
+              />
+            </LabeledField>
+          </div>
 
           <div className="grid-2">
             <LabeledField

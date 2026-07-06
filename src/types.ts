@@ -12,6 +12,9 @@ export interface Module {
   teacher: string;
   classroom: string;
   classGroup: string;
+  /** The module's own scheduling window — lessons land only within it. */
+  moduleStartDate: string; // YYYY-MM-DD
+  moduleEndDate: string; // YYYY-MM-DD
   lessonNames: string[];
   /** Optional activity per lesson, paired by index; blanks preserved. */
   activities?: string[];
@@ -23,17 +26,18 @@ export interface Module {
 /** How a course's modules are delivered over time. */
 export type DeliveryMode = 'series' | 'parallel';
 
-/** A course: multiple modules with a month-anchored start. */
+/** A course: a set of modules, each with its own scheduling window. */
 export interface Course {
   name: string;
-  startMonth: string; // YYYY-MM
+  startMonth: string; // YYYY-MM (retained for imports/exports; not scheduled on)
   deliveryMode: DeliveryMode;
   modules: Module[];
 }
 
 /** A cross-module scheduling conflict on one date. */
 export interface Conflict {
-  type: 'teacher' | 'classroom' | 'classGroup';
+  /** 'teacherRoomTime' = same teacher + overlapping time + same classroom. */
+  type: 'teacher' | 'classroom' | 'classGroup' | 'teacherRoomTime';
   date: string; // YYYY-MM-DD
   moduleIds: string[];
   detail: string;

@@ -1054,6 +1054,29 @@ select {
   font-weight: 600;
 }
 
+.module__legend-actions {
+  display: inline-flex;
+  gap: 0.85rem;
+  margin-left: auto;
+}
+
+/* Amend (editable) timetable view */
+.amend-table {
+  min-width: 900px;
+}
+
+.amend-table .amend__input {
+  min-width: 6rem;
+}
+
+.amend__date {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* v5: AL buffer + conflict styling */
 .row--al td {
   color: var(--muted);

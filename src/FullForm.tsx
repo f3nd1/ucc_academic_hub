@@ -17,6 +17,7 @@ interface Props {
   updateForm: (patch: Partial<CourseForm>) => void;
   updateModule: (id: string, patch: Partial<ModuleForm>) => void;
   addModule: () => void;
+  duplicateModule: (id: string) => void;
   removeModule: (id: string) => void;
   onGenerate: () => void;
   onLoadDemo: () => void;
@@ -39,6 +40,7 @@ export function FullForm({
   updateForm,
   updateModule,
   addModule,
+  duplicateModule,
   removeModule,
   onGenerate,
   onLoadDemo,
@@ -134,6 +136,7 @@ export function FullForm({
         update={updateForm}
         updateModule={updateModule}
         addModule={addModule}
+        duplicateModule={duplicateModule}
         removeModule={removeModule}
         scope={state.scope}
       />

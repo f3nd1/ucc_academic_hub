@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CourseForm, ModuleForm } from '../formModel';
 import type { FirstDayOfWeek } from '../shared/settings';
-import { formatDisplayMonth } from '../shared/dates';
+import { formatDisplayDate } from '../shared/dates';
 import { Tooltip } from '../shared/help/Tooltip';
 import { TOOLTIPS } from '../shared/help/helpText';
 import { DetailsFields } from '../components/DetailsFields';
@@ -27,6 +27,7 @@ interface Props {
   updateForm: (patch: Partial<CourseForm>) => void;
   updateModule: (id: string, patch: Partial<ModuleForm>) => void;
   addModule: () => void;
+  duplicateModule: (id: string) => void;
   removeModule: (id: string) => void;
   onGenerate: () => void;
   onSwitchToFullForm: () => void;
@@ -104,6 +105,7 @@ export function Wizard({
   updateForm,
   updateModule,
   addModule,
+  duplicateModule,
   removeModule,
   onGenerate,
   onSwitchToFullForm,
@@ -243,6 +245,7 @@ export function Wizard({
             update={updateForm}
             updateModule={updateModule}
             addModule={addModule}
+            duplicateModule={duplicateModule}
             removeModule={removeModule}
             scope={state.scope}
           />
@@ -267,16 +270,6 @@ export function Wizard({
               <dd>{SCOPES.find((s) => s.key === state.scope)?.title}</dd>
               <dt>{primaryNameLabel(state.scope)}</dt>
               <dd>{primaryName}</dd>
-              <dt>Start month</dt>
-              <dd>
-                {state.form.startMonth
-                  ? formatDisplayMonth(state.form.startMonth)
-                  : '—'}
-              </dd>
-              <dt>Delivery</dt>
-              <dd>
-                {state.form.deliveryMode === 'series' ? 'Series' : 'Parallel'}
-              </dd>
               <dt>Modules</dt>
               <dd>
                 {state.form.modules.map((m, i) => (
@@ -284,7 +277,12 @@ export function Wizard({
                     {m.name || primaryName || `Module ${i + 1}`} ·{' '}
                     {m.totalLessons || '—'} lessons · {m.teacher || '—'} ·{' '}
                     {m.classroom || '—'} · {m.startTime || '—'}–
-                    {m.endTime || '—'}
+                    {m.endTime || '—'} ·{' '}
+                    {m.moduleStartDate
+                      ? formatDisplayDate(m.moduleStartDate)
+                      : '—'}{' '}
+                    to{' '}
+                    {m.moduleEndDate ? formatDisplayDate(m.moduleEndDate) : '—'}
                   </div>
                 ))}
               </dd>

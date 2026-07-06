@@ -16,6 +16,8 @@ const COURSE: Course = {
       teacher: 'Ms Tan',
       classroom: 'R1',
       classGroup: 'CG-1',
+      moduleStartDate: '2026-07-01',
+      moduleEndDate: '2026-07-31',
       lessonNames: ['L1', 'L2'],
       activities: [],
       totalLessons: 8,
@@ -62,13 +64,13 @@ describe('buildCalendarMonths', () => {
     expect(sun.weeks[0][3].iso).toBe('2026-07-01');
   });
 
-  it('maps lessons and AL entries onto their cells', () => {
+  it('maps lessons onto the earliest teaching days of the window', () => {
     const m = months[0];
     const cellFor = (iso: string) =>
       m.weeks.flat().find((c) => c.iso === iso)!;
+    // Windowed engine: 8 lessons land on the first 8 valid weekdays of July.
     expect(cellFor('2026-07-01').entries.some((l) => l.kind === 'lesson')).toBe(true);
-    // Series 8-of-23 leaves AL fill days; 2 July is AL (lesson 2 lands later).
-    expect(cellFor('2026-07-02').entries.some((l) => l.kind === 'AL')).toBe(true);
+    expect(cellFor('2026-07-02').entries.some((l) => l.kind === 'lesson')).toBe(true);
     // Weekends carry no entries.
     expect(cellFor('2026-07-04').entries).toHaveLength(0);
   });

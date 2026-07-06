@@ -2,7 +2,7 @@ import { createContext, useContext, type Dispatch, type SetStateAction } from 'r
 import type { ScheduledLesson, Course, Conflict, HolidaySet } from './types';
 import type { WizardState } from './wizard/wizardModel';
 
-export type ViewMode = 'list' | 'calendar' | 'hybrid';
+export type ViewMode = 'list' | 'calendar' | 'hybrid' | 'amend';
 export type Banner = { ok: boolean; message: string } | null;
 export type FormLayout = 'wizard' | 'full';
 

@@ -26,6 +26,8 @@ const VALID_MODULE: ModuleForm = {
   classGroup: 'CG-1',
   teacher: 'Ms Tan',
   classroom: 'R1',
+  moduleStartDate: '2026-07-01',
+  moduleEndDate: '2026-07-31',
   lessonNamesRaw: 'L1\nL2',
   activitiesRaw: '',
   totalLessons: '4',
@@ -77,13 +79,18 @@ describe('validateDetails (course + modules)', () => {
     const errs = validateDetails({ ...VALID, courseName: '' }, 'Module name');
     expect(errs).toContain('Module name is required.');
   });
-  it('requires a start month and rejects impossible months', () => {
-    expect(validateDetails({ ...VALID, startMonth: '' })).toContain(
-      'Start month is required.',
-    );
-    expect(validateDetails({ ...VALID, startMonth: '2026-13' })).toContain(
-      'Start month must be a real YYYY-MM month.',
-    );
+  it('requires each module start and end date, and start <= end', () => {
+    expect(
+      validateDetails(withModule({ moduleStartDate: '', moduleEndDate: '' })),
+    ).toContain('module start date and module end date are required.');
+    expect(
+      validateDetails(withModule({ moduleStartDate: '2026-02-30' })),
+    ).toContain('module start date is not a real calendar date.');
+    expect(
+      validateDetails(
+        withModule({ moduleStartDate: '2026-07-31', moduleEndDate: '2026-07-01' }),
+      ),
+    ).toContain('module end date must be on or after the start date.');
   });
   it('requires at least one module', () => {
     expect(validateDetails({ ...VALID, modules: [] })).toContain(

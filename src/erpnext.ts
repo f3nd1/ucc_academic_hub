@@ -128,6 +128,10 @@ export function mapDocToForm(
         classGroup: mapped(doc, mapping, 'classGroup'),
         teacher: mapped(doc, mapping, 'teacher'),
         classroom: mapped(doc, mapping, 'classroom'),
+        // The module's scheduling window: start from the mapped start date;
+        // the end date is set manually in the app.
+        moduleStartDate: mapped(doc, mapping, 'startDate'),
+        moduleEndDate: '',
         lessonNamesRaw: '', // manual — never imported
         activitiesRaw: mapped(doc, mapping, 'activity'),
         totalLessons: mapped(doc, mapping, 'totalLessons'),
