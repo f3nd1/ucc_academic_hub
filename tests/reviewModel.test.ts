@@ -67,14 +67,46 @@ describe('addYearsClamped (+2 years)', () => {
   });
 });
 
-describe('moduleReviewDate', () => {
-  it('is the actual start + 1 month', () => {
-    expect(moduleReviewDate(mod({ actualStartDate: '2026-08-31' }))).toBe(
-      '2026-09-30',
-    );
+describe('moduleReviewDate (delivery-mode aware)', () => {
+  it('Series = actual start + 1 month', () => {
+    expect(
+      moduleReviewDate(mod({ actualStartDate: '2026-09-01', deliveryMode: 'Series' })),
+    ).toBe('2026-10-01');
+  });
+  it('Parallel = actual start + 3 months', () => {
+    expect(
+      moduleReviewDate(mod({ actualStartDate: '2026-09-01', deliveryMode: 'Parallel' })),
+    ).toBe('2026-12-01');
+  });
+  it('Series is month-end safe (31 Aug + 1 -> 30 Sep)', () => {
+    expect(
+      moduleReviewDate(mod({ actualStartDate: '2026-08-31', deliveryMode: 'Series' })),
+    ).toBe('2026-09-30');
+  });
+  it('Parallel is month-end safe (31 Aug + 3 -> 30 Nov)', () => {
+    expect(
+      moduleReviewDate(mod({ actualStartDate: '2026-08-31', deliveryMode: 'Parallel' })),
+    ).toBe('2026-11-30');
   });
   it('is blank without an actual start', () => {
     expect(moduleReviewDate(mod({ actualStartDate: '' }))).toBe('');
+  });
+});
+
+describe('Per Cycle uses the latest delivery-mode-aware module review date', () => {
+  it('mixed Series/Parallel course rolls up to the Parallel (later) review date', () => {
+    // Amendment example: Eng, 4 modules, actual 2026-09-01, alternating modes.
+    const modules = [
+      mod({ courseName: 'Eng', moduleName: 'Lis', plannedStartDate: '2026-08-03', actualStartDate: '2026-09-01', deliveryMode: 'Series' }), // review 2026-10-01
+      mod({ courseName: 'Eng', moduleName: 'Sp', plannedStartDate: '2026-08-03', actualStartDate: '2026-09-01', deliveryMode: 'Parallel' }), // review 2026-12-01
+      mod({ courseName: 'Eng', moduleName: 'Re', plannedStartDate: '2026-08-03', actualStartDate: '2026-09-01', deliveryMode: 'Series' }),
+      mod({ courseName: 'Eng', moduleName: 'Wri', plannedStartDate: '2026-08-03', actualStartDate: '2026-09-01', deliveryMode: 'Parallel' }),
+    ];
+    const res = computeCourse(course({ courseName: 'Eng' }), modules);
+    expect(res.plannedStart.date).toBe('2026-08-03'); // earliest planned
+    expect(res.actualStart.date).toBe('2026-09-01'); // earliest actual
+    expect(res.perCycle.date).toBe('2026-12-01'); // latest review (Parallel)
+    expect(res.scheduled).toBe('2028-12-01'); // + 2 years
   });
 });
 

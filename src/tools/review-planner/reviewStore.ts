@@ -29,6 +29,7 @@ function seed(): ReviewData {
         moduleName: 'Data Fundamentals',
         plannedStartDate: '2026-07-01',
         actualStartDate: '2026-07-06',
+        deliveryMode: 'Series',
       },
       {
         ...emptyModuleReview(),
@@ -36,6 +37,7 @@ function seed(): ReviewData {
         moduleName: 'Applied Analytics',
         plannedStartDate: '2026-08-01',
         actualStartDate: '2026-08-31',
+        deliveryMode: 'Parallel',
       },
     ],
     courses: [

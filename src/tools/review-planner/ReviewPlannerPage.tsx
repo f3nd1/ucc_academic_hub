@@ -12,6 +12,7 @@ import {
   moduleReviewErrors,
   sortModuleRows,
   type CourseReview,
+  type DeliveryMode,
   type ModuleReview,
   type ModuleSort,
   type ModuleSortField,
@@ -189,7 +190,7 @@ export function ReviewPlannerPage() {
       <section className="panel rvp__section">
         <div className="rvp__section-head">
           <h2>Module Review</h2>
-          <Hint text="Module Review Date is the Actual Start Date plus one month, clamped to the month's last day when the next month is shorter. Click a column header to sort." />
+          <Hint text="Module Review Date is the Actual Start Date plus one month for Series delivery, or plus three months for Parallel — clamped to the month's last day when the next month is shorter. Click a column header to sort." />
         </div>
         <div className="table-wrap">
           <table className="rv-table">
@@ -199,6 +200,7 @@ export function ReviewPlannerPage() {
                 <SortHeader field="moduleName" label="Module name" sort={sort} onSort={onSort} />
                 <SortHeader field="plannedStartDate" label="Planned start" sort={sort} onSort={onSort} />
                 <SortHeader field="actualStartDate" label="Actual start" sort={sort} onSort={onSort} />
+                <th>Delivery mode</th>
                 <th>Module Review Date</th>
                 <th aria-label="Actions" />
               </tr>
@@ -206,7 +208,7 @@ export function ReviewPlannerPage() {
             <tbody>
               {displayModules.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="rv-empty">
+                  <td colSpan={7} className="rv-empty">
                     No modules yet. Add one to start.
                   </td>
                 </tr>
@@ -260,9 +262,28 @@ export function ReviewPlannerPage() {
                         />
                       </td>
                       <td>
+                        <select
+                          className="rv-input"
+                          value={m.deliveryMode}
+                          aria-label="Delivery mode"
+                          onChange={(e) =>
+                            updateModule(m.id, {
+                              deliveryMode: e.target.value as DeliveryMode,
+                            })
+                          }
+                        >
+                          <option value="Series">Series</option>
+                          <option value="Parallel">Parallel</option>
+                        </select>
+                      </td>
+                      <td>
                         <ComputedDate
                           value={moduleReviewDate(m)}
-                          title="Actual Start Date + 1 month"
+                          title={
+                            m.deliveryMode === 'Parallel'
+                              ? 'Actual Start Date + 3 months (Parallel)'
+                              : 'Actual Start Date + 1 month (Series)'
+                          }
                         />
                       </td>
                       <td>
@@ -278,7 +299,7 @@ export function ReviewPlannerPage() {
                     </tr>
                     {errs.length > 0 && (
                       <tr className="rv-errrow">
-                        <td colSpan={6}>
+                        <td colSpan={7}>
                           <ul>
                             {errs.map((e) => (
                               <li key={e}>{e}</li>

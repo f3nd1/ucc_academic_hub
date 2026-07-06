@@ -9,6 +9,9 @@ import {
   isValidIsoDate,
 } from '../../shared/dates';
 
+/** How a module is delivered — drives the Module Review Date offset. */
+export type DeliveryMode = 'Series' | 'Parallel';
+
 /** One module's review row. */
 export interface ModuleReview {
   id: string;
@@ -16,6 +19,7 @@ export interface ModuleReview {
   moduleName: string;
   plannedStartDate: string; // YYYY-MM-DD or ''
   actualStartDate: string; // YYYY-MM-DD or ''
+  deliveryMode: DeliveryMode;
 }
 
 /** One course's review row. */
@@ -39,6 +43,7 @@ export const emptyModuleReview = (): ModuleReview => ({
   moduleName: '',
   plannedStartDate: '',
   actualStartDate: '',
+  deliveryMode: 'Series',
 });
 
 export const emptyCourseReview = (): CourseReview => ({
@@ -75,9 +80,13 @@ export const addYearsClamped = (iso: string, years: number): string =>
 
 // --- Live calculations ------------------------------------------------------
 
-/** Module Review Date = Actual Start Date + 1 month (blank if no valid start). */
+/**
+ * Module Review Date = Actual Start Date + N months, where N depends on the
+ * Delivery Mode: Series = +1 month, Parallel = +3 months. Month-end safe;
+ * blank when there is no valid actual start.
+ */
 export const moduleReviewDate = (m: ModuleReview): string =>
-  addMonthsClamped(m.actualStartDate, 1);
+  addMonthsClamped(m.actualStartDate, m.deliveryMode === 'Parallel' ? 3 : 1);
 
 const normalise = (name: string): string => name.trim().toLowerCase();
 
