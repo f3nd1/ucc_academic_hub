@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Throwaway browser-test screenshots (kept in the scratchpad, never the repo)
+/*.png
