@@ -167,7 +167,7 @@ export function SettingsPage() {
   };
 
   const handleSupabaseClear = () => {
-    update({ supabaseUrl: '', supabaseAnonKey: '', supabasePasscode: '' });
+    update({ supabaseUrl: '', supabaseAnonKey: '' });
     setSyncResult(null);
   };
 
@@ -471,13 +471,13 @@ export function SettingsPage() {
         {supabaseConfigured && <span className="chip chip--ok">Configured</span>}
       </h3>
       <div className="banner banner--warn" role="note">
-        <strong>Note:</strong> the Anon/publishable key below is not secret —
-        it is visible to anyone who inspects this app's code. What actually
-        protects your data is a shared passcode checked inside your Supabase
-        database (see <code>supabase/schema.sql</code> in the project). This is
-        a simple shared-team barrier, appropriate for a small internal tool —
-        not full per-user security. Anyone who has the passcode can read or
-        overwrite everything saved here.
+        <strong>Note:</strong> there is no extra passcode here — anyone who has
+        this Project URL and Anon/publishable key can read or overwrite
+        everything saved below. The Anon key is not really secret (it is
+        visible to anyone who inspects this app's code), so treat the{' '}
+        <strong>Project URL itself</strong> as the thing to keep private; don't
+        post it anywhere public. Appropriate for a small internal tool, not a
+        substitute for real per-user security.
       </div>
       <div className="field">
         <label htmlFor="supabaseUrl">Project URL</label>
@@ -488,32 +488,21 @@ export function SettingsPage() {
           placeholder="https://xxxxxxxxxxxx.supabase.co"
         />
       </div>
-      <div className="grid-2">
-        <div className="field">
-          <label htmlFor="supabaseAnonKey">Anon / publishable key</label>
-          <input
-            id="supabaseAnonKey"
-            type="password"
-            value={settings.supabaseAnonKey}
-            onChange={(e) => update({ supabaseAnonKey: e.target.value })}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="supabasePasscode">Shared passcode</label>
-          <input
-            id="supabasePasscode"
-            type="password"
-            value={settings.supabasePasscode}
-            onChange={(e) => update({ supabasePasscode: e.target.value })}
-          />
-        </div>
+      <div className="field">
+        <label htmlFor="supabaseAnonKey">Anon / publishable key</label>
+        <input
+          id="supabaseAnonKey"
+          type="password"
+          value={settings.supabaseAnonKey}
+          onChange={(e) => update({ supabaseAnonKey: e.target.value })}
+        />
       </div>
       <p className="hint">
         Saves everything this app remembers — Settings, generated timetables,
         and Module &amp; Course Review entries — as one snapshot in your
         Supabase project, so it can follow you to another browser or device.
-        Only this Project URL, key, and passcode stay local to this browser
-        (they describe how to reach your cloud store, so syncing them would be
+        Only this Project URL and key stay local to this browser (they
+        describe how to reach your cloud store, so syncing them would be
         circular).
       </p>
       <div className="actions">

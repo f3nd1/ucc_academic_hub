@@ -44,7 +44,6 @@ const SETTINGS: AppSettings = {
   erpApiKey: 'the-key',
   supabaseUrl: 'https://miwtrwmyfgcepcgxjryo.supabase.co/',
   supabaseAnonKey: 'anon-key',
-  supabasePasscode: 'team-passcode',
 };
 
 describe('snapshotLocalStorage', () => {
@@ -66,7 +65,6 @@ describe('snapshotLocalStorage', () => {
     const savedSettings = JSON.parse(snap[SETTINGS_STORAGE_KEY]) as Record<string, unknown>;
     expect(savedSettings.supabaseUrl).toBeUndefined();
     expect(savedSettings.supabaseAnonKey).toBeUndefined();
-    expect(savedSettings.supabasePasscode).toBeUndefined();
     expect(savedSettings.erpApiKey).toBe('the-key'); // everything else survives
   });
 });
@@ -110,7 +108,7 @@ const stubFetch = (impl: (url: string, init?: RequestInit) => Promise<Response>)
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), {
     status,
-    statusText: status === 400 ? 'Bad Request' : 'OK',
+    statusText: status === 401 ? 'Unauthorized' : status === 404 ? 'Not Found' : 'OK',
     headers: { 'Content-Type': 'application/json' },
   });
 
@@ -125,35 +123,28 @@ describe('testSupabaseConnection', () => {
     expect(result.message).toContain('Supabase Project URL and Anon key');
   });
 
-  it('requires a passcode before calling out', async () => {
-    const result = await testSupabaseConnection({
-      ...DEFAULT_SETTINGS,
-      supabaseUrl: 'https://x.supabase.co',
-      supabaseAnonKey: 'k',
-    });
-    expect(result.ok).toBe(false);
-    expect(result.message).toContain('passcode');
-  });
-
-  it('reports success and never puts the passcode in the URL', async () => {
-    const calls = stubFetch(() => Promise.resolve(jsonResponse(200, {})));
+  it('reports success when the row is reachable, hitting the table endpoint directly (no RPC, no passcode)', async () => {
+    const calls = stubFetch(() => Promise.resolve(jsonResponse(200, [{ id: 1 }])));
     const result = await testSupabaseConnection(SETTINGS);
     expect(result.ok).toBe(true);
-    expect(result.message).toContain('accepted');
     expect(calls[0].url).toBe(
-      'https://miwtrwmyfgcepcgxjryo.supabase.co/rest/v1/rpc/workspace_sync_load',
+      'https://miwtrwmyfgcepcgxjryo.supabase.co/rest/v1/ucc_workspace_sync?id=eq.1&select=id',
     );
-    expect(calls[0].url).not.toContain('team-passcode');
-    const body = JSON.parse(calls[0].init!.body as string);
-    expect(body).toEqual({ p_passcode: 'team-passcode' });
     expect((calls[0].init!.headers as Record<string, string>).apikey).toBe('anon-key');
   });
 
-  it('distinguishes a wrong passcode from a connection failure', async () => {
-    stubFetch(() => Promise.resolve(jsonResponse(400, { message: 'invalid passcode' })));
+  it('reports a helpful hint when the row is missing (schema.sql not run yet)', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(200, [])));
     const result = await testSupabaseConnection(SETTINGS);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('passcode is wrong');
+    expect(result.message).toContain('one-time setup SQL');
+  });
+
+  it('surfaces a 401/403 as an auth failure', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(401, { message: 'Invalid API key' })));
+    const result = await testSupabaseConnection(SETTINGS);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('Project URL and Anon key are correct');
   });
 
   it('reports a thrown fetch as a reachability failure', async () => {
@@ -165,51 +156,65 @@ describe('testSupabaseConnection', () => {
 });
 
 describe('saveToSupabase', () => {
-  it('uploads the sanitized snapshot to workspace_sync_save', async () => {
+  it('PATCHes the sanitized snapshot to the table row directly (no RPC)', async () => {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(SETTINGS));
     localStorage.setItem('ucc:timetable:state', '{"lessons":[]}');
-    const calls = stubFetch(() => Promise.resolve(jsonResponse(200, null)));
+    const calls = stubFetch(() => Promise.resolve(jsonResponse(200, [{ id: 1 }])));
 
     const result = await saveToSupabase(SETTINGS);
     expect(result.ok).toBe(true);
-    expect(calls[0].url).toContain('/rest/v1/rpc/workspace_sync_save');
-    const body = JSON.parse(calls[0].init!.body as string);
-    expect(body.p_passcode).toBe('team-passcode');
-    expect(body.p_data['ucc:timetable:state']).toBe('{"lessons":[]}');
+    expect(calls[0].url).toBe(
+      'https://miwtrwmyfgcepcgxjryo.supabase.co/rest/v1/ucc_workspace_sync?id=eq.1',
+    );
+    expect((calls[0].init as RequestInit).method).toBe('PATCH');
+    const body = JSON.parse((calls[0].init as RequestInit).body as string);
+    expect(body.data['ucc:timetable:state']).toBe('{"lessons":[]}');
     // The uploaded settings entry never carries this browser's own Supabase fields.
-    const uploadedSettings = JSON.parse(body.p_data[SETTINGS_STORAGE_KEY]);
+    const uploadedSettings = JSON.parse(body.data[SETTINGS_STORAGE_KEY]);
     expect(uploadedSettings.supabaseAnonKey).toBeUndefined();
   });
 
-  it('reports a wrong passcode without silently succeeding', async () => {
-    stubFetch(() => Promise.resolve(jsonResponse(400, { message: 'invalid passcode' })));
+  it('reports when no row was updated instead of silently succeeding', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(200, [])));
     const result = await saveToSupabase(SETTINGS);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('Wrong passcode');
+    expect(result.message).toContain('Nothing was saved');
+  });
+
+  it('surfaces an auth failure', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(401, { message: 'Invalid API key' })));
+    const result = await saveToSupabase(SETTINGS);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain('Anon key are correct');
   });
 });
 
 describe('loadFromSupabase', () => {
-  it('applies the downloaded snapshot to localStorage', async () => {
-    stubFetch(() =>
-      Promise.resolve(jsonResponse(200, { 'ucc:timetable:state': '{"lessons":[1]}' })),
-    );
+  it('GETs the row and applies its data to localStorage', async () => {
+    stubFetch((url) => {
+      expect(url).toBe(
+        'https://miwtrwmyfgcepcgxjryo.supabase.co/rest/v1/ucc_workspace_sync?id=eq.1&select=data',
+      );
+      return Promise.resolve(
+        jsonResponse(200, [{ data: { 'ucc:timetable:state': '{"lessons":[1]}' } }]),
+      );
+    });
     const result = await loadFromSupabase(SETTINGS);
     expect(result.ok).toBe(true);
     expect(localStorage.getItem('ucc:timetable:state')).toBe('{"lessons":[1]}');
   });
 
-  it('treats an empty snapshot as "nothing saved yet", not silent success', async () => {
-    stubFetch(() => Promise.resolve(jsonResponse(200, {})));
+  it('treats an empty data blob as "nothing saved yet", not silent success', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(200, [{ data: {} }])));
     const result = await loadFromSupabase(SETTINGS);
     expect(result.ok).toBe(false);
     expect(result.message).toContain('Nothing has been saved');
   });
 
-  it('reports a wrong passcode without applying anything', async () => {
-    stubFetch(() => Promise.resolve(jsonResponse(400, { message: 'invalid passcode' })));
+  it('reports a missing row with the setup hint, without applying anything', async () => {
+    stubFetch(() => Promise.resolve(jsonResponse(200, [])));
     const result = await loadFromSupabase(SETTINGS);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain('Wrong passcode');
+    expect(result.message).toContain('one-time setup SQL');
   });
 });

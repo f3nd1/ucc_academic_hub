@@ -3,16 +3,14 @@ import { SETTINGS_STORAGE_KEY } from './settings';
 
 // ---------------------------------------------------------------------------
 // Cloud sync (Supabase) — save/load the whole workspace's localStorage as one
-// JSON snapshot, gated by a shared passcode checked SERVER-SIDE in Postgres.
+// JSON snapshot in a single Supabase table row.
 // ---------------------------------------------------------------------------
-// The Anon/publishable key is not a secret — it ends up in the app's public
-// JS bundle, readable by anyone. It is NOT what protects this data. The real
-// gate is two Postgres RPC functions (workspace_sync_load/save, see
-// supabase/schema.sql) that check a passcode hash server-side before touching
-// the table; Row Level Security denies the anon role ANY direct access to the
-// table itself, so the only door in is through those two passcode-checked
-// functions. This is a simple shared-team barrier, not full per-user auth —
-// appropriate for a small internal tool, not a substitute for real auth.
+// No extra passcode: anyone who has this Project URL and Anon key can read or
+// overwrite everything saved here — the Anon key is not really secret (it
+// ships in the app's public JS bundle), so treat the Project URL itself as
+// the thing to keep private. This is a simple shared-team convenience, not a
+// security boundary — appropriate for a small internal tool, not a substitute
+// for real per-user auth.
 //
 // Unlike ERPNext, Supabase's REST API sends permissive CORS headers by
 // design (it is meant to be called directly from browsers), so this talks to
@@ -25,11 +23,7 @@ const isAppKey = (key: string): boolean => key.startsWith('ucc');
 
 /** Local-only Settings fields: the connection info for reaching Supabase
  *  itself. Never included in what gets uploaded — see the module comment. */
-const LOCAL_ONLY_SETTINGS_KEYS = [
-  'supabaseUrl',
-  'supabaseAnonKey',
-  'supabasePasscode',
-] as const;
+const LOCAL_ONLY_SETTINGS_KEYS = ['supabaseUrl', 'supabaseAnonKey'] as const;
 
 const sanitizeSettingsJson = (raw: string): string => {
   try {
@@ -96,42 +90,48 @@ export interface SyncResult {
   message: string;
 }
 
-const rpcUrl = (baseUrl: string, fn: string): string =>
-  `${baseUrl.replace(/\/+$/, '')}/rest/v1/rpc/${fn}`;
+/** The single-row table (see supabase/schema.sql) holding the whole snapshot. */
+const TABLE = 'ucc_workspace_sync';
 
-interface RpcOutcome {
+const tableUrl = (baseUrl: string, query: string): string =>
+  `${baseUrl.replace(/\/+$/, '')}/rest/v1/${TABLE}?${query}`;
+
+const authHeaders = (anonKey: string): HeadersInit => ({
+  apikey: anonKey,
+  Authorization: `Bearer ${anonKey}`,
+});
+
+interface RestOutcome {
   ok: boolean;
-  data?: unknown;
+  status?: number;
+  rows?: { data?: Record<string, string> }[];
   message: string;
-  /** True when the RPC itself reported a wrong passcode (not a network/config problem). */
-  wrongPasscode?: boolean;
 }
 
-async function callRpc(
-  baseUrl: string,
+async function restCall(
+  url: string,
   anonKey: string,
-  fn: string,
-  args: Record<string, unknown>,
-): Promise<RpcOutcome> {
+  init: RequestInit,
+): Promise<RestOutcome> {
   try {
-    const res = await fetch(rpcUrl(baseUrl, fn), {
-      method: 'POST',
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(args),
+    const res = await fetch(url, {
+      ...init,
+      headers: { ...authHeaders(anonKey), ...init.headers },
     });
-    const body: unknown = await res.json().catch(() => null);
     if (!res.ok) {
-      const message =
+      const body: unknown = await res.json().catch(() => null);
+      const detail =
         body && typeof body === 'object' && 'message' in body
           ? String((body as { message: unknown }).message)
-          : `Supabase responded ${res.status} ${res.statusText}`;
-      return { ok: false, message, wrongPasscode: message.includes('invalid passcode') };
+          : `${res.status} ${res.statusText}`;
+      const authHint =
+        res.status === 401 || res.status === 403
+          ? ' Check the Project URL and Anon key are correct.'
+          : '';
+      return { ok: false, status: res.status, message: `Supabase error: ${detail}.${authHint}` };
     }
-    return { ok: true, data: body, message: 'ok' };
+    const rows: unknown = await res.json().catch(() => []);
+    return { ok: true, rows: Array.isArray(rows) ? rows : [], message: 'ok' };
   } catch (err) {
     return {
       ok: false,
@@ -145,31 +145,28 @@ async function callRpc(
 const guardConfig = (settings: AppSettings): SyncResult | null => {
   if (!settings.supabaseUrl.trim() || !settings.supabaseAnonKey.trim())
     return { ok: false, message: 'Set the Supabase Project URL and Anon key first.' };
-  if (!settings.supabasePasscode.trim())
-    return { ok: false, message: 'Enter the shared passcode first.' };
   return null;
 };
 
-/** Connectivity + passcode check, without saving or loading anything. */
+const NOT_SEEDED_HINT =
+  ' Has the one-time setup SQL (supabase/schema.sql) been run in your Supabase project yet?';
+
+/** Connectivity check, without saving or loading anything. */
 export async function testSupabaseConnection(
   settings: AppSettings,
 ): Promise<SyncResult> {
   const blocked = guardConfig(settings);
   if (blocked) return blocked;
 
-  const result = await callRpc(
-    settings.supabaseUrl,
+  const result = await restCall(
+    tableUrl(settings.supabaseUrl, 'id=eq.1&select=id'),
     settings.supabaseAnonKey,
-    'workspace_sync_load',
-    { p_passcode: settings.supabasePasscode },
+    { method: 'GET' },
   );
-  if (result.ok) return { ok: true, message: 'Connected to Supabase — passcode accepted.' };
-  if (result.wrongPasscode)
-    return {
-      ok: false,
-      message: 'Reached Supabase, but the passcode is wrong — check it and try again.',
-    };
-  return { ok: false, message: result.message };
+  if (!result.ok) return { ok: false, message: result.message };
+  if (!result.rows || result.rows.length === 0)
+    return { ok: false, message: `Connected, but no saved row was found.${NOT_SEEDED_HINT}` };
+  return { ok: true, message: 'Connected to Supabase.' };
 }
 
 /** Push this browser's entire app state up to Supabase (full replace). */
@@ -178,18 +175,18 @@ export async function saveToSupabase(settings: AppSettings): Promise<SyncResult>
   if (blocked) return blocked;
 
   const snapshot = snapshotLocalStorage();
-  const result = await callRpc(
-    settings.supabaseUrl,
+  const result = await restCall(
+    tableUrl(settings.supabaseUrl, 'id=eq.1'),
     settings.supabaseAnonKey,
-    'workspace_sync_save',
-    { p_passcode: settings.supabasePasscode, p_data: snapshot },
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ data: snapshot }),
+    },
   );
-  if (!result.ok) {
-    return {
-      ok: false,
-      message: result.wrongPasscode ? 'Wrong passcode — nothing was saved.' : result.message,
-    };
-  }
+  if (!result.ok) return { ok: false, message: result.message };
+  if (!result.rows || result.rows.length === 0)
+    return { ok: false, message: `Nothing was saved — no row was updated.${NOT_SEEDED_HINT}` };
   return { ok: true, message: 'Saved to Supabase.' };
 }
 
@@ -202,19 +199,16 @@ export async function loadFromSupabase(settings: AppSettings): Promise<SyncResul
   const blocked = guardConfig(settings);
   if (blocked) return blocked;
 
-  const result = await callRpc(
-    settings.supabaseUrl,
+  const result = await restCall(
+    tableUrl(settings.supabaseUrl, 'id=eq.1&select=data'),
     settings.supabaseAnonKey,
-    'workspace_sync_load',
-    { p_passcode: settings.supabasePasscode },
+    { method: 'GET' },
   );
-  if (!result.ok) {
-    return {
-      ok: false,
-      message: result.wrongPasscode ? 'Wrong passcode — nothing was loaded.' : result.message,
-    };
-  }
-  const data = result.data;
+  if (!result.ok) return { ok: false, message: result.message };
+  if (!result.rows || result.rows.length === 0)
+    return { ok: false, message: `Nothing was found to load.${NOT_SEEDED_HINT}` };
+
+  const data = result.rows[0].data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { ok: false, message: 'Supabase returned an unexpected reply — nothing was loaded.' };
   }
@@ -225,6 +219,6 @@ export async function loadFromSupabase(settings: AppSettings): Promise<SyncResul
         'Nothing has been saved to Supabase yet — use "Save & reload" from a browser that already has your data first.',
     };
   }
-  applySnapshot(data as Record<string, string>);
+  applySnapshot(data);
   return { ok: true, message: 'Loaded from Supabase.' };
 }
