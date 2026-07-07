@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { TOOLS } from '../tools/registry';
+import { USER_TOOLS } from '../tools/registry';
 import { Icon } from '../shared/Icon';
 
 /**
@@ -16,7 +16,7 @@ export function HomePage() {
       </header>
 
       <div className="tools-grid">
-        {TOOLS.map((tool) => (
+        {USER_TOOLS.map((tool) => (
           <Link key={tool.id} to={tool.path} className="tool-card">
             <span className="tool-card__top">
               <span className="tool-card__icon">

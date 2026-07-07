@@ -5,6 +5,15 @@ import type { ComponentType, LazyExoticComponent } from 'react';
 export type ToolStatus = 'active' | 'new' | 'beta';
 
 /**
+ * Where a registered entry sits in the navigation.
+ * - 'tool'   : a user-facing tracker; shown in the Home grid and the sidebar's
+ *              "Tools" group.
+ * - 'system' : a monitoring/admin/meta page (e.g. the Changelog); kept out of
+ *              the Home grid and shown in the sidebar's "System" group.
+ */
+export type ToolCategory = 'tool' | 'system';
+
+/**
  * One workspace tracker. This is the entire growth contract: to add a tool,
  * append a ToolDef here and create its page component. The sidebar, the Home
  * tools grid, and the routing table are all generated from this array, so
@@ -19,6 +28,8 @@ export interface ToolDef {
   /** Route path, e.g. "/timetable". */
   path: string;
   status: ToolStatus;
+  /** Navigation grouping; defaults to 'tool' when omitted. */
+  category?: ToolCategory;
   /** Lazily-loaded page; code for a tool is only fetched when first opened. */
   component: LazyExoticComponent<ComponentType>;
 }
@@ -63,8 +74,15 @@ const changelog: ToolDef = {
     'Every change to the workspace, generated straight from git history — date, commit, author, and the files that changed. Never goes stale.',
   icon: 'git-commit',
   path: '/changelog',
-  status: 'new',
+  status: 'active',
+  category: 'system',
   component: lazy(() => import('./changelog/ChangelogPage')),
 };
 
 export const TOOLS: ToolDef[] = [timetable, reviewPlanner, survey, changelog];
+
+/** User-facing trackers (Home grid + sidebar "Tools" group). */
+export const USER_TOOLS = TOOLS.filter((t) => t.category !== 'system');
+
+/** Monitoring/admin pages that live in the sidebar "System" group. */
+export const SYSTEM_TOOLS = TOOLS.filter((t) => t.category === 'system');

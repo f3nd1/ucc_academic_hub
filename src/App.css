@@ -1419,6 +1419,18 @@ select {
   letter-spacing: var(--label-spacing);
 }
 
+/* Small section header separating Tools / Workspace / System in the sidebar. */
+.sidebar__group {
+  margin: 0.85rem 0 0.15rem;
+  padding: 0 0.65rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
 .sidebar__link svg {
   flex-shrink: 0;
 }

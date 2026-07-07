@@ -1,9 +1,20 @@
 import { Suspense } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { TOOLS } from '../tools/registry';
+import { USER_TOOLS, SYSTEM_TOOLS, type ToolDef } from '../tools/registry';
 import { Icon } from '../shared/Icon';
 import { useHelp } from '../shared/help/helpStore';
 import { Tour } from '../shared/help/Tour';
+
+/** One sidebar nav item for a registered tool (status badge = beta only). */
+function ToolLink({ tool }: { tool: ToolDef }) {
+  return (
+    <NavLink to={tool.path} className="sidebar__link">
+      <Icon name={tool.icon} />
+      <span>{tool.name}</span>
+      {tool.status === 'beta' && <span className="chip chip--beta">beta</span>}
+    </NavLink>
+  );
+}
 
 /** Workspace-wide help controls: master toggle + restart tour. */
 function HelpControls() {
@@ -48,28 +59,28 @@ export function AppLayout() {
             <span>Home</span>
           </NavLink>
 
-          {TOOLS.map((tool) => (
-            <NavLink key={tool.id} to={tool.path} className="sidebar__link">
-              <Icon name={tool.icon} />
-              <span>{tool.name}</span>
-              {/* Only "beta" is surfaced in the sidebar; "new" badges were
-                  removed once the tools became established. */}
-              {tool.status === 'beta' && (
-                <span className="chip chip--beta">beta</span>
-              )}
-            </NavLink>
+          {/* Trackers — the day-to-day tools. */}
+          <p className="sidebar__group">Tools</p>
+          {USER_TOOLS.map((tool) => (
+            <ToolLink key={tool.id} tool={tool} />
           ))}
 
+          {/* Things you produce and reuse across tools. */}
+          <p className="sidebar__group">Workspace</p>
           <NavLink to="/saved" className="sidebar__link">
             <Icon name="folder" />
             <span>My Saved Items</span>
           </NavLink>
 
+          {/* Monitoring / admin / meta — not day-to-day tools. */}
+          <p className="sidebar__group">System</p>
           <NavLink to="/ai-log" className="sidebar__link">
             <Icon name="sparkles" />
             <span>AI Log</span>
           </NavLink>
-
+          {SYSTEM_TOOLS.map((tool) => (
+            <ToolLink key={tool.id} tool={tool} />
+          ))}
           <NavLink
             to="/settings"
             className="sidebar__link"
