@@ -14,6 +14,16 @@ export interface AppSettings {
   repoUrl: string;
   firstDayOfWeek: FirstDayOfWeek;
   theme: ThemeMode;
+  /**
+   * Cloud sync (Supabase), all optional. These three fields are LOCAL to this
+   * browser only — they describe how to reach your shared cloud store, so they
+   * are deliberately excluded from what gets synced (see supabaseSync.ts);
+   * syncing them would be circular and would overwrite one browser's
+   * connection details with another's on every reload.
+   */
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  supabasePasscode: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -25,6 +35,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   repoUrl: '',
   firstDayOfWeek: 'monday',
   theme: 'system',
+  supabaseUrl: '',
+  supabaseAnonKey: '',
+  supabasePasscode: '',
 };
 
 export const SETTINGS_STORAGE_KEY = 'ucc-timetable-settings';

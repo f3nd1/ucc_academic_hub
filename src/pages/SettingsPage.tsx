@@ -11,6 +11,11 @@ import {
 import { Hint } from '../shared/help/Hint';
 import { useTheme } from '../shared/themeStore';
 import { SKINS, type Skin } from '../shared/theme';
+import {
+  testSupabaseConnection,
+  saveToSupabase,
+  loadFromSupabase,
+} from '../shared/supabaseSync';
 
 const NOT_MAPPED = '';
 
@@ -118,6 +123,52 @@ export function SettingsPage() {
     };
     setMapping(next);
     saveErpFieldMapping(settings.erpDocType, next);
+  };
+
+  // Cloud sync (Supabase): one shared JSON snapshot of the whole workspace's
+  // saved data, gated by a passcode checked server-side (see supabase/schema.sql).
+  const [syncBusy, setSyncBusy] = useState<'test' | 'save' | 'load' | null>(null);
+  const [syncResult, setSyncResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const supabaseConfigured =
+    settings.supabaseUrl.trim() !== '' && settings.supabaseAnonKey.trim() !== '';
+
+  const handleSupabaseTest = async () => {
+    setSyncBusy('test');
+    setSyncResult(null);
+    setSyncResult(await testSupabaseConnection(settings));
+    setSyncBusy(null);
+  };
+
+  const handleSupabaseSave = async () => {
+    setSyncBusy('save');
+    setSyncResult(null);
+    const result = await saveToSupabase(settings);
+    if (result.ok) {
+      window.location.reload();
+      return;
+    }
+    setSyncResult(result);
+    setSyncBusy(null);
+  };
+
+  const handleSupabaseLoad = async () => {
+    setSyncBusy('load');
+    setSyncResult(null);
+    const result = await loadFromSupabase(settings);
+    if (result.ok) {
+      window.location.reload();
+      return;
+    }
+    setSyncResult(result);
+    setSyncBusy(null);
+  };
+
+  const handleSupabaseClear = () => {
+    update({ supabaseUrl: '', supabaseAnonKey: '', supabasePasscode: '' });
+    setSyncResult(null);
   };
 
   return (
@@ -414,6 +465,95 @@ export function SettingsPage() {
           the mode. Classic follows this; the other themes pin their palette.
         </p>
       </div>
+
+      <h3 className="settings__subhead">
+        Cloud sync (Supabase)
+        {supabaseConfigured && <span className="chip chip--ok">Configured</span>}
+      </h3>
+      <div className="banner banner--warn" role="note">
+        <strong>Note:</strong> the Anon/publishable key below is not secret —
+        it is visible to anyone who inspects this app's code. What actually
+        protects your data is a shared passcode checked inside your Supabase
+        database (see <code>supabase/schema.sql</code> in the project). This is
+        a simple shared-team barrier, appropriate for a small internal tool —
+        not full per-user security. Anyone who has the passcode can read or
+        overwrite everything saved here.
+      </div>
+      <div className="field">
+        <label htmlFor="supabaseUrl">Project URL</label>
+        <input
+          id="supabaseUrl"
+          value={settings.supabaseUrl}
+          onChange={(e) => update({ supabaseUrl: e.target.value })}
+          placeholder="https://xxxxxxxxxxxx.supabase.co"
+        />
+      </div>
+      <div className="grid-2">
+        <div className="field">
+          <label htmlFor="supabaseAnonKey">Anon / publishable key</label>
+          <input
+            id="supabaseAnonKey"
+            type="password"
+            value={settings.supabaseAnonKey}
+            onChange={(e) => update({ supabaseAnonKey: e.target.value })}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="supabasePasscode">Shared passcode</label>
+          <input
+            id="supabasePasscode"
+            type="password"
+            value={settings.supabasePasscode}
+            onChange={(e) => update({ supabasePasscode: e.target.value })}
+          />
+        </div>
+      </div>
+      <p className="hint">
+        Saves everything this app remembers — Settings, generated timetables,
+        and Module &amp; Course Review entries — as one snapshot in your
+        Supabase project, so it can follow you to another browser or device.
+        Only this Project URL, key, and passcode stay local to this browser
+        (they describe how to reach your cloud store, so syncing them would be
+        circular).
+      </p>
+      <div className="actions">
+        <button
+          className="btn"
+          onClick={handleSupabaseSave}
+          disabled={syncBusy !== null}
+        >
+          {syncBusy === 'save' ? 'Saving…' : 'Save & reload'}
+        </button>
+        <button
+          className="btn"
+          onClick={handleSupabaseTest}
+          disabled={syncBusy !== null}
+        >
+          {syncBusy === 'test' ? 'Testing…' : 'Test connection'}
+        </button>
+        <button
+          className="btn"
+          onClick={handleSupabaseLoad}
+          disabled={syncBusy !== null}
+        >
+          {syncBusy === 'load' ? 'Loading…' : 'Reload from Supabase'}
+        </button>
+        <button
+          className="btn"
+          onClick={handleSupabaseClear}
+          disabled={syncBusy !== null}
+        >
+          Clear (use local storage only)
+        </button>
+      </div>
+      {syncResult && (
+        <div
+          className={`banner ${syncResult.ok ? 'banner--ok' : 'banner--error'}`}
+          role="status"
+        >
+          {syncResult.message}
+        </div>
+      )}
 
       <p className="settings__saved">Changes are saved automatically.</p>
     </div>

@@ -514,6 +514,9 @@ tbody tr:nth-child(even) {
 }
 
 .settings__subhead {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin-top: 1.5rem;
   padding-top: 1.25rem;
   border-top: 1px solid var(--border);
@@ -1469,6 +1472,13 @@ select {
   color: var(--warn-ink);
   background: var(--warn-bg);
   border-color: var(--warn-border);
+}
+
+.chip--ok {
+  margin-left: 0;
+  color: var(--ok-ink);
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
 }
 
 /* ---------------- Home: tools grid ---------------- */
