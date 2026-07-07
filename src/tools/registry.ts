@@ -45,6 +45,17 @@ const reviewPlanner: ToolDef = {
   component: lazy(() => import('./review-planner/ReviewPlannerPage')),
 };
 
+const survey: ToolDef = {
+  id: 'survey',
+  name: 'Student Survey Analysis',
+  description:
+    'Upload survey results, flag areas below a threshold, compare against previous or benchmark data, and generate a structured academic report with Word and PDF export.',
+  icon: 'chart-bar',
+  path: '/survey',
+  status: 'new',
+  component: lazy(() => import('./survey/SurveyPage')),
+};
+
 const changelog: ToolDef = {
   id: 'changelog',
   name: 'Changelog',
@@ -56,4 +67,4 @@ const changelog: ToolDef = {
   component: lazy(() => import('./changelog/ChangelogPage')),
 };
 
-export const TOOLS: ToolDef[] = [timetable, reviewPlanner, changelog];
+export const TOOLS: ToolDef[] = [timetable, reviewPlanner, survey, changelog];

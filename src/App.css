@@ -2425,3 +2425,153 @@ a.chg-entry__hash:hover {
 .modal__head h3 {
   margin: 0;
 }
+
+/* ===================== Student Survey Analysis ===================== */
+.survey__head {
+  margin-bottom: 1.25rem;
+}
+
+.survey__uploads {
+  margin-bottom: 1rem;
+}
+
+.sv-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  padding: 0.9rem;
+}
+
+.sv-card__title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sv-card input {
+  font: inherit;
+  color: var(--field-ink);
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.sv-card__desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.sv-card__file {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ok-ink);
+  margin: 0;
+}
+
+.survey__actions {
+  flex-wrap: wrap;
+  margin: 1rem 0 0.5rem;
+}
+
+.survey__actions .btn--primary {
+  flex: 0 0 auto;
+}
+
+.survey__metrics {
+  grid-template-columns: repeat(4, 1fr);
+  margin: 1.25rem 0;
+}
+
+@media (max-width: 720px) {
+  .survey__metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.sv-metric {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 0.9rem 1rem;
+}
+
+.sv-metric__label {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.sv-metric__value {
+  margin: 0.3rem 0 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.sv-inforow {
+  border-radius: 10px;
+  background: var(--summary-bg);
+  padding: 0.7rem 0.85rem;
+}
+
+.sv-inforow__label {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.sv-inforow__value {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.survey__h2 {
+  margin: 1.75rem 0 0.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 1.1rem;
+}
+
+.survey__h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.survey__map {
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.survey__map select {
+  font: inherit;
+  color: var(--field-ink);
+  background: var(--field-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+
+.sv-report {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--ink);
+  background: var(--summary-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+}
