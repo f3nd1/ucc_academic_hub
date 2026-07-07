@@ -424,6 +424,43 @@ export function SettingsPage() {
         </p>
       </div>
 
+      <h3 className="settings__subhead">Anthropic (AI report writer)</h3>
+      <div className="field">
+        <label htmlFor="anthropicApiKey">API key</label>
+        <input
+          id="anthropicApiKey"
+          type="password"
+          value={settings.anthropicApiKey}
+          onChange={(e) => update({ anthropicApiKey: e.target.value })}
+          placeholder="sk-ant-..."
+          disabled={isLocked('anthropicApiKey')}
+        />
+        {lockNote('anthropicApiKey')}
+        <p className="field__help">
+          Optional. Used only by the <strong>Student Survey Analysis</strong>{' '}
+          tool: when set, Claude writes the report narrative from your computed
+          figures using the editable prompt on that page. Leave it blank to use
+          the built-in report writer (no AI, no cost). A small per-report API
+          cost is billed to this key. <strong>Same security caveat as the
+          ERPNext secret</strong> — the key is held in this browser, so only use
+          it for internal work, not a shared or public deployment.
+        </p>
+      </div>
+      <div className="field">
+        <label htmlFor="anthropicModel">Model</label>
+        <input
+          id="anthropicModel"
+          value={settings.anthropicModel}
+          onChange={(e) => update({ anthropicModel: e.target.value })}
+          placeholder="claude-opus-4-8"
+        />
+        <p className="field__help">
+          The Claude model used to write the report. Defaults to{' '}
+          <code>claude-opus-4-8</code>. For a cheaper, faster draft you can use{' '}
+          <code>claude-haiku-4-5</code>.
+        </p>
+      </div>
+
       <h3 className="settings__subhead">Calendar</h3>
       <div className="field">
         <label>First day of week</label>

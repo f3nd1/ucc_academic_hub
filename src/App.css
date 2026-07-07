@@ -2575,3 +2575,36 @@ a.chg-entry__hash:hover {
   border-radius: var(--radius);
   padding: 1.1rem 1.25rem;
 }
+
+.sv-prompt {
+  margin-top: 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--summary-bg);
+}
+
+.sv-prompt__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sv-prompt__head .survey__h2 {
+  margin: 0 0 0.25rem;
+}
+
+.sv-prompt__text {
+  width: 100%;
+  margin-top: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--field-bg, var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.85rem;
+  resize: vertical;
+}

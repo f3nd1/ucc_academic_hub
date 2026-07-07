@@ -1,5 +1,7 @@
 import { useMemo, useState, type ChangeEvent } from 'react';
 import { Hint } from '../../shared/help/Hint';
+import { useSettings } from '../../shared/settingsStore';
+import { DEFAULT_ANTHROPIC_MODEL } from '../../shared/settings';
 import {
   analyse,
   buildReport,
@@ -11,6 +13,12 @@ import {
 } from './surveyModel';
 import { isSupportedFile, parseSpreadsheetFile } from './surveyParse';
 import { exportReportToWord, exportReportToPdf } from './surveyExports';
+import { buildSurveyDataBlock, generateAiReport, AiReportError } from './surveyAi';
+import {
+  DEFAULT_SURVEY_PROMPT,
+  loadSurveyPrompt,
+  saveSurveyPrompt,
+} from './surveyPromptStore';
 
 type Status = { ok: boolean; text: string } | null;
 
@@ -55,6 +63,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export function SurveyPage() {
+  const [settings] = useSettings();
   const [currentDataset, setCurrentDataset] = useState<ParsedDataset | null>(null);
   const [comparisonDataset, setComparisonDataset] = useState<ParsedDataset | null>(null);
   const [threshold, setThreshold] = useState(3);
@@ -63,6 +72,16 @@ export function SurveyPage() {
   const [manualMaps, setManualMaps] = useState<ComparisonMap[]>([]);
   const [selCurrent, setSelCurrent] = useState('');
   const [selComparison, setSelComparison] = useState('');
+
+  // AI report: the editable instruction and the one-shot narrative it produces.
+  // When aiReport is set it is shown/exported in place of the built-in writer.
+  const [prompt, setPrompt] = useState(() => loadSurveyPrompt());
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [aiReport, setAiReport] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const apiKey = settings.anthropicApiKey.trim();
+  const model = settings.anthropicModel.trim() || DEFAULT_ANTHROPIC_MODEL;
 
   const currentSurveyColumns = useMemo(
     () => (currentDataset ? detectSurveyColumns(currentDataset.rows, currentDataset.columns) : []),
@@ -94,10 +113,19 @@ export function SurveyPage() {
     return analyse(currentDataset.rows, currentDataset.columns, threshold, comparison);
   }, [currentDataset, comparisonDataset, allMaps, threshold]);
 
-  const reportText = useMemo(
+  // The built-in (deterministic) report stays live with the current analysis;
+  // an AI report, once generated, is a snapshot that takes precedence until the
+  // data changes or the user regenerates.
+  const builtInReport = useMemo(
     () => (reportGenerated && analysis ? buildReport(analysis) : ''),
     [reportGenerated, analysis],
   );
+  const reportText = aiReport ?? builtInReport;
+  const reportSource: 'ai' | 'builtin' | null = aiReport
+    ? 'ai'
+    : reportGenerated
+      ? 'builtin'
+      : null;
 
   const handleUpload = async (
     e: ChangeEvent<HTMLInputElement>,
@@ -105,6 +133,7 @@ export function SurveyPage() {
   ) => {
     setStatus(null);
     setReportGenerated(false);
+    setAiReport(null);
     const file = e.target.files?.[0];
     if (!file) return;
     if (!isSupportedFile(file.name)) {
@@ -146,21 +175,70 @@ export function SurveyPage() {
   const removeManualMap = (index: number) =>
     setManualMaps((prev) => prev.filter((_, i) => i !== index));
 
-  const generateReport = () => {
+  /** Shared pre-flight for both report paths. Returns false (and sets a status)
+   *  when the inputs aren't ready. */
+  const reportInputsReady = () => {
     if (!currentDataset) {
       setStatus({ ok: false, text: 'Upload the current survey dataset before generating the report.' });
-      return;
+      return false;
     }
     if (currentSurveyColumns.length === 0) {
       setStatus({ ok: false, text: 'No numeric or convertible Likert-scale question columns were detected.' });
-      return;
+      return false;
     }
     if (Number.isNaN(threshold)) {
       setStatus({ ok: false, text: 'Enter a valid numeric threshold.' });
+      return false;
+    }
+    return true;
+  };
+
+  const generateReport = () => {
+    if (!reportInputsReady()) return;
+    setAiReport(null); // fall back to the built-in writer
+    setReportGenerated(true);
+    setStatus({ ok: true, text: 'Built-in report generated successfully.' });
+  };
+
+  const generateWithAi = async () => {
+    if (!reportInputsReady() || !analysis) return;
+    if (!apiKey) {
+      setStatus({
+        ok: false,
+        text: 'Add an Anthropic API key in Settings to generate with AI, or use the built-in report.',
+      });
       return;
     }
-    setReportGenerated(true);
-    setStatus({ ok: true, text: 'Report generated successfully.' });
+    setAiBusy(true);
+    setStatus({ ok: true, text: 'Writing the report with Claude, this can take a moment…' });
+    try {
+      const text = await generateAiReport({
+        apiKey,
+        model,
+        prompt,
+        dataBlock: buildSurveyDataBlock(analysis),
+      });
+      setAiReport(text);
+      setReportGenerated(true);
+      setStatus({ ok: true, text: `AI report generated with ${model}.` });
+    } catch (err) {
+      const text =
+        err instanceof AiReportError ? err.message : 'The AI report could not be generated.';
+      setStatus({ ok: false, text });
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const updatePrompt = (value: string) => {
+    setPrompt(value);
+    saveSurveyPrompt(value);
+  };
+
+  const resetPrompt = () => {
+    setPrompt(DEFAULT_SURVEY_PROMPT);
+    saveSurveyPrompt(DEFAULT_SURVEY_PROMPT);
+    setStatus({ ok: true, text: 'Report prompt reset to the default.' });
   };
 
   const doExport = async (fn: () => void | Promise<void>) => {
@@ -177,6 +255,7 @@ export function SurveyPage() {
     setComparisonDataset(null);
     setManualMaps([]);
     setReportGenerated(false);
+    setAiReport(null);
     setStatus(null);
     setSelCurrent('');
     setSelComparison('');
@@ -233,9 +312,74 @@ export function SurveyPage() {
         </div>
       )}
 
+      {/* -------- Report prompt (AI) -------- */}
+      <div className="sv-prompt">
+        <div className="sv-prompt__head">
+          <div>
+            <h2 className="survey__h2">Report prompt</h2>
+            <p className="hint">
+              Plain-English instructions for how Claude should write the report.
+              Edit them anytime; your version is remembered on this device. The
+              app always supplies the computed figures separately, so the prompt
+              only sets the audience, structure, and style.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="linkbtn"
+            onClick={() => setShowPrompt((v) => !v)}
+            aria-expanded={showPrompt}
+          >
+            {showPrompt ? 'Hide prompt' : 'Edit prompt'}
+          </button>
+        </div>
+        {showPrompt && (
+          <>
+            <textarea
+              className="sv-prompt__text"
+              value={prompt}
+              onChange={(e) => updatePrompt(e.target.value)}
+              rows={12}
+              spellCheck={false}
+              aria-label="Report prompt"
+            />
+            <div className="actions">
+              <button
+                type="button"
+                className="linkbtn"
+                onClick={resetPrompt}
+                disabled={prompt === DEFAULT_SURVEY_PROMPT}
+              >
+                Reset to default prompt
+              </button>
+            </div>
+          </>
+        )}
+        <p className="hint">
+          {apiKey
+            ? `AI report uses ${model}. `
+            : 'No Anthropic API key set, so “Generate with AI” is unavailable. '}
+          {!apiKey && (
+            <>
+              Add one under <strong>Settings → Anthropic</strong> to have Claude
+              write the narrative, or use the built-in writer below (no key, no
+              cost).
+            </>
+          )}
+        </p>
+      </div>
+
       <div className="actions survey__actions">
-        <button className="btn btn--primary" onClick={generateReport}>
-          Generate analysis
+        <button
+          className="btn btn--primary"
+          onClick={generateWithAi}
+          disabled={aiBusy || !apiKey}
+          title={apiKey ? undefined : 'Set an Anthropic API key in Settings first.'}
+        >
+          {aiBusy ? 'Generating…' : 'Generate with AI'}
+        </button>
+        <button className="btn" onClick={generateReport} disabled={aiBusy}>
+          Generate built-in report
         </button>
         <button className="btn" onClick={() => doExport(() => exportReportToWord(reportText))}>
           Export to Word
@@ -456,6 +600,11 @@ export function SurveyPage() {
       {reportGenerated && reportText && (
         <>
           <h2 className="survey__h2">Generated analytical report</h2>
+          <p className="hint">
+            {reportSource === 'ai'
+              ? `Written by Claude (${model}) from your figures using the report prompt above.`
+              : 'Written by the built-in report writer (no AI).'}
+          </p>
           <article className="sv-report">{reportText}</article>
         </>
       )}

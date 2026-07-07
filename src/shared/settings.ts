@@ -23,7 +23,18 @@ export interface AppSettings {
    */
   supabaseUrl: string;
   supabaseAnonKey: string;
+  /**
+   * Anthropic API key + model for the Student Survey Analysis tool's AI report
+   * writer. The key is browser-held (same security caveat as the ERPNext
+   * secret): fine for internal use, and per-report API cost is billed to it.
+   * Leave the key blank to fall back to the built-in deterministic report.
+   */
+  anthropicApiKey: string;
+  anthropicModel: string;
 }
+
+/** Default model for the AI report writer (kept current with the skill guidance). */
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-4-8';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   erpBaseUrl: '',
@@ -36,6 +47,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   supabaseUrl: '',
   supabaseAnonKey: '',
+  anthropicApiKey: '',
+  anthropicModel: DEFAULT_ANTHROPIC_MODEL,
 };
 
 export const SETTINGS_STORAGE_KEY = 'ucc-timetable-settings';
@@ -59,7 +72,8 @@ type EnvBackedKey =
   | 'erpDocType'
   | 'googleClientId'
   | 'supabaseUrl'
-  | 'supabaseAnonKey';
+  | 'supabaseAnonKey'
+  | 'anthropicApiKey';
 
 const ENV_FIELD_MAP: Record<EnvBackedKey, keyof ImportMetaEnv> = {
   erpBaseUrl: 'VITE_ERP_BASE_URL',
@@ -69,6 +83,7 @@ const ENV_FIELD_MAP: Record<EnvBackedKey, keyof ImportMetaEnv> = {
   googleClientId: 'VITE_GOOGLE_CLIENT_ID',
   supabaseUrl: 'VITE_SUPABASE_URL',
   supabaseAnonKey: 'VITE_SUPABASE_ANON_KEY',
+  anthropicApiKey: 'VITE_ANTHROPIC_API_KEY',
 };
 
 /** The subset of settings fixed by env vars (only non-empty ones), trimmed. */
