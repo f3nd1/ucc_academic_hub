@@ -14,6 +14,7 @@ import {
 import { isSupportedFile, parseSpreadsheetFile } from './surveyParse';
 import { exportReportToWord, exportReportToPdf } from './surveyExports';
 import { buildSurveyDataBlock, generateAiReport, AiReportError } from './surveyAi';
+import { appendAiLog } from '../../shared/aiLog';
 import {
   DEFAULT_SURVEY_PROMPT,
   loadSurveyPrompt,
@@ -211,19 +212,44 @@ export function SurveyPage() {
     }
     setAiBusy(true);
     setStatus({ ok: true, text: 'Writing the report with Claude, this can take a moment…' });
+
+    const dataBlock = buildSurveyDataBlock(analysis);
+    const promptSent = `System instructions:\n${prompt}\n\n${dataBlock}`;
+    const subject =
+      `${analysis.metadata.courseName}` +
+      (currentDataset ? ` · ${currentDataset.fileName}` : '');
+
     try {
-      const text = await generateAiReport({
-        apiKey,
-        model,
-        prompt,
-        dataBlock: buildSurveyDataBlock(analysis),
-      });
-      setAiReport(text);
+      const result = await generateAiReport({ apiKey, model, prompt, dataBlock });
+      setAiReport(result.text);
       setReportGenerated(true);
+      // Record the successful call for monitoring (see the AI Log page).
+      appendAiLog({
+        tool: 'Student Survey Analysis',
+        subject,
+        model,
+        status: 'ok',
+        promptSent,
+        output: result.text,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+      });
       setStatus({ ok: true, text: `AI report generated with ${model}.` });
     } catch (err) {
       const text =
         err instanceof AiReportError ? err.message : 'The AI report could not be generated.';
+      // Record failures too — they're the most useful thing to monitor.
+      appendAiLog({
+        tool: 'Student Survey Analysis',
+        subject,
+        model,
+        status: 'error',
+        promptSent,
+        output: '',
+        inputTokens: 0,
+        outputTokens: 0,
+        error: text,
+      });
       setStatus({ ok: false, text });
     } finally {
       setAiBusy(false);

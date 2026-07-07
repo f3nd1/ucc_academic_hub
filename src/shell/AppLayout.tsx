@@ -52,10 +52,10 @@ export function AppLayout() {
             <NavLink key={tool.id} to={tool.path} className="sidebar__link">
               <Icon name={tool.icon} />
               <span>{tool.name}</span>
-              {tool.status !== 'active' && (
-                <span className={`chip chip--${tool.status}`}>
-                  {tool.status}
-                </span>
+              {/* Only "beta" is surfaced in the sidebar; "new" badges were
+                  removed once the tools became established. */}
+              {tool.status === 'beta' && (
+                <span className="chip chip--beta">beta</span>
               )}
             </NavLink>
           ))}
@@ -63,6 +63,11 @@ export function AppLayout() {
           <NavLink to="/saved" className="sidebar__link">
             <Icon name="folder" />
             <span>My Saved Items</span>
+          </NavLink>
+
+          <NavLink to="/ai-log" className="sidebar__link">
+            <Icon name="sparkles" />
+            <span>AI Log</span>
           </NavLink>
 
           <NavLink

@@ -74,12 +74,15 @@ describe('generateAiReport', () => {
     ({
       ok: true,
       status: 200,
-      json: async () => ({ content: [{ type: 'text', text }] }),
+      json: async () => ({
+        content: [{ type: 'text', text }],
+        usage: { input_tokens: 1200, output_tokens: 800 },
+      }),
     }) as unknown as Response;
 
-  it('sends the required headers and body, and returns the report text', async () => {
+  it('sends the required headers and body, and returns the report text + usage', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(okResponse('THE REPORT'));
-    const text = await generateAiReport({
+    const result = await generateAiReport({
       apiKey: 'sk-test',
       model: 'claude-opus-4-8',
       prompt: 'be formal',
@@ -87,7 +90,9 @@ describe('generateAiReport', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
-    expect(text).toBe('THE REPORT');
+    expect(result.text).toBe('THE REPORT');
+    expect(result.inputTokens).toBe(1200);
+    expect(result.outputTokens).toBe(800);
     const [url, init] = fetchImpl.mock.calls[0];
     expect(url).toBe('https://api.anthropic.com/v1/messages');
     const headers = init.headers as Record<string, string>;

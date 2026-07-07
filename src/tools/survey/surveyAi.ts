@@ -115,14 +115,22 @@ interface AnthropicContentBlock {
 }
 interface AnthropicResponse {
   content?: AnthropicContentBlock[];
+  usage?: { input_tokens?: number; output_tokens?: number };
   error?: { type?: string; message?: string };
 }
 
+export interface AiReportResult {
+  text: string;
+  /** Token usage reported by the API (0 if the response omitted it). */
+  inputTokens: number;
+  outputTokens: number;
+}
+
 /**
- * Ask Claude to write the report. Returns the plain-text narrative, or throws
- * an AiReportError whose message is safe to show the user.
+ * Ask Claude to write the report. Returns the narrative plus token usage, or
+ * throws an AiReportError whose message is safe to show the user.
  */
-export async function generateAiReport(options: GenerateAiReportOptions): Promise<string> {
+export async function generateAiReport(options: GenerateAiReportOptions): Promise<AiReportResult> {
   const { apiKey, model, prompt, dataBlock, fetchImpl = fetch, maxTokens = 4096 } = options;
 
   if (!apiKey.trim()) {
@@ -184,5 +192,9 @@ export async function generateAiReport(options: GenerateAiReportOptions): Promis
   if (!text) {
     throw new AiReportError('The Anthropic API returned an empty report. Try again.');
   }
-  return text;
+  return {
+    text,
+    inputTokens: data.usage?.input_tokens ?? 0,
+    outputTokens: data.usage?.output_tokens ?? 0,
+  };
 }

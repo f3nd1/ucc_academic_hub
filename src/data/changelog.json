@@ -1,5 +1,58 @@
 [
   {
+    "hash": "226c45c",
+    "date": "2026-07-07T10:40:39+00:00",
+    "author": "Claude",
+    "subject": "Survey tool: AI-written report with an editable prompt",
+    "files": [
+      {
+        "path": ".env.example",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/App.css",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/data/changelog.json",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/pages/SettingsPage.tsx",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/shared/settings.ts",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/tools/survey/SurveyPage.tsx",
+        "changeType": "modified"
+      },
+      {
+        "path": "src/tools/survey/surveyAi.ts",
+        "changeType": "added"
+      },
+      {
+        "path": "src/tools/survey/surveyPromptStore.ts",
+        "changeType": "added"
+      },
+      {
+        "path": "src/vite-env.d.ts",
+        "changeType": "modified"
+      },
+      {
+        "path": "tests/surveyAi.test.ts",
+        "changeType": "added"
+      },
+      {
+        "path": "tests/surveyPromptStore.test.ts",
+        "changeType": "added"
+      }
+    ],
+    "body": "Adds an optional AI report writer to Student Survey Analysis. The app\nsends the computed figures plus a plain-English, user-editable prompt to\nClaude, which writes the narrative; the built-in deterministic writer\nstays as the no-key, no-cost fallback.\n\n- settings: anthropicApiKey + anthropicModel (VITE_ANTHROPIC_API_KEY env\n  support, shown read-only when server-locked); Anthropic section in\n  Settings with the same browser-held-key security note as ERPNext.\n- surveyPromptStore: default report prompt persisted under\n  ucc:survey:prompt (so it also travels with the Supabase snapshot),\n  with reset-to-default.\n- surveyAi: pure data-block builder from Analysis + a browser fetch to\n  api.anthropic.com (x-api-key, anthropic-version, direct-browser-access\n  header) with friendly errors for missing key, 401, 429, and network.\n- SurveyPage: editable Report prompt panel, \"Generate with AI\" vs\n  \"Generate built-in report\", and a source note on the output.\n- Tests: surveyAi (data block + request shape/headers/error mapping) and\n  surveyPromptStore. Full suite 249 passing; typecheck, lint, and build\n  clean. Verified end-to-end in a browser against a mocked Anthropic API.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01B4oYgPhv1Ufw1XwUy3sP39"
+  },
+  {
     "hash": "26c9ea4",
     "date": "2026-07-07T09:45:20+00:00",
     "author": "Claude",

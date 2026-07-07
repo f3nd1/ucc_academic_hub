@@ -8,6 +8,7 @@ import { AppLayout } from './shell/AppLayout';
 import { HomePage } from './shell/HomePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SavedItemsPage } from './pages/SavedItemsPage';
+import { AiLogPage } from './pages/AiLogPage';
 import { TOOLS } from './tools/registry';
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
                     );
                   })}
                   <Route path="/saved" element={<SavedItemsPage />} />
+                  <Route path="/ai-log" element={<AiLogPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
               </Routes>
