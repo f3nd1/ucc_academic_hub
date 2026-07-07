@@ -2178,6 +2178,7 @@ a.chg-entry__hash:hover {
 .si-tree__row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
   border-radius: 6px;
   padding-right: 0.25rem;
@@ -2237,16 +2238,20 @@ a.chg-entry__hash:hover {
   background: var(--active, var(--summary-bg));
 }
 
+/* Folder actions are always visible (like the item rows) so Rename/Delete are
+   never hidden behind a hover; they wrap under the name on narrow panels. */
 .si-tree__actions {
-  display: none;
+  display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
   font-size: 0.72rem;
+  padding: 0 0.1rem 0.15rem 1.4rem;
+  width: 100%;
 }
 
-.si-tree__row:hover .si-tree__actions,
-.si-tree__row--active .si-tree__actions {
-  display: inline-flex;
+.si-tree__actions .linkbtn {
+  font-size: 0.72rem;
 }
 
 .si-newfolder {
