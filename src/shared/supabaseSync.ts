@@ -1,5 +1,5 @@
 import type { AppSettings } from './settings';
-import { SETTINGS_STORAGE_KEY } from './settings';
+import { SETTINGS_STORAGE_KEY, envLockedKeys } from './settings';
 
 // ---------------------------------------------------------------------------
 // Cloud sync (Supabase) — save/load the whole workspace's localStorage as one
@@ -29,6 +29,9 @@ const sanitizeSettingsJson = (raw: string): string => {
   try {
     const obj = JSON.parse(raw) as Record<string, unknown>;
     for (const k of LOCAL_ONLY_SETTINGS_KEYS) delete obj[k];
+    // Env-provided fields live in each server's .env — never push them to the
+    // cloud (every deployment supplies its own, and secrets shouldn't travel).
+    for (const k of envLockedKeys()) delete obj[k];
     return JSON.stringify(obj);
   } catch {
     return raw;

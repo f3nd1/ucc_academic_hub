@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FirstDayOfWeek, ThemeMode } from '../shared/settings';
+import type { AppSettings, FirstDayOfWeek, ThemeMode } from '../shared/settings';
+import { envLockedKeys } from '../shared/settings';
 import { useSettings } from '../shared/settingsStore';
 import { testErpConnection, fetchSampleFields, listErpDocTypes } from '../erpnext';
 import {
@@ -22,6 +23,19 @@ const NOT_MAPPED = '';
 export function SettingsPage() {
   const [settings, update] = useSettings();
   const [skin, setSkin] = useTheme();
+
+  // Fields fixed by the server's .env: shown read-only with a note, so it's
+  // clear they're set on the server and edited there (then rebuilt), not here.
+  const envLocked = useMemo(() => envLockedKeys(), []);
+  const isLocked = (key: keyof AppSettings) => envLocked.has(key);
+  const lockNote = (key: keyof AppSettings) =>
+    envLocked.has(key) ? (
+      <p className="hint hint--locked">
+        🔒 Set on the server in <code>.env</code>. Edit it there and rebuild to
+        change it.
+      </p>
+    ) : null;
+
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -191,7 +205,9 @@ export function SettingsPage() {
           value={settings.erpBaseUrl}
           onChange={(e) => update({ erpBaseUrl: e.target.value })}
           placeholder="https://erp.unitedceres.edu.sg"
+          disabled={isLocked('erpBaseUrl')}
         />
+        {lockNote('erpBaseUrl')}
         <p className="hint">
           Requests never hit ERPNext directly from the browser — they go
           same-origin through the <code>/erp</code> proxy (target set in{' '}
@@ -210,7 +226,9 @@ export function SettingsPage() {
             id="erpApiKey"
             value={settings.erpApiKey}
             onChange={(e) => update({ erpApiKey: e.target.value })}
+            disabled={isLocked('erpApiKey')}
           />
+          {lockNote('erpApiKey')}
         </div>
         <div className="field">
           <label htmlFor="erpApiSecret">API secret</label>
@@ -219,7 +237,9 @@ export function SettingsPage() {
             type="password"
             value={settings.erpApiSecret}
             onChange={(e) => update({ erpApiSecret: e.target.value })}
+            disabled={isLocked('erpApiSecret')}
           />
+          {lockNote('erpApiSecret')}
         </div>
       </div>
       <div className="field">
@@ -230,6 +250,7 @@ export function SettingsPage() {
             value={settings.erpDocType}
             onChange={(e) => update({ erpDocType: e.target.value })}
             placeholder="e.g. Course"
+            disabled={isLocked('erpDocType')}
           />
           <button
             type="button"
@@ -240,6 +261,7 @@ export function SettingsPage() {
             {loadingDocTypes ? 'Loading…' : 'Browse DocTypes'}
           </button>
         </div>
+        {lockNote('erpDocType')}
         <p className="hint">
           Fetches real DocType names from ERPNext to pick from — needs the API
           user to have read permission on "DocType" (usually a System Manager
@@ -375,7 +397,9 @@ export function SettingsPage() {
           value={settings.googleClientId}
           onChange={(e) => update({ googleClientId: e.target.value })}
           placeholder="xxxxxxxx.apps.googleusercontent.com"
+          disabled={isLocked('googleClientId')}
         />
+        {lockNote('googleClientId')}
         <p className="field__help">
           Web-application OAuth client ID with the Google Sheets API enabled. Its
           Authorised JavaScript origin must equal this app's forwarded Codespace
@@ -486,7 +510,9 @@ export function SettingsPage() {
           value={settings.supabaseUrl}
           onChange={(e) => update({ supabaseUrl: e.target.value })}
           placeholder="https://xxxxxxxxxxxx.supabase.co"
+          disabled={isLocked('supabaseUrl')}
         />
+        {lockNote('supabaseUrl')}
       </div>
       <div className="field">
         <label htmlFor="supabaseAnonKey">Anon / publishable key</label>
@@ -495,7 +521,9 @@ export function SettingsPage() {
           type="password"
           value={settings.supabaseAnonKey}
           onChange={(e) => update({ supabaseAnonKey: e.target.value })}
+          disabled={isLocked('supabaseAnonKey')}
         />
+        {lockNote('supabaseAnonKey')}
       </div>
       <p className="hint">
         Saves everything this app remembers — Settings, generated timetables,
@@ -530,7 +558,16 @@ export function SettingsPage() {
         <button
           className="btn"
           onClick={handleSupabaseClear}
-          disabled={syncBusy !== null}
+          disabled={
+            syncBusy !== null ||
+            isLocked('supabaseUrl') ||
+            isLocked('supabaseAnonKey')
+          }
+          title={
+            isLocked('supabaseUrl') || isLocked('supabaseAnonKey')
+              ? 'Supabase is configured on the server (.env) and cannot be cleared here.'
+              : undefined
+          }
         >
           Clear (use local storage only)
         </button>

@@ -169,6 +169,12 @@
   font-size: 0.85rem;
 }
 
+/* Note under a field whose value is fixed by the server's .env. */
+.hint--locked {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
 /* Input + inline action button, e.g. DocType field + "Browse DocTypes" */
 .field__row {
   display: flex;
