@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { ScheduledLesson, Course, Conflict, HolidaySet } from './types';
+import type { LoadedItem } from './shared/savedItems';
 import { loadWizard, type WizardState } from './wizard/wizardModel';
 import { useSettings } from './shared/settingsStore';
 import {
@@ -24,6 +25,7 @@ export function TimetableProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<ViewMode>('list');
   const [messages, setMessages] = useState<string[]>([]);
   const [banner, setBanner] = useState<Banner>(null);
+  const [savedItem, setSavedItem] = useState<LoadedItem | null>(null);
 
   return (
     <TimetableCtx.Provider
@@ -48,6 +50,8 @@ export function TimetableProvider({ children }: { children: ReactNode }) {
         setMessages,
         banner,
         setBanner,
+        savedItem,
+        setSavedItem,
       }}
     >
       {children}

@@ -8,13 +8,8 @@ import {
   overwriteItem,
   type Folder,
   type SavedItem,
+  type LoadedItem,
 } from './savedItems';
-
-/** The currently open/saved item this tool is working with, for overwrite. */
-export interface LoadedItem {
-  id: string;
-  name: string;
-}
 
 interface Props {
   toolId: string;

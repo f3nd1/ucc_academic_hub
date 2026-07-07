@@ -43,6 +43,12 @@ export interface Result<T> {
   data?: T;
 }
 
+/** The saved item a tool currently has open, for "Save (overwrite this one)". */
+export interface LoadedItem {
+  id: string;
+  name: string;
+}
+
 // --- snake_case (Postgres) <-> camelCase (frontend) mapping -----------------
 
 interface FolderRow {

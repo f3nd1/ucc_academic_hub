@@ -46,6 +46,8 @@ import { HybridView } from '../../views/HybridView';
 import { AmendView, type AmendableField } from '../../views/AmendView';
 import { Wizard } from '../../wizard/Wizard';
 import { FullForm } from '../../FullForm';
+import { SavedItemControls } from '../../shared/SavedItemControls';
+import { parseTimetablePayload, type TimetablePayload } from './timetableSaved';
 import {
   saveWizard,
   primaryNameLabel,
@@ -82,6 +84,8 @@ export function TimetablePage() {
     setMessages,
     banner,
     setBanner,
+    savedItem,
+    setSavedItem,
   } = useTimetableStore();
   const [busy, setBusy] = useState(false);
   // ERPNext record picker contents (null = picker closed). Transient UI state,
@@ -300,6 +304,40 @@ export function TimetablePage() {
     fn();
   };
 
+  // --- Saved Items: serialise/restore the whole generated timetable ---------
+  const canSaveTimetable = !!lessons && lessons.length > 0 && !!course && !!holidays;
+
+  const buildTimetablePayload = (): TimetablePayload => ({
+    version: 1,
+    wizard,
+    lessons: lessons ?? [],
+    course: course!,
+    holidays: holidays!,
+  });
+
+  // Restore a saved timetable: put the wizard/config back AND the generated
+  // (possibly hand-edited) lessons, then re-run conflict detection so the
+  // highlighted clashes reflect the restored schedule rather than stale data.
+  const applyTimetablePayload = (payload: unknown) => {
+    const p = parseTimetablePayload(payload);
+    if (!p) {
+      setBanner({
+        ok: false,
+        message: 'This saved item is missing timetable data and cannot be opened.',
+      });
+      return;
+    }
+    setWizard(p.wizard);
+    const scan = detectConflicts(p.lessons);
+    setLessons(scan.lessons);
+    setConflicts(scan.conflicts);
+    setCourse(p.course);
+    setHolidays(p.holidays);
+    setMessages([]);
+    setView(p.wizard.intent ?? 'list');
+    setBanner({ ok: true, message: 'Opened saved timetable.' });
+  };
+
   // PDF follows the ACTIVE view: List -> table, Calendar -> month grids,
   // Hybrid -> the planner matrix (matching the Planner Sheets export).
   const handlePdf = () =>
@@ -418,6 +456,14 @@ export function TimetablePage() {
         <div className="preview-head">
           <h2>Preview</h2>
           <div className="exports" data-tour="exports">
+            <SavedItemControls
+              toolId="timetable"
+              canSave={canSaveTimetable}
+              buildPayload={buildTimetablePayload}
+              applyPayload={applyTimetablePayload}
+              loaded={savedItem}
+              setLoaded={setSavedItem}
+            />
             <button
               className="btn"
               title="Always exports the list-style table, whatever view is active."

@@ -1,6 +1,7 @@
 import { createContext, useContext, type Dispatch, type SetStateAction } from 'react';
 import type { ScheduledLesson, Course, Conflict, HolidaySet } from './types';
 import type { WizardState } from './wizard/wizardModel';
+import type { LoadedItem } from './shared/savedItems';
 
 export type ViewMode = 'list' | 'calendar' | 'hybrid' | 'amend';
 export type Banner = { ok: boolean; message: string } | null;
@@ -33,6 +34,10 @@ export interface TimetableStore {
   setMessages: Dispatch<SetStateAction<string[]>>;
   banner: Banner;
   setBanner: Dispatch<SetStateAction<Banner>>;
+  /** The Saved Item currently open (enables "Save over this one"); persists
+   *  across navigation like the rest of the timetable state. */
+  savedItem: LoadedItem | null;
+  setSavedItem: Dispatch<SetStateAction<LoadedItem | null>>;
 }
 
 export const TimetableCtx = createContext<TimetableStore | null>(null);
