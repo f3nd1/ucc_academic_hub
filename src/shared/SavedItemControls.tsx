@@ -22,6 +22,9 @@ interface Props {
   /** The item currently loaded/saved (enables "Save over this one"). */
   loaded: LoadedItem | null;
   setLoaded: (v: LoadedItem | null) => void;
+  /** Called after a successful save (create or overwrite) — e.g. to reset a
+   *  tool's "unsaved changes" baseline. */
+  onAfterSave?: () => void;
 }
 
 function folderPickerOptions(folders: Folder[]): { id: string; label: string }[] {
@@ -55,6 +58,7 @@ export function SavedItemControls({
   applyPayload,
   loaded,
   setLoaded,
+  onAfterSave,
 }: Props) {
   const [settings] = useSettings();
   const configured =
@@ -102,6 +106,7 @@ export function SavedItemControls({
     setNotice({ ok: r.ok, text: r.message });
     if (r.ok && r.data) {
       setLoaded({ id: r.data.id, name: r.data.name });
+      onAfterSave?.();
       setSaveOpen(false);
     }
   };
@@ -112,7 +117,10 @@ export function SavedItemControls({
     const r = await overwriteItem(settings, loaded.id, buildPayload());
     setBusy(false);
     setNotice({ ok: r.ok, text: r.message });
-    if (r.ok) setSaveOpen(false);
+    if (r.ok) {
+      onAfterSave?.();
+      setSaveOpen(false);
+    }
   };
 
   const onBrowserLoad = (item: SavedItem) => {

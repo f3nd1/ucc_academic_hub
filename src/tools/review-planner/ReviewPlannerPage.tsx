@@ -1,6 +1,9 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDisplayDate } from '../../shared/dates';
 import { Hint } from '../../shared/help/Hint';
+import { SavedItemControls } from '../../shared/SavedItemControls';
+import type { LoadedItem } from '../../shared/savedItems';
+import { parseReviewPayload, type ReviewPayload } from './reviewSaved';
 import {
   computeCourse,
   courseFieldInvalid,
@@ -110,11 +113,47 @@ export function ReviewPlannerPage() {
   const [courses, setCourses] = useState<CourseReview[]>(initial.courses);
   const [banner, setBanner] = useState<string | null>(null);
   const [sort, setSort] = useState<ModuleSort | null>(null);
+  const [savedItem, setSavedItem] = useState<LoadedItem | null>(null);
+
+  // Mirror the current rows into a ref, and track the last saved/loaded
+  // snapshot, so opening a saved item can warn before discarding real edits.
+  const dataRef = useRef({ modules, courses });
+  const baselineRef = useRef(JSON.stringify({ modules, courses }));
 
   // Persist to the tool's namespaced localStorage slice on every change.
   useEffect(() => {
+    dataRef.current = { modules, courses };
     saveReviewData({ modules, courses });
   }, [modules, courses]);
+
+  // --- Saved Items: persist/restore the raw rows (dates recompute live) -----
+  const buildReviewPayload = (): ReviewPayload => ({
+    version: 1,
+    modules: dataRef.current.modules,
+    courses: dataRef.current.courses,
+  });
+
+  const applyReviewPayload = (payload: unknown) => {
+    const p = parseReviewPayload(payload);
+    if (!p) {
+      setBanner('This saved item is missing review data and cannot be opened.');
+      return;
+    }
+    const dirty = JSON.stringify(dataRef.current) !== baselineRef.current;
+    if (
+      dirty &&
+      !window.confirm('Discard your current unsaved changes and open this saved item?')
+    )
+      return;
+    setModules(p.modules);
+    setCourses(p.courses);
+    baselineRef.current = JSON.stringify({ modules: p.modules, courses: p.courses });
+    setBanner('Opened saved review. Review dates recalculated from the rows.');
+  };
+
+  const markSaved = () => {
+    baselineRef.current = JSON.stringify(dataRef.current);
+  };
 
   // Course calculations recompute live whenever any module or course changes.
   const courseComputed = useMemo(
@@ -168,6 +207,15 @@ export function ReviewPlannerPage() {
           </p>
         </div>
         <div className="exports">
+          <SavedItemControls
+            toolId="reviewPlanner"
+            canSave={modules.length > 0 || courses.length > 0}
+            buildPayload={buildReviewPayload}
+            applyPayload={applyReviewPayload}
+            loaded={savedItem}
+            setLoaded={setSavedItem}
+            onAfterSave={markSaved}
+          />
           <button className="btn" onClick={() => runExport(exportReviewPdf)}>
             PDF
           </button>
