@@ -2000,8 +2000,28 @@ a.chg-entry__hash:hover {
   color: var(--muted);
 }
 
-.chg-details {
+.chg-entry__panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 0.35rem 1.5rem;
   margin-top: 0.35rem;
+}
+
+/* A lone panel (e.g. no Description on this commit) takes the full width
+   instead of leaving the second column visibly empty. */
+.chg-entry__panels > .chg-details:only-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .chg-entry__panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chg-details {
+  margin-top: 0;
 }
 
 .chg-details summary {

@@ -4,6 +4,7 @@ import { useSettings } from '../../shared/settingsStore';
 import { Icon } from '../../shared/Icon';
 import {
   changeTypeRole,
+  entryDisplayDate,
   entryTime,
   filterEntries,
   groupByDay,
@@ -31,37 +32,41 @@ function Entry({ entry, commitUrl }: { entry: ChangelogEntry; commitUrl: string 
         )}
       </div>
       <p className="chg-entry__meta">
-        {entry.author}
+        {entryDisplayDate(entry)}
         {time && <> · {time}</>}
+        {' · '}
+        {entry.author}
       </p>
 
-      {entry.body && (
-        <details className="chg-details">
-          <summary>Description</summary>
-          <pre className="chg-body">{entry.body}</pre>
-        </details>
-      )}
+      <div className="chg-entry__panels">
+        {entry.body && (
+          <details className="chg-details">
+            <summary>Description</summary>
+            <pre className="chg-body">{entry.body}</pre>
+          </details>
+        )}
 
-      <details className="chg-details">
-        <summary>
-          {entry.files.length} file{entry.files.length === 1 ? '' : 's'} changed
-        </summary>
-        <ul className="chg-files">
-          {entry.files.map((f) => (
-            <li key={f.path} className={`chg-file ${ROLE_CLASS[changeTypeRole(f.changeType)]}`}>
-              <span className="chg-file__type">{CHANGE_LABEL[f.changeType]}</span>
-              <code className="chg-file__path">{f.path}</code>
-            </li>
-          ))}
-          {entry.files.length === 0 && (
-            <li className="chg-file chg-file--modified">
-              <span className="chg-file__path chg-file__path--muted">
-                No file changes recorded (e.g. a merge commit).
-              </span>
-            </li>
-          )}
-        </ul>
-      </details>
+        <details className="chg-details">
+          <summary>
+            {entry.files.length} file{entry.files.length === 1 ? '' : 's'} changed
+          </summary>
+          <ul className="chg-files">
+            {entry.files.map((f) => (
+              <li key={f.path} className={`chg-file ${ROLE_CLASS[changeTypeRole(f.changeType)]}`}>
+                <span className="chg-file__type">{CHANGE_LABEL[f.changeType]}</span>
+                <code className="chg-file__path">{f.path}</code>
+              </li>
+            ))}
+            {entry.files.length === 0 && (
+              <li className="chg-file chg-file--modified">
+                <span className="chg-file__path chg-file__path--muted">
+                  No file changes recorded (e.g. a merge commit).
+                </span>
+              </li>
+            )}
+          </ul>
+        </details>
+      </div>
     </article>
   );
 }
