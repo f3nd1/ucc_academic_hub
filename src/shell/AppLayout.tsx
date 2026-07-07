@@ -60,6 +60,11 @@ export function AppLayout() {
             </NavLink>
           ))}
 
+          <NavLink to="/saved" className="sidebar__link">
+            <Icon name="folder" />
+            <span>My Saved Items</span>
+          </NavLink>
+
           <NavLink
             to="/settings"
             className="sidebar__link"

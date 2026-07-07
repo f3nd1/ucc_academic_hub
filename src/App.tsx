@@ -7,6 +7,7 @@ import { TimetableProvider } from './TimetableProvider';
 import { AppLayout } from './shell/AppLayout';
 import { HomePage } from './shell/HomePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { SavedItemsPage } from './pages/SavedItemsPage';
 import { TOOLS } from './tools/registry';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
                       />
                     );
                   })}
+                  <Route path="/saved" element={<SavedItemsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
               </Routes>
