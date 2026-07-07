@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run changelog",
     "dev": "vite",
     "changelog": "node --experimental-strip-types scripts/generate-changelog.ts",
     "prebuild": "npm run changelog",

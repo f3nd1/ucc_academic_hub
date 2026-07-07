@@ -30,3 +30,8 @@ dist-ssr
 
 # Throwaway browser-test screenshots (kept in the scratchpad, never the repo)
 /*.png
+
+# Generated from git history by `npm run changelog` (runs on predev + prebuild).
+# Kept OUT of the repo because every build rewrites it — committing it made the
+# build dirty the working tree and block the next `git pull` on the server.
+src/data/changelog.json
