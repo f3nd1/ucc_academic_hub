@@ -2273,6 +2273,19 @@ a.chg-entry__hash:hover {
   flex: 1;
 }
 
+.si-move-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.si-move-label {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 .si-move {
   font: inherit;
   font-size: 0.72rem;

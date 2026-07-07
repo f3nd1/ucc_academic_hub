@@ -56,6 +56,27 @@ function buildTree(folders: Folder[]): TreeNode[] {
   return roots;
 }
 
+/** All folder ids in the subtree under `id` (excluding `id`) — a folder may not
+ *  be moved into itself or any of these, which would create a cycle. */
+function descendantIds(id: string, folders: Folder[]): Set<string> {
+  const childrenOf = new Map<string, string[]>();
+  for (const f of folders) {
+    if (!f.parentId) continue;
+    const arr = childrenOf.get(f.parentId) ?? [];
+    arr.push(f.id);
+    childrenOf.set(f.parentId, arr);
+  }
+  const out = new Set<string>();
+  const stack = [...(childrenOf.get(id) ?? [])];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (out.has(cur)) continue;
+    out.add(cur);
+    stack.push(...(childrenOf.get(cur) ?? []));
+  }
+  return out;
+}
+
 /** Flatten folders to "— " indented options for the Move pickers. */
 function folderOptions(folders: Folder[]): { id: string; label: string }[] {
   const tree = buildTree(folders);
@@ -304,25 +325,32 @@ export function SavedItemsBrowser({ toolId, onLoad, toolNames, loadLabel = 'Load
             >
               Rename
             </button>
-            <select
-              className="si-move"
-              aria-label="Move folder to"
-              value={folder.parentId ?? ''}
-              onChange={(e) => doMoveFolder(folder.id, e.target.value || null)}
-            >
-              <option value="">(root)</option>
-              {pickerOptions
-                .filter((o) => o.id !== folder.id)
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-            </select>
+            <label className="si-move-field">
+              <span className="si-move-label">Move to</span>
+              <select
+                className="si-move"
+                aria-label={`Move folder "${folder.name}" to`}
+                value={folder.parentId ?? ''}
+                onChange={(e) => doMoveFolder(folder.id, e.target.value || null)}
+              >
+                <option value="">Unfiled (root)</option>
+                {pickerOptions
+                  .filter(
+                    (o) =>
+                      o.id !== folder.id &&
+                      !descendantIds(folder.id, folders).has(o.id),
+                  )
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <button
               type="button"
               className="linkbtn si-danger"
-              title="Delete"
+              title="Delete this folder (its items move to root)"
               onClick={() => doDeleteFolder(folder)}
             >
               Delete
@@ -501,19 +529,22 @@ export function SavedItemsBrowser({ toolId, onLoad, toolNames, loadLabel = 'Load
                     >
                       Rename
                     </button>
-                    <select
-                      className="si-move"
-                      aria-label="Move item to folder"
-                      value={item.folderId ?? ''}
-                      onChange={(e) => doMoveItem(item.id, e.target.value || null)}
-                    >
-                      <option value="">(root)</option>
-                      {pickerOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="si-move-field">
+                      <span className="si-move-label">Move to</span>
+                      <select
+                        className="si-move"
+                        aria-label={`Move "${item.name}" to folder`}
+                        value={item.folderId ?? ''}
+                        onChange={(e) => doMoveItem(item.id, e.target.value || null)}
+                      >
+                        <option value="">Unfiled (root)</option>
+                        {pickerOptions.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <button
                       type="button"
                       className="btn si-danger"
