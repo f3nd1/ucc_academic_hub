@@ -67,6 +67,32 @@ describe('snapshotLocalStorage', () => {
     expect(savedSettings.supabaseAnonKey).toBeUndefined();
     expect(savedSettings.erpApiKey).toBe('the-key'); // everything else survives
   });
+
+  it('includes the full ERPNext connection AND every per-DocType field mapping', () => {
+    localStorage.setItem(
+      'ucc-timetable-settings',
+      JSON.stringify({
+        ...SETTINGS,
+        erpBaseUrl: 'https://sms.unitedceres.edu.sg',
+        erpApiSecret: 'the-secret',
+        erpDocType: 'Course',
+      }),
+    );
+    localStorage.setItem('ucc-erp-field-map:Course', JSON.stringify({ courseName: 'course_name' }));
+    localStorage.setItem('ucc-erp-field-map:Program', JSON.stringify({ teacher: 'instructor' }));
+
+    const snap = snapshotLocalStorage();
+    // ERPNext connection details ride along inside the settings entry (only the
+    // Supabase connection fields are stripped, nothing ERPNext).
+    const s = JSON.parse(snap[SETTINGS_STORAGE_KEY]) as Record<string, unknown>;
+    expect(s.erpBaseUrl).toBe('https://sms.unitedceres.edu.sg');
+    expect(s.erpApiKey).toBe('the-key');
+    expect(s.erpApiSecret).toBe('the-secret');
+    expect(s.erpDocType).toBe('Course');
+    // Each DocType's field mapping is its own captured key.
+    expect(snap['ucc-erp-field-map:Course']).toBe('{"courseName":"course_name"}');
+    expect(snap['ucc-erp-field-map:Program']).toBe('{"teacher":"instructor"}');
+  });
 });
 
 describe('applySnapshot', () => {
