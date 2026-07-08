@@ -53,6 +53,11 @@ export interface QualitativeTheme {
   comments: string[];
 }
 
+export interface HistogramBin {
+  label: string;
+  count: number;
+}
+
 /** Movements smaller than this (absolute) are treated as broadly stable. */
 export const STABILITY_MARGIN = 0.1;
 
@@ -217,6 +222,47 @@ export function buildComparisonSummaries(
   });
 }
 
+/** Bins current-result means into fixed 5-point-scale bands. */
+export function buildCurrentScoreHistogram(summaries: QuestionSummary[]): HistogramBin[] {
+  const bins: HistogramBin[] = [
+    { label: '1.00 to 1.99', count: 0 },
+    { label: '2.00 to 2.99', count: 0 },
+    { label: '3.00 to 3.49', count: 0 },
+    { label: '3.50 to 3.99', count: 0 },
+    { label: '4.00 to 4.49', count: 0 },
+    { label: '4.50 to 5.00', count: 0 },
+  ];
+  for (const s of summaries) {
+    if (s.mean < 2) bins[0].count += 1;
+    else if (s.mean < 3) bins[1].count += 1;
+    else if (s.mean < 3.5) bins[2].count += 1;
+    else if (s.mean < 4) bins[3].count += 1;
+    else if (s.mean < 4.5) bins[4].count += 1;
+    else bins[5].count += 1;
+  }
+  return bins;
+}
+
+/** Bins comparison changes into five bands; empty when there is nothing to compare. */
+export function buildComparisonChangeHistogram(summaries: ComparisonSummary[]): HistogramBin[] {
+  if (summaries.length === 0) return [];
+  const bins: HistogramBin[] = [
+    { label: 'Declined significantly', count: 0 },
+    { label: 'Declined marginally', count: 0 },
+    { label: 'Stable', count: 0 },
+    { label: 'Improved marginally', count: 0 },
+    { label: 'Improved significantly', count: 0 },
+  ];
+  for (const s of summaries) {
+    if (s.change <= -0.5) bins[0].count += 1;
+    else if (s.change < -STABILITY_MARGIN) bins[1].count += 1;
+    else if (s.change <= STABILITY_MARGIN) bins[2].count += 1;
+    else if (s.change < 0.5) bins[3].count += 1;
+    else bins[4].count += 1;
+  }
+  return bins;
+}
+
 /** Exact-name matches between the two datasets' detected question columns. */
 export function exactMatches(
   currentColumns: string[],
@@ -353,6 +399,8 @@ export interface Analysis {
   strongestAreas: QuestionSummary[];
   lowerRatedAreas: QuestionSummary[];
   qualitativeThemes: QualitativeTheme[];
+  currentHistogram: HistogramBin[];
+  comparisonHistogram: HistogramBin[];
   threshold: number;
   hasComparison: boolean;
 }
@@ -367,16 +415,28 @@ const formatComparisonList = (items: ComparisonSummary[]): string =>
     ? 'no clearly detected areas'
     : items.map((i) => `${i.currentQuestion} (${i.change.toFixed(2)})`).join(', ');
 
+/** Render a histogram's bins as "label: count" text lines. */
+const formatHistogramLines = (bins: HistogramBin[]): string =>
+  bins.map((b) => `${b.label}: ${b.count}`).join('\n');
+
 /**
- * Build the full analytical report text. Sections are numbered and included
- * conditionally: comparative sections only with comparison data, cross-module
- * only with multiple modules, qualitative only with comments. Style follows
- * the requirements (formal English, commas not em dashes, constructive).
+ * Build the full analytical report text. Sections are numbered sequentially as
+ * they're written (via a running counter), so conditional sections (comparative
+ * analysis, its histogram, qualitative feedback, cross-module, key
+ * improvements) never leave a gap or a wrong number. Fixed section order
+ * follows the spec: Executive Summary, Survey Overview, Summary Table,
+ * Histogram of Current Results, Quantitative Analysis, [Comparative Analysis,
+ * Histogram of Comparative Results], [Thematic Analysis], [Cross-Module
+ * Pooled Analysis], [Key Improvements and Areas of Decline], Key Insights,
+ * Recommendations, Conclusion. Style follows the requirements (formal
+ * English, commas not em dashes, constructive, tables for data, histograms
+ * for score distributions).
  */
 export function buildReport(a: Analysis): string {
   const {
     metadata, currentSummaries, comparisonSummaries, threshold,
     actionAreas, strongestAreas, lowerRatedAreas, hasComparison, qualitativeThemes,
+    currentHistogram, comparisonHistogram,
   } = a;
 
   const overallMean = calculateMean(currentSummaries.map((i) => i.mean));
@@ -389,7 +449,9 @@ export function buildReport(a: Analysis): string {
   r += `Student Survey Results Report for ${metadata.courseName}\n`;
   r += `Reporting Period: ${metadata.reportingPeriod}\n\n`;
 
-  r += `1. Executive Summary\n`;
+  let n = 1;
+
+  r += `${n}. Executive Summary\n`;
   r += `The results indicate an overall mean score of ${overallMean.toFixed(2)} across the detected quantitative survey items. Students rated ${formatQuestionList(strongestAreas)} particularly positively. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. `;
   r += actionAreas.length > 0
     ? `Based on the selected action threshold of ${threshold.toFixed(2)}, ${actionAreas.length} area or areas may benefit from further enhancement. `
@@ -397,8 +459,9 @@ export function buildReport(a: Analysis): string {
   if (comparisonAvailable)
     r += `Compared with the comparison dataset, ${improved.length} item or items improved, ${declined.length} item or items declined, and ${stable.length} item or items remained broadly stable. `;
   r += `The findings provide a useful basis for strengthening course enhancement, teaching quality, learner experience, assessment design, and module delivery.\n\n`;
+  n += 1;
 
-  r += `2. Survey Overview\n`;
+  r += `${n}. Survey Overview\n`;
   r += `The survey relates to ${metadata.courseName}. The detected module name or names are ${metadata.moduleNames.join(', ')}. The reporting period is ${metadata.reportingPeriod}. The current dataset contains ${metadata.responseCount} response or responses. The survey evaluated ${currentSummaries.length} quantitative item or items. `;
   if (hasComparison) {
     r += comparisonSummaries.length > 0
@@ -408,8 +471,9 @@ export function buildReport(a: Analysis): string {
     r += `No comparison dataset was provided.`;
   }
   r += `\n\n`;
+  n += 1;
 
-  r += `3. Summary Table of Results\n`;
+  r += `${n}. Summary Table of Results\n`;
   r += `Survey Dimension / Question | Mean Score / Rating | Response Count | Interpretation\n`;
   for (const i of currentSummaries)
     r += `${i.question} | ${i.mean.toFixed(2)} | ${i.count} | ${i.interpretation}\n`;
@@ -422,16 +486,24 @@ export function buildReport(a: Analysis): string {
       r += `${i.currentQuestion} | ${i.comparisonQuestion} | ${i.matchType} | ${i.currentMean.toFixed(2)} | ${i.comparisonMean.toFixed(2)} | ${i.change.toFixed(2)} | ${i.direction} | ${i.comment}\n`;
     r += `\n`;
   }
+  n += 1;
 
-  r += `4. Quantitative Analysis\n`;
+  r += `${n}. Histogram of Current Survey Results\n`;
+  r += `The histogram of current survey results shows how the detected survey questions are distributed across the score bands, providing a visual indication of whether results are concentrated at lower, moderate, or stronger levels of student rating.\n`;
+  r += formatHistogramLines(currentHistogram);
+  r += `\n\n`;
+  n += 1;
+
+  r += `${n}. Quantitative Analysis\n`;
   r += `The quantitative results show that the highest-rated areas were ${formatQuestionList(strongestAreas)}. These results suggest that students responded positively to these aspects of the course or module experience. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. These areas may benefit from further monitoring and enhancement, especially where the scores are close to or below the selected action threshold. `;
   r += actionAreas.length > 0
     ? `The areas below threshold were ${formatQuestionList(actionAreas)}. These results suggest that targeted action may be required to improve the learner experience in these specific areas.`
     : `As no item fell below the selected action threshold, the results suggest that the current quantitative performance is generally acceptable across the detected survey dimensions.`;
   r += `\n\n`;
+  n += 1;
 
   if (comparisonAvailable) {
-    r += `5. Comparative Analysis\n`;
+    r += `${n}. Comparative Analysis\n`;
     r += `The comparative analysis shows that the strongest improvements were observed in ${formatComparisonList(improved)}. Areas of relative decline were ${formatComparisonList(declined)}. Areas that remained broadly stable were ${formatComparisonList(stable)}. `;
     r += `The comparison included exact question matches and manually mapped similar questions where applicable. `;
     if (improved.length > 0)
@@ -441,18 +513,26 @@ export function buildReport(a: Analysis): string {
     if (stable.length > 0)
       r += `The stable areas indicate continuity in the learner experience and should continue to be monitored.`;
     r += `\n\n`;
+    n += 1;
+
+    if (comparisonHistogram.length > 0) {
+      r += `${n}. Histogram of Comparative Results\n`;
+      r += `The histogram of comparative results shows the distribution of change across comparable items, indicating how many areas declined, remained broadly stable, or improved when compared against the comparison dataset.\n`;
+      r += formatHistogramLines(comparisonHistogram);
+      r += `\n\n`;
+      n += 1;
+    }
   }
 
   if (qualitativeThemes.length > 0) {
-    r += `${comparisonAvailable ? '6' : '5'}. Thematic Analysis of Qualitative Feedback\n`;
+    r += `${n}. Thematic Analysis of Qualitative Feedback\n`;
     for (const theme of qualitativeThemes) {
       r += `${theme.title}\n`;
       r += `Student comments under this theme suggest that this area formed part of the learner experience. The comments indicate recurring attention to ${theme.title.toLowerCase()}, which may be considered when reviewing course delivery and learner support. `;
       r += `Illustrative comment: "${theme.comments[0]}"\n\n`;
     }
+    n += 1;
   }
-
-  let n = comparisonAvailable ? 7 : 6;
 
   if (metadata.hasMultipleModules) {
     r += `${n}. Cross-Module Pooled Analysis\n`;
@@ -533,6 +613,8 @@ export function analyse(
     strongestAreas: [...currentSummaries].sort((a, b) => b.mean - a.mean).slice(0, 3),
     lowerRatedAreas: [...currentSummaries].sort((a, b) => a.mean - b.mean).slice(0, 3),
     qualitativeThemes: detectQualitativeThemes(currentRows),
+    currentHistogram: buildCurrentScoreHistogram(currentSummaries),
+    comparisonHistogram: buildComparisonChangeHistogram(comparisonSummaries),
     threshold,
     hasComparison: comparison !== null,
   };

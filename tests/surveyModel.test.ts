@@ -5,6 +5,8 @@ import {
   buildQuestionSummaries,
   classifyDirection,
   buildComparisonSummaries,
+  buildCurrentScoreHistogram,
+  buildComparisonChangeHistogram,
   exactMatches,
   mergeMaps,
   detectMetadata,
@@ -13,6 +15,8 @@ import {
   buildReport,
   STABILITY_MARGIN,
   type DataRow,
+  type QuestionSummary,
+  type ComparisonSummary,
 } from '../src/tools/survey/surveyModel';
 
 describe('convertLikertToNumber', () => {
@@ -127,6 +131,55 @@ describe('comparison direction (stability margin)', () => {
   });
 });
 
+describe('buildCurrentScoreHistogram', () => {
+  const summary = (mean: number): QuestionSummary => ({
+    question: 'Q', mean, count: 1, interpretation: '', belowThreshold: false,
+  });
+
+  it('bins means into the six fixed score bands', () => {
+    const bins = buildCurrentScoreHistogram([
+      summary(1.5), summary(2.5), summary(3.2), summary(3.7), summary(4.1), summary(4.8),
+    ]);
+    expect(bins.map((b) => b.count)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(bins.map((b) => b.label)).toEqual([
+      '1.00 to 1.99', '2.00 to 2.99', '3.00 to 3.49', '3.50 to 3.99', '4.00 to 4.49', '4.50 to 5.00',
+    ]);
+  });
+
+  it('places boundary values in the higher band (band start is inclusive)', () => {
+    const bins = buildCurrentScoreHistogram([summary(3.5), summary(4.5)]);
+    expect(bins[3].count).toBe(1); // 3.50 to 3.99
+    expect(bins[5].count).toBe(1); // 4.50 to 5.00
+  });
+
+  it('returns all-zero bins for an empty list (never empty array)', () => {
+    const bins = buildCurrentScoreHistogram([]);
+    expect(bins).toHaveLength(6);
+    expect(bins.every((b) => b.count === 0)).toBe(true);
+  });
+});
+
+describe('buildComparisonChangeHistogram', () => {
+  const comparison = (change: number): ComparisonSummary => ({
+    currentQuestion: 'Q', comparisonQuestion: 'Q', matchType: 'Exact',
+    currentMean: 0, comparisonMean: 0, change, direction: classifyDirection(change), comment: '',
+  });
+
+  it('bins changes into the five fixed change bands', () => {
+    const bins = buildComparisonChangeHistogram([
+      comparison(-0.6), comparison(-0.3), comparison(0.05), comparison(0.3), comparison(0.6),
+    ]);
+    expect(bins.map((b) => b.count)).toEqual([1, 1, 1, 1, 1]);
+    expect(bins.map((b) => b.label)).toEqual([
+      'Declined significantly', 'Declined marginally', 'Stable', 'Improved marginally', 'Improved significantly',
+    ]);
+  });
+
+  it('returns an empty array (not zeroed bins) when there is nothing to compare', () => {
+    expect(buildComparisonChangeHistogram([])).toEqual([]);
+  });
+});
+
 describe('question matching', () => {
   it('exactMatches finds shared column names only', () => {
     expect(exactMatches(['A', 'B'], ['B', 'C'])).toEqual([
@@ -183,19 +236,24 @@ describe('report structure (conditional sections)', () => {
     { Course: 'DS', Module: 'M1', Timestamp: new Date('2026-03-02'), Q1: 4, Q2: 2, Comment: 'good' },
   ];
 
-  it('cross-sectional report omits comparative + cross-module sections', () => {
+  it('cross-sectional report omits comparative + cross-module + comparison-histogram sections', () => {
     const a = analyse(rows, Object.keys(rows[0]), 3, null);
     const report = buildReport(a);
     expect(report).toContain('1. Executive Summary');
-    expect(report).toContain('4. Quantitative Analysis');
+    expect(report).toContain('4. Histogram of Current Survey Results');
+    expect(report).toContain('5. Quantitative Analysis');
     expect(report).not.toContain('Comparative Analysis');
+    expect(report).not.toContain('Histogram of Comparative Results');
     expect(report).not.toContain('Cross-Module Pooled Analysis'); // single module
     expect(report).toContain('Thematic Analysis of Qualitative Feedback'); // has comments
+    // Histogram of Current Survey Results reflects the two question means (Q1: 4.5, Q2: 2).
+    expect(report).toContain('4.50 to 5.00: 1');
+    expect(report).toContain('2.00 to 2.99: 1');
     // Q2 mean 2 < threshold 3 -> flagged
     expect(a.actionAreas.some((x) => x.question === 'Q2')).toBe(true);
   });
 
-  it('includes the comparative section when comparison data + maps are present', () => {
+  it('includes the comparative section and its histogram when comparison data + maps are present', () => {
     const cmp: DataRow[] = [{ Q1: 3, Q2: 3 }];
     const a = analyse(rows, Object.keys(rows[0]), 3, {
       rows: cmp,
@@ -204,8 +262,18 @@ describe('report structure (conditional sections)', () => {
       ],
     });
     const report = buildReport(a);
-    expect(report).toContain('5. Comparative Analysis');
+    expect(report).toContain('4. Histogram of Current Survey Results');
+    expect(report).toContain('5. Quantitative Analysis');
+    expect(report).toContain('6. Comparative Analysis');
+    expect(report).toContain('7. Histogram of Comparative Results');
     expect(report).toContain('Key Improvements and Areas of Decline');
+  });
+
+  it('omits the comparative histogram section when comparison data has no mapped questions', () => {
+    const a = analyse(rows, Object.keys(rows[0]), 3, { rows: [{ Q1: 3 }], maps: [] });
+    const report = buildReport(a);
+    expect(report).not.toContain('Comparative Analysis');
+    expect(report).not.toContain('Histogram of Comparative Results');
   });
 
   it('never emits an em dash (style rule: commas, not em dashes)', () => {

@@ -2621,6 +2621,46 @@ a.chg-entry__hash:hover {
   resize: vertical;
 }
 
+/* ---------------- Survey: histogram bars ---------------- */
+.sv-hist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1.5rem;
+}
+
+.sv-hist__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.sv-hist__label {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sv-hist__count {
+  color: var(--muted);
+}
+
+.sv-hist__track {
+  height: 0.85rem;
+  border-radius: 999px;
+  background: var(--summary-bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.sv-hist__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  min-width: 2px;
+}
+
 /* ---------------- AI Log ---------------- */
 .ailog__table {
   width: 100%;

@@ -25,6 +25,11 @@ const baseAnalysis = (over: Partial<Analysis> = {}): Analysis => ({
     { question: 'Pace', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
   ],
   qualitativeThemes: [],
+  currentHistogram: [
+    { label: '2.00 to 2.99', count: 1 },
+    { label: '4.50 to 5.00', count: 0 },
+  ],
+  comparisonHistogram: [],
   threshold: 3,
   hasComparison: false,
   ...over,
@@ -45,6 +50,12 @@ describe('buildSurveyDataBlock', () => {
     const block = buildSurveyDataBlock(baseAnalysis());
     expect(block).toContain('No comparison dataset was provided.');
     expect(block).toContain('No qualitative comments were detected.');
+  });
+
+  it('includes the current-results histogram bins', () => {
+    const block = buildSurveyDataBlock(baseAnalysis());
+    expect(block).toContain('2.00 to 2.99: 1');
+    expect(block).toContain('4.50 to 5.00: 0');
   });
 
   it('renders comparison rows when a comparison is present', () => {

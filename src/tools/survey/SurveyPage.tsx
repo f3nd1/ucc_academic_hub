@@ -9,6 +9,7 @@ import {
   exactMatches,
   mergeMaps,
   type ComparisonMap,
+  type HistogramBin,
   type ParsedDataset,
 } from './surveyModel';
 import { isSupportedFile, parseSpreadsheetFile } from './surveyParse';
@@ -59,6 +60,30 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div className="sv-inforow">
       <p className="sv-inforow__label">{label}</p>
       <p className="sv-inforow__value">{value}</p>
+    </div>
+  );
+}
+
+/** One horizontal bar per bin, scaled to the largest count in the set. */
+function Histogram({ bins }: { bins: HistogramBin[] }) {
+  const maxCount = Math.max(...bins.map((b) => b.count), 1);
+  return (
+    <div className="sv-hist">
+      {bins.map((bin) => (
+        <div className="sv-hist__row" key={bin.label}>
+          <div className="sv-hist__head">
+            <span className="sv-hist__label">{bin.label}</span>
+            <span className="sv-hist__count">{bin.count}</span>
+          </div>
+          <div className="sv-hist__track">
+            <div
+              className="sv-hist__bar"
+              style={{ width: `${(bin.count / maxCount) * 100}%` }}
+              aria-label={`${bin.label}: ${bin.count}`}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -407,10 +432,32 @@ export function SurveyPage() {
         <button className="btn" onClick={generateReport} disabled={aiBusy}>
           Generate built-in report
         </button>
-        <button className="btn" onClick={() => doExport(() => exportReportToWord(reportText))}>
+        <button
+          className="btn"
+          onClick={() =>
+            doExport(() =>
+              exportReportToWord(
+                reportText,
+                analysis?.currentHistogram ?? [],
+                analysis?.comparisonHistogram ?? [],
+              ),
+            )
+          }
+        >
           Export to Word
         </button>
-        <button className="btn" onClick={() => doExport(() => exportReportToPdf(reportText))}>
+        <button
+          className="btn"
+          onClick={() =>
+            doExport(() =>
+              exportReportToPdf(
+                reportText,
+                analysis?.currentHistogram ?? [],
+                analysis?.comparisonHistogram ?? [],
+              ),
+            )
+          }
+        >
           Export to PDF
         </button>
         <button className="btn" onClick={reset}>
@@ -553,6 +600,17 @@ export function SurveyPage() {
         </>
       )}
 
+      {/* -------- Histogram of current results -------- */}
+      {analysis && analysis.currentHistogram.length > 0 && (
+        <>
+          <h2 className="survey__h2">Histogram of current survey results</h2>
+          <p className="hint">
+            Distribution of the detected survey questions across score bands.
+          </p>
+          <Histogram bins={analysis.currentHistogram} />
+        </>
+      )}
+
       {/* -------- Action areas -------- */}
       {actionAreas.length > 0 && (
         <div className="survey__action">
@@ -619,6 +677,18 @@ export function SurveyPage() {
               </tbody>
             </table>
           </div>
+        </>
+      )}
+
+      {/* -------- Histogram of comparative results -------- */}
+      {analysis && analysis.comparisonHistogram.length > 0 && (
+        <>
+          <h2 className="survey__h2">Histogram of comparative results</h2>
+          <p className="hint">
+            Distribution of change across comparable items against the
+            comparison dataset.
+          </p>
+          <Histogram bins={analysis.comparisonHistogram} />
         </>
       )}
 

@@ -90,6 +90,15 @@ export function buildSurveyDataBlock(a: Analysis): string {
       lines.push(`- ${t.title} (${t.comments.length} comment(s))${example}`);
     }
   }
+  lines.push('');
+
+  lines.push('Histogram of current survey results (score band: question count):');
+  for (const bin of a.currentHistogram) lines.push(`- ${bin.label}: ${bin.count}`);
+  if (a.comparisonHistogram.length > 0) {
+    lines.push('');
+    lines.push('Histogram of comparative results (change band: item count):');
+    for (const bin of a.comparisonHistogram) lines.push(`- ${bin.label}: ${bin.count}`);
+  }
 
   return lines.join('\n');
 }
