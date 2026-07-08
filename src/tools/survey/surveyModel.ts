@@ -405,34 +405,59 @@ export interface Analysis {
   hasComparison: boolean;
 }
 
+/**
+ * Collapse embedded newlines/CR (from multi-line spreadsheet headers, e.g.
+ * bilingual Google Forms exports that put a translation on a second line)
+ * into a single space, for display only. Never applied to the underlying
+ * question/column identifiers themselves (row lookups, map keys, and React
+ * list keys all need the exact original string), only to text shown to a
+ * person or written into a report.
+ */
+export function cleanLabel(s: string): string {
+  return s.replace(/\s*[\r\n]+\s*/g, ' ').trim();
+}
+
 const formatQuestionList = (items: QuestionSummary[]): string =>
   items.length === 0
     ? 'no clearly detected areas'
-    : items.map((i) => `${i.question} (${i.mean.toFixed(2)})`).join(', ');
+    : items.map((i) => `${cleanLabel(i.question)} (${i.mean.toFixed(2)})`).join(', ');
 
 const formatComparisonList = (items: ComparisonSummary[]): string =>
   items.length === 0
     ? 'no clearly detected areas'
-    : items.map((i) => `${i.currentQuestion} (${i.change.toFixed(2)})`).join(', ');
+    : items.map((i) => `${cleanLabel(i.currentQuestion)} (${i.change.toFixed(2)})`).join(', ');
 
-/** Render a histogram's bins as "label: count" text lines. */
-const formatHistogramLines = (bins: HistogramBin[]): string =>
-  bins.map((b) => `${b.label}: ${b.count}`).join('\n');
+// --- Structured report -------------------------------------------------------
+//
+// The report is built once as a list of typed blocks (the single source of
+// truth for content and wording), which the UI renders as real HTML (tables,
+// headings, paragraphs) and which a plain-text renderer flattens for
+// Word/PDF export and for buildReport()'s string API. This avoids duplicating
+// the prose in two places and, critically, avoids ever showing a pipe-
+// delimited "table" as raw pre-wrapped text (which, combined with the
+// embedded newlines in bilingual headers, was unreadable).
+
+export type ReportBlock =
+  | { type: 'title'; course: string; period: string }
+  | { type: 'heading'; text: string }
+  | { type: 'subheading'; text: string }
+  | { type: 'paragraph'; text: string }
+  | { type: 'table'; headers: string[]; rows: string[][] }
+  | { type: 'histogram'; title: string; bins: HistogramBin[] };
 
 /**
- * Build the full analytical report text. Sections are numbered sequentially as
- * they're written (via a running counter), so conditional sections (comparative
- * analysis, its histogram, qualitative feedback, cross-module, key
- * improvements) never leave a gap or a wrong number. Fixed section order
- * follows the spec: Executive Summary, Survey Overview, Summary Table,
- * Histogram of Current Results, Quantitative Analysis, [Comparative Analysis,
- * Histogram of Comparative Results], [Thematic Analysis], [Cross-Module
- * Pooled Analysis], [Key Improvements and Areas of Decline], Key Insights,
- * Recommendations, Conclusion. Style follows the requirements (formal
- * English, commas not em dashes, constructive, tables for data, histograms
- * for score distributions).
+ * Build the report as a list of typed blocks. Sections are numbered
+ * sequentially as they're written (via a running counter), so conditional
+ * sections (comparative analysis, its histogram, qualitative feedback,
+ * cross-module, key improvements) never leave a gap or a wrong number. Fixed
+ * section order follows the spec: Executive Summary, Survey Overview,
+ * Summary Table, Histogram of Current Results, Quantitative Analysis,
+ * [Comparative Analysis, Histogram of Comparative Results], [Thematic
+ * Analysis], [Cross-Module Pooled Analysis], [Key Improvements and Areas of
+ * Decline], Key Insights, Recommendations, Conclusion. Style follows the
+ * requirements (formal English, commas not em dashes, constructive).
  */
-export function buildReport(a: Analysis): string {
+export function buildReportBlocks(a: Analysis): ReportBlock[] {
   const {
     metadata, currentSummaries, comparisonSummaries, threshold,
     actionAreas, strongestAreas, lowerRatedAreas, hasComparison, qualitativeThemes,
@@ -445,151 +470,217 @@ export function buildReport(a: Analysis): string {
   const stable = comparisonSummaries.filter((i) => i.direction === 'Stable');
   const comparisonAvailable = hasComparison && comparisonSummaries.length > 0;
 
-  let r = '';
-  r += `Student Survey Results Report for ${metadata.courseName}\n`;
-  r += `Reporting Period: ${metadata.reportingPeriod}\n\n`;
+  const blocks: ReportBlock[] = [];
+  const heading = (text: string) => blocks.push({ type: 'heading', text });
+  const subheading = (text: string) => blocks.push({ type: 'subheading', text });
+  const paragraph = (text: string) => blocks.push({ type: 'paragraph', text });
+
+  blocks.push({ type: 'title', course: metadata.courseName, period: metadata.reportingPeriod });
 
   let n = 1;
 
-  r += `${n}. Executive Summary\n`;
-  r += `The results indicate an overall mean score of ${overallMean.toFixed(2)} across the detected quantitative survey items. Students rated ${formatQuestionList(strongestAreas)} particularly positively. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. `;
-  r += actionAreas.length > 0
-    ? `Based on the selected action threshold of ${threshold.toFixed(2)}, ${actionAreas.length} area or areas may benefit from further enhancement. `
-    : `No detected quantitative area fell below the selected action threshold of ${threshold.toFixed(2)}. `;
-  if (comparisonAvailable)
-    r += `Compared with the comparison dataset, ${improved.length} item or items improved, ${declined.length} item or items declined, and ${stable.length} item or items remained broadly stable. `;
-  r += `The findings provide a useful basis for strengthening course enhancement, teaching quality, learner experience, assessment design, and module delivery.\n\n`;
-  n += 1;
-
-  r += `${n}. Survey Overview\n`;
-  r += `The survey relates to ${metadata.courseName}. The detected module name or names are ${metadata.moduleNames.join(', ')}. The reporting period is ${metadata.reportingPeriod}. The current dataset contains ${metadata.responseCount} response or responses. The survey evaluated ${currentSummaries.length} quantitative item or items. `;
-  if (hasComparison) {
-    r += comparisonSummaries.length > 0
-      ? `Comparison data was provided and ${comparisonSummaries.length} comparable item or items were identified through exact or manual question mapping.`
-      : `Comparison data was provided, but no comparable quantitative question mappings were identified.`;
-  } else {
-    r += `No comparison dataset was provided.`;
-  }
-  r += `\n\n`;
-  n += 1;
-
-  r += `${n}. Summary Table of Results\n`;
-  r += `Survey Dimension / Question | Mean Score / Rating | Response Count | Interpretation\n`;
-  for (const i of currentSummaries)
-    r += `${i.question} | ${i.mean.toFixed(2)} | ${i.count} | ${i.interpretation}\n`;
-  r += `\n`;
-
-  if (comparisonAvailable) {
-    r += `Comparison Summary\n`;
-    r += `Current Question | Comparison Question | Match Type | Current Score | Comparison Score | Change | Direction of Change | Interpretation\n`;
-    for (const i of comparisonSummaries)
-      r += `${i.currentQuestion} | ${i.comparisonQuestion} | ${i.matchType} | ${i.currentMean.toFixed(2)} | ${i.comparisonMean.toFixed(2)} | ${i.change.toFixed(2)} | ${i.direction} | ${i.comment}\n`;
-    r += `\n`;
+  heading(`${n}. Executive Summary`);
+  {
+    let p = `The results indicate an overall mean score of ${overallMean.toFixed(2)} across the detected quantitative survey items. Students rated ${formatQuestionList(strongestAreas)} particularly positively. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. `;
+    p += actionAreas.length > 0
+      ? `Based on the selected action threshold of ${threshold.toFixed(2)}, ${actionAreas.length} area or areas may benefit from further enhancement. `
+      : `No detected quantitative area fell below the selected action threshold of ${threshold.toFixed(2)}. `;
+    if (comparisonAvailable)
+      p += `Compared with the comparison dataset, ${improved.length} item or items improved, ${declined.length} item or items declined, and ${stable.length} item or items remained broadly stable. `;
+    p += `The findings provide a useful basis for strengthening course enhancement, teaching quality, learner experience, assessment design, and module delivery.`;
+    paragraph(p);
   }
   n += 1;
 
-  r += `${n}. Histogram of Current Survey Results\n`;
-  r += `The histogram of current survey results shows how the detected survey questions are distributed across the score bands, providing a visual indication of whether results are concentrated at lower, moderate, or stronger levels of student rating.\n`;
-  r += formatHistogramLines(currentHistogram);
-  r += `\n\n`;
+  heading(`${n}. Survey Overview`);
+  {
+    let p = `The survey relates to ${metadata.courseName}. The detected module name or names are ${metadata.moduleNames.join(', ')}. The reporting period is ${metadata.reportingPeriod}. The current dataset contains ${metadata.responseCount} response or responses. The survey evaluated ${currentSummaries.length} quantitative item or items. `;
+    if (hasComparison) {
+      p += comparisonSummaries.length > 0
+        ? `Comparison data was provided and ${comparisonSummaries.length} comparable item or items were identified through exact or manual question mapping.`
+        : `Comparison data was provided, but no comparable quantitative question mappings were identified.`;
+    } else {
+      p += `No comparison dataset was provided.`;
+    }
+    paragraph(p);
+  }
   n += 1;
 
-  r += `${n}. Quantitative Analysis\n`;
-  r += `The quantitative results show that the highest-rated areas were ${formatQuestionList(strongestAreas)}. These results suggest that students responded positively to these aspects of the course or module experience. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. These areas may benefit from further monitoring and enhancement, especially where the scores are close to or below the selected action threshold. `;
-  r += actionAreas.length > 0
-    ? `The areas below threshold were ${formatQuestionList(actionAreas)}. These results suggest that targeted action may be required to improve the learner experience in these specific areas.`
-    : `As no item fell below the selected action threshold, the results suggest that the current quantitative performance is generally acceptable across the detected survey dimensions.`;
-  r += `\n\n`;
+  heading(`${n}. Summary Table of Results`);
+  blocks.push({
+    type: 'table',
+    headers: ['Survey Dimension / Question', 'Mean Score / Rating', 'Response Count', 'Interpretation'],
+    rows: currentSummaries.map((i) => [
+      cleanLabel(i.question), i.mean.toFixed(2), String(i.count), i.interpretation,
+    ]),
+  });
+  if (comparisonAvailable) {
+    subheading('Comparison Summary');
+    blocks.push({
+      type: 'table',
+      headers: [
+        'Current Question', 'Comparison Question', 'Match Type',
+        'Current Score', 'Comparison Score', 'Change', 'Direction of Change', 'Interpretation',
+      ],
+      rows: comparisonSummaries.map((i) => [
+        cleanLabel(i.currentQuestion), cleanLabel(i.comparisonQuestion), i.matchType,
+        i.currentMean.toFixed(2), i.comparisonMean.toFixed(2), i.change.toFixed(2), i.direction, i.comment,
+      ]),
+    });
+  }
+  n += 1;
+
+  heading(`${n}. Histogram of Current Survey Results`);
+  paragraph('The histogram of current survey results shows how the detected survey questions are distributed across the score bands, providing a visual indication of whether results are concentrated at lower, moderate, or stronger levels of student rating.');
+  blocks.push({ type: 'histogram', title: 'Current Survey Results Histogram', bins: currentHistogram });
+  n += 1;
+
+  heading(`${n}. Quantitative Analysis`);
+  {
+    let p = `The quantitative results show that the highest-rated areas were ${formatQuestionList(strongestAreas)}. These results suggest that students responded positively to these aspects of the course or module experience. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. These areas may benefit from further monitoring and enhancement, especially where the scores are close to or below the selected action threshold. `;
+    p += actionAreas.length > 0
+      ? `The areas below threshold were ${formatQuestionList(actionAreas)}. These results suggest that targeted action may be required to improve the learner experience in these specific areas.`
+      : `As no item fell below the selected action threshold, the results suggest that the current quantitative performance is generally acceptable across the detected survey dimensions.`;
+    paragraph(p);
+  }
   n += 1;
 
   if (comparisonAvailable) {
-    r += `${n}. Comparative Analysis\n`;
-    r += `The comparative analysis shows that the strongest improvements were observed in ${formatComparisonList(improved)}. Areas of relative decline were ${formatComparisonList(declined)}. Areas that remained broadly stable were ${formatComparisonList(stable)}. `;
-    r += `The comparison included exact question matches and manually mapped similar questions where applicable. `;
-    if (improved.length > 0)
-      r += `The positive movements suggest that some aspects of teaching, delivery, learner support, materials, assessment, or engagement may have strengthened compared with the comparison dataset. `;
-    if (declined.length > 0)
-      r += `The declined areas should be reviewed constructively to identify whether refinements are needed in course delivery, assessment design, learning support, or student engagement. `;
-    if (stable.length > 0)
-      r += `The stable areas indicate continuity in the learner experience and should continue to be monitored.`;
-    r += `\n\n`;
+    heading(`${n}. Comparative Analysis`);
+    {
+      let p = `The comparative analysis shows that the strongest improvements were observed in ${formatComparisonList(improved)}. Areas of relative decline were ${formatComparisonList(declined)}. Areas that remained broadly stable were ${formatComparisonList(stable)}. `;
+      p += `The comparison included exact question matches and manually mapped similar questions where applicable. `;
+      if (improved.length > 0)
+        p += `The positive movements suggest that some aspects of teaching, delivery, learner support, materials, assessment, or engagement may have strengthened compared with the comparison dataset. `;
+      if (declined.length > 0)
+        p += `The declined areas should be reviewed constructively to identify whether refinements are needed in course delivery, assessment design, learning support, or student engagement. `;
+      if (stable.length > 0)
+        p += `The stable areas indicate continuity in the learner experience and should continue to be monitored.`;
+      paragraph(p);
+    }
     n += 1;
 
     if (comparisonHistogram.length > 0) {
-      r += `${n}. Histogram of Comparative Results\n`;
-      r += `The histogram of comparative results shows the distribution of change across comparable items, indicating how many areas declined, remained broadly stable, or improved when compared against the comparison dataset.\n`;
-      r += formatHistogramLines(comparisonHistogram);
-      r += `\n\n`;
+      heading(`${n}. Histogram of Comparative Results`);
+      paragraph('The histogram of comparative results shows the distribution of change across comparable items, indicating how many areas declined, remained broadly stable, or improved when compared against the comparison dataset.');
+      blocks.push({ type: 'histogram', title: 'Comparative Results Histogram', bins: comparisonHistogram });
       n += 1;
     }
   }
 
   if (qualitativeThemes.length > 0) {
-    r += `${n}. Thematic Analysis of Qualitative Feedback\n`;
+    heading(`${n}. Thematic Analysis of Qualitative Feedback`);
     for (const theme of qualitativeThemes) {
-      r += `${theme.title}\n`;
-      r += `Student comments under this theme suggest that this area formed part of the learner experience. The comments indicate recurring attention to ${theme.title.toLowerCase()}, which may be considered when reviewing course delivery and learner support. `;
-      r += `Illustrative comment: "${theme.comments[0]}"\n\n`;
+      subheading(theme.title);
+      paragraph(
+        `Student comments under this theme suggest that this area formed part of the learner experience. The comments indicate recurring attention to ${theme.title.toLowerCase()}, which may be considered when reviewing course delivery and learner support. Illustrative comment: "${theme.comments[0]}"`,
+      );
     }
     n += 1;
   }
 
   if (metadata.hasMultipleModules) {
-    r += `${n}. Cross-Module Pooled Analysis\n`;
-    r += `The pooled findings across the detected modules suggest that students responded most positively to ${formatQuestionList(strongestAreas)}. Recurring areas for enhancement include ${formatQuestionList(lowerRatedAreas)}. The pooled results provide an institutional-level view of the learner experience and can support course-level quality monitoring.`;
-    if (comparisonAvailable)
-      r += ` In comparison with the comparison dataset, the pooled pattern shows ${improved.length} improved area or areas, ${declined.length} declined area or areas, and ${stable.length} broadly stable area or areas.`;
-    r += `\n\n`;
+    heading(`${n}. Cross-Module Pooled Analysis`);
+    {
+      let p = `The pooled findings across the detected modules suggest that students responded most positively to ${formatQuestionList(strongestAreas)}. Recurring areas for enhancement include ${formatQuestionList(lowerRatedAreas)}. The pooled results provide an institutional-level view of the learner experience and can support course-level quality monitoring.`;
+      if (comparisonAvailable)
+        p += ` In comparison with the comparison dataset, the pooled pattern shows ${improved.length} improved area or areas, ${declined.length} declined area or areas, and ${stable.length} broadly stable area or areas.`;
+      paragraph(p);
+    }
     n += 1;
   }
 
   if (comparisonAvailable) {
-    r += `${n}. Key Improvements and Areas of Decline\n`;
-    r += `A. Areas of Improvement\n`;
-    if (improved.length > 0)
+    heading(`${n}. Key Improvements and Areas of Decline`);
+    subheading('A. Areas of Improvement');
+    if (improved.length > 0) {
       for (const i of improved)
-        r += `${i.currentQuestion}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents an improvement of ${i.change.toFixed(2)}, suggesting positive movement in this area.\n`;
-    else r += `The results do not indicate any significant areas of improvement based on the provided comparable data.\n`;
-    r += `\nB. Areas Requiring Attention\n`;
-    if (declined.length > 0)
+        paragraph(`${cleanLabel(i.currentQuestion)}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents an improvement of ${i.change.toFixed(2)}, suggesting positive movement in this area.`);
+    } else {
+      paragraph('The results do not indicate any significant areas of improvement based on the provided comparable data.');
+    }
+    subheading('B. Areas Requiring Attention');
+    if (declined.length > 0) {
       for (const i of declined)
-        r += `${i.currentQuestion}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents a decline of ${Math.abs(i.change).toFixed(2)}, suggesting that further review may be useful.\n`;
-    else r += `The results do not indicate any significant areas of decline based on the provided data.\n`;
-    r += `\n`;
+        paragraph(`${cleanLabel(i.currentQuestion)}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents a decline of ${Math.abs(i.change).toFixed(2)}, suggesting that further review may be useful.`);
+    } else {
+      paragraph('The results do not indicate any significant areas of decline based on the provided data.');
+    }
     n += 1;
   }
 
-  r += `${n}. Key Insights\n`;
-  r += `1. The overall mean score of ${overallMean.toFixed(2)} indicates the general level of student satisfaction across the detected quantitative survey dimensions.\n`;
-  r += `2. The strongest current areas were ${formatQuestionList(strongestAreas)}, suggesting that these aspects are perceived positively by students.\n`;
-  r += `3. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}, indicating where further enhancement may be most useful.\n`;
-  r += comparisonAvailable
-    ? `4. Compared with the comparison dataset, the results show ${improved.length} improved item or items, ${declined.length} declined item or items, and ${stable.length} stable item or items.\n`
-    : `4. As no comparison dataset was provided, the analysis focuses on the current cross-sectional survey results.\n`;
-  r += `\n`;
+  heading(`${n}. Key Insights`);
+  paragraph(`1. The overall mean score of ${overallMean.toFixed(2)} indicates the general level of student satisfaction across the detected quantitative survey dimensions.`);
+  paragraph(`2. The strongest current areas were ${formatQuestionList(strongestAreas)}, suggesting that these aspects are perceived positively by students.`);
+  paragraph(`3. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}, indicating where further enhancement may be most useful.`);
+  paragraph(
+    comparisonAvailable
+      ? `4. Compared with the comparison dataset, the results show ${improved.length} improved item or items, ${declined.length} declined item or items, and ${stable.length} stable item or items.`
+      : `4. As no comparison dataset was provided, the analysis focuses on the current cross-sectional survey results.`,
+  );
   n += 1;
 
-  r += `${n}. Recommendations\n`;
-  r += `Teaching and Facilitation\n`;
-  r += `Lecturers should review the lower-rated areas and identify practical teaching strategies that can improve clarity, engagement, pacing, and learner support.\n\n`;
-  r += `Assessment and Feedback\n`;
-  r += `Programme and module teams should review assessment-related items, especially where scores are relatively lower or below threshold, to ensure expectations, instructions, and feedback processes are clear.\n\n`;
-  r += `Learning Materials and Resources\n`;
-  r += `Learning materials should be reviewed to ensure that they remain clear, accessible, relevant, and aligned with the intended learning outcomes.\n\n`;
-  r += `Student Engagement\n`;
-  r += `Teaching teams should continue to strengthen classroom interaction, applied examples, and opportunities for learner participation.\n\n`;
+  heading(`${n}. Recommendations`);
+  subheading('Teaching and Facilitation');
+  paragraph('Lecturers should review the lower-rated areas and identify practical teaching strategies that can improve clarity, engagement, pacing, and learner support.');
+  subheading('Assessment and Feedback');
+  paragraph('Programme and module teams should review assessment-related items, especially where scores are relatively lower or below threshold, to ensure expectations, instructions, and feedback processes are clear.');
+  subheading('Learning Materials and Resources');
+  paragraph('Learning materials should be reviewed to ensure that they remain clear, accessible, relevant, and aligned with the intended learning outcomes.');
+  subheading('Student Engagement');
+  paragraph('Teaching teams should continue to strengthen classroom interaction, applied examples, and opportunities for learner participation.');
   if (comparisonAvailable) {
-    r += `Monitoring of Improvement Areas\n`;
-    r += `Areas that improved should be reviewed to identify practices that can be sustained or standardised. Areas that declined should be monitored in the next review cycle, with targeted enhancement actions where appropriate.\n\n`;
+    subheading('Monitoring of Improvement Areas');
+    paragraph('Areas that improved should be reviewed to identify practices that can be sustained or standardised. Areas that declined should be monitored in the next review cycle, with targeted enhancement actions where appropriate.');
   }
   n += 1;
 
-  r += `${n}. Conclusion\n`;
-  r += `Overall, the survey results provide a constructive picture of the current learner experience. The findings highlight areas of strength while identifying specific areas where enhancement may support teaching quality, course delivery, learner engagement, assessment design, and academic management.`;
-  if (comparisonAvailable)
-    r += ` Compared with the comparison dataset, the overall pattern should be interpreted through the identified improvements, declines, and areas of stability, with priority given to sustaining positive movement and addressing areas requiring further attention.`;
+  heading(`${n}. Conclusion`);
+  {
+    let p = `Overall, the survey results provide a constructive picture of the current learner experience. The findings highlight areas of strength while identifying specific areas where enhancement may support teaching quality, course delivery, learner engagement, assessment design, and academic management.`;
+    if (comparisonAvailable)
+      p += ` Compared with the comparison dataset, the overall pattern should be interpreted through the identified improvements, declines, and areas of stability, with priority given to sustaining positive movement and addressing areas requiring further attention.`;
+    paragraph(p);
+  }
 
-  return r;
+  return blocks;
+}
+
+/** Flatten report blocks into the plain-text form (headings, pipe-delimited
+ *  table rows, "label: count" histogram lines) used by buildReport()'s string
+ *  API and as a text fallback for exports. */
+export function renderBlocksAsPlainText(blocks: ReportBlock[]): string {
+  const lines: string[] = [];
+  for (const b of blocks) {
+    switch (b.type) {
+      case 'title':
+        lines.push(`Student Survey Results Report for ${b.course}`, `Reporting Period: ${b.period}`, '');
+        break;
+      case 'heading':
+      case 'subheading':
+        lines.push(b.text);
+        break;
+      case 'paragraph':
+        lines.push(b.text, '');
+        break;
+      case 'table':
+        lines.push(b.headers.join(' | '));
+        for (const row of b.rows) lines.push(row.join(' | '));
+        lines.push('');
+        break;
+      case 'histogram':
+        for (const bin of b.bins) lines.push(`${bin.label}: ${bin.count}`);
+        lines.push('');
+        break;
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Build the full analytical report as plain text (see buildReportBlocks for
+ *  the structured version the UI and exports render). */
+export function buildReport(a: Analysis): string {
+  return renderBlocksAsPlainText(buildReportBlocks(a));
 }
 
 /** Assemble the full analysis (selections + report inputs) from parsed data. */

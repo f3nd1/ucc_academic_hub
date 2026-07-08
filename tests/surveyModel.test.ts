@@ -13,6 +13,9 @@ import {
   detectQualitativeThemes,
   analyse,
   buildReport,
+  buildReportBlocks,
+  renderBlocksAsPlainText,
+  cleanLabel,
   STABILITY_MARGIN,
   type DataRow,
   type QuestionSummary,
@@ -279,5 +282,60 @@ describe('report structure (conditional sections)', () => {
   it('never emits an em dash (style rule: commas, not em dashes)', () => {
     const a = analyse(rows, Object.keys(rows[0]), 3, null);
     expect(buildReport(a)).not.toContain('—');
+  });
+});
+
+describe('cleanLabel', () => {
+  it('collapses embedded newlines from bilingual/multi-line headers into a single space', () => {
+    expect(cleanLabel('Teaching and Learning 教学与学习\r\nHow strongly do you agree: [X]')).toBe(
+      'Teaching and Learning 教学与学习 How strongly do you agree: [X]',
+    );
+  });
+  it('collapses multiple consecutive newlines to one space and trims', () => {
+    expect(cleanLabel('  Line one\n\n\nLine two  ')).toBe('Line one Line two');
+  });
+  it('leaves single-line text unchanged', () => {
+    expect(cleanLabel('Q1 clarity')).toBe('Q1 clarity');
+  });
+});
+
+describe('buildReportBlocks', () => {
+  const rows: DataRow[] = [
+    {
+      Course: 'DS', Module: 'M1', Timestamp: new Date('2026-03-01'),
+      'Multi\nLine Question': 5, Q2: 2, Comment: 'clear teaching',
+    },
+    {
+      Course: 'DS', Module: 'M1', Timestamp: new Date('2026-03-02'),
+      'Multi\nLine Question': 4, Q2: 2, Comment: 'good',
+    },
+  ];
+
+  it('produces a title block and typed section blocks (headings, tables, histograms)', () => {
+    const a = analyse(rows, Object.keys(rows[0]), 3, null);
+    const blocks = buildReportBlocks(a);
+    expect(blocks[0]).toEqual({ type: 'title', course: 'DS', period: 'March 2026' });
+    expect(blocks.some((b) => b.type === 'heading' && b.text === '1. Executive Summary')).toBe(true);
+    const summaryTable = blocks.find((b) => b.type === 'table' && b.headers[0] === 'Survey Dimension / Question');
+    expect(summaryTable).toBeDefined();
+    const histogramBlocks = blocks.filter((b) => b.type === 'histogram');
+    expect(histogramBlocks.length).toBeGreaterThan(0);
+  });
+
+  it('cleans embedded newlines out of table cell text (never shown as a raw line break)', () => {
+    const a = analyse(rows, Object.keys(rows[0]), 3, null);
+    const blocks = buildReportBlocks(a);
+    const summaryTable = blocks.find(
+      (b): b is Extract<typeof b, { type: 'table' }> =>
+        b.type === 'table' && b.headers[0] === 'Survey Dimension / Question',
+    );
+    const questionCells = summaryTable!.rows.map((r) => r[0]);
+    expect(questionCells).toContain('Multi Line Question');
+    expect(questionCells.some((c) => c.includes('\n'))).toBe(false);
+  });
+
+  it('renderBlocksAsPlainText output is what buildReport() returns (single source of truth)', () => {
+    const a = analyse(rows, Object.keys(rows[0]), 3, null);
+    expect(buildReport(a)).toBe(renderBlocksAsPlainText(buildReportBlocks(a)));
   });
 });

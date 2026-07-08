@@ -4,13 +4,15 @@ import { useSettings } from '../../shared/settingsStore';
 import { DEFAULT_ANTHROPIC_MODEL } from '../../shared/settings';
 import {
   analyse,
-  buildReport,
+  buildReportBlocks,
+  cleanLabel,
   detectSurveyColumns,
   exactMatches,
   mergeMaps,
   type ComparisonMap,
   type HistogramBin,
   type ParsedDataset,
+  type ReportBlock,
 } from './surveyModel';
 import { isSupportedFile, parseSpreadsheetFile } from './surveyParse';
 import { exportReportToWord, exportReportToPdf } from './surveyExports';
@@ -88,6 +90,82 @@ function Histogram({ bins }: { bins: HistogramBin[] }) {
   );
 }
 
+/**
+ * Render the built-in report's structured blocks as real HTML: tables reuse
+ * the same .table-wrap/table styling as every other table on this page, and
+ * histograms reuse the Histogram bar component above. This replaces the old
+ * approach of dumping the whole report (including pipe-delimited "tables") as
+ * one pre-wrapped text blob, which was unreadable — especially with bilingual
+ * survey headers that carry their own embedded line breaks.
+ */
+function ReportView({ blocks }: { blocks: ReportBlock[] }) {
+  return (
+    <div className="sv-report-body">
+      {blocks.map((b, i) => {
+        switch (b.type) {
+          case 'title':
+            return (
+              <div className="sv-report-body__title" key={i}>
+                <h3>Student Survey Results Report for {cleanLabel(b.course)}</h3>
+                <p>Reporting Period: {b.period}</p>
+              </div>
+            );
+          case 'heading':
+            return (
+              <h3 className="sv-report-body__h3" key={i}>
+                {b.text}
+              </h3>
+            );
+          case 'subheading':
+            return (
+              <h4 className="sv-report-body__h4" key={i}>
+                {b.text}
+              </h4>
+            );
+          case 'paragraph':
+            return (
+              <p className="sv-report-body__p" key={i}>
+                {b.text}
+              </p>
+            );
+          case 'table':
+            return (
+              <div className="table-wrap" key={i}>
+                <table>
+                  <thead>
+                    <tr>
+                      {b.headers.map((h) => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((row, ri) => (
+                      <tr key={ri}>
+                        {row.map((cell, ci) => (
+                          <td key={ci}>{cell}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          case 'histogram':
+            return (
+              <div className="sv-report-body__hist" key={i}>
+                <h4 className="sv-report-body__h4">{b.title}</h4>
+                <Histogram bins={b.bins} />
+              </div>
+            );
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
+}
+
 export function SurveyPage() {
   const [settings] = useSettings();
   const [currentDataset, setCurrentDataset] = useState<ParsedDataset | null>(null);
@@ -141,12 +219,13 @@ export function SurveyPage() {
 
   // The built-in (deterministic) report stays live with the current analysis;
   // an AI report, once generated, is a snapshot that takes precedence until the
-  // data changes or the user regenerates.
-  const builtInReport = useMemo(
-    () => (reportGenerated && analysis ? buildReport(analysis) : ''),
-    [reportGenerated, analysis],
+  // data changes or the user regenerates. Blocks (not a flat string) are the
+  // built-in report's on-screen/export representation, so tables and
+  // histograms render as real HTML/docx/PDF tables rather than pipe-text.
+  const builtInBlocks = useMemo(
+    () => (analysis ? buildReportBlocks(analysis) : []),
+    [analysis],
   );
-  const reportText = aiReport ?? builtInReport;
   const reportSource: 'ai' | 'builtin' | null = aiReport
     ? 'ai'
     : reportGenerated
@@ -293,7 +372,7 @@ export function SurveyPage() {
   };
 
   const doExport = async (fn: () => void | Promise<void>) => {
-    if (!reportText) {
+    if (reportSource === null) {
       setStatus({ ok: false, text: 'Generate the report before exporting.' });
       return;
     }
@@ -437,9 +516,14 @@ export function SurveyPage() {
           onClick={() =>
             doExport(() =>
               exportReportToWord(
-                reportText,
-                analysis?.currentHistogram ?? [],
-                analysis?.comparisonHistogram ?? [],
+                reportSource === 'ai'
+                  ? {
+                      kind: 'text',
+                      text: aiReport ?? '',
+                      currentHistogram: analysis?.currentHistogram ?? [],
+                      comparisonHistogram: analysis?.comparisonHistogram ?? [],
+                    }
+                  : { kind: 'blocks', blocks: builtInBlocks },
               ),
             )
           }
@@ -451,9 +535,14 @@ export function SurveyPage() {
           onClick={() =>
             doExport(() =>
               exportReportToPdf(
-                reportText,
-                analysis?.currentHistogram ?? [],
-                analysis?.comparisonHistogram ?? [],
+                reportSource === 'ai'
+                  ? {
+                      kind: 'text',
+                      text: aiReport ?? '',
+                      currentHistogram: analysis?.currentHistogram ?? [],
+                      comparisonHistogram: analysis?.comparisonHistogram ?? [],
+                    }
+                  : { kind: 'blocks', blocks: builtInBlocks },
               ),
             )
           }
@@ -507,8 +596,8 @@ export function SurveyPage() {
                 <tbody>
                   {automaticMaps.map((m) => (
                     <tr key={m.currentQuestion}>
-                      <td>{m.currentQuestion}</td>
-                      <td>{m.comparisonQuestion}</td>
+                      <td>{cleanLabel(m.currentQuestion)}</td>
+                      <td>{cleanLabel(m.comparisonQuestion)}</td>
                       <td>{m.matchType}</td>
                     </tr>
                   ))}
@@ -523,7 +612,7 @@ export function SurveyPage() {
               <option value="">Select current question</option>
               {currentSurveyColumns.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {cleanLabel(c)}
                 </option>
               ))}
             </select>
@@ -531,7 +620,7 @@ export function SurveyPage() {
               <option value="">Select comparison question</option>
               {comparisonSurveyColumns.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {cleanLabel(c)}
                 </option>
               ))}
             </select>
@@ -554,8 +643,8 @@ export function SurveyPage() {
                 <tbody>
                   {manualMaps.map((m, i) => (
                     <tr key={`${m.currentQuestion}-${m.comparisonQuestion}`}>
-                      <td>{m.currentQuestion}</td>
-                      <td>{m.comparisonQuestion}</td>
+                      <td>{cleanLabel(m.currentQuestion)}</td>
+                      <td>{cleanLabel(m.comparisonQuestion)}</td>
                       <td>{m.matchType}</td>
                       <td>
                         <button type="button" className="linkbtn si-danger" onClick={() => removeManualMap(i)}>
@@ -588,7 +677,7 @@ export function SurveyPage() {
               <tbody>
                 {currentSummaries.map((s) => (
                   <tr key={s.question} className={s.belowThreshold ? 'row--conflict' : ''}>
-                    <td>{s.question}</td>
+                    <td>{cleanLabel(s.question)}</td>
                     <td>{s.mean.toFixed(2)}</td>
                     <td>{s.count}</td>
                     <td>{s.interpretation}</td>
@@ -631,7 +720,7 @@ export function SurveyPage() {
               <tbody>
                 {actionAreas.map((s) => (
                   <tr key={s.question}>
-                    <td>{s.question}</td>
+                    <td>{cleanLabel(s.question)}</td>
                     <td>{s.mean.toFixed(2)}</td>
                     <td>{threshold.toFixed(2)}</td>
                     <td>{(s.mean - threshold).toFixed(2)}</td>
@@ -664,8 +753,8 @@ export function SurveyPage() {
               <tbody>
                 {comparisonSummaries.map((s) => (
                   <tr key={`${s.currentQuestion}-${s.comparisonQuestion}`}>
-                    <td>{s.currentQuestion}</td>
-                    <td>{s.comparisonQuestion}</td>
+                    <td>{cleanLabel(s.currentQuestion)}</td>
+                    <td>{cleanLabel(s.comparisonQuestion)}</td>
                     <td>{s.matchType}</td>
                     <td>{s.currentMean.toFixed(2)}</td>
                     <td>{s.comparisonMean.toFixed(2)}</td>
@@ -693,7 +782,7 @@ export function SurveyPage() {
       )}
 
       {/* -------- Generated report -------- */}
-      {reportGenerated && reportText && (
+      {reportSource && (
         <>
           <h2 className="survey__h2">Generated analytical report</h2>
           <p className="hint">
@@ -701,7 +790,11 @@ export function SurveyPage() {
               ? `Written by Claude (${model}) from your figures using the report prompt above.`
               : 'Written by the built-in report writer (no AI).'}
           </p>
-          <article className="sv-report">{reportText}</article>
+          {reportSource === 'ai' ? (
+            <article className="sv-report">{aiReport}</article>
+          ) : (
+            <ReportView blocks={builtInBlocks} />
+          )}
         </>
       )}
     </div>

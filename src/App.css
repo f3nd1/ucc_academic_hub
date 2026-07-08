@@ -2588,6 +2588,52 @@ a.chg-entry__hash:hover {
   padding: 1.1rem 1.25rem;
 }
 
+/* Built-in report rendered as real HTML blocks (see ReportView in
+   SurveyPage.tsx) instead of one pre-wrapped text blob — tables reuse the
+   page's normal .table-wrap/table styling, declared elsewhere. */
+.sv-report-body {
+  background: var(--summary-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+}
+
+.sv-report-body__title h3 {
+  margin: 0 0 0.15rem;
+  font-size: 1.15rem;
+}
+
+.sv-report-body__title p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.sv-report-body__h3 {
+  font-size: 1rem;
+  margin: 1.4rem 0 0.5rem;
+}
+
+.sv-report-body__h3:first-of-type {
+  margin-top: 0;
+}
+
+.sv-report-body__h4 {
+  font-size: 0.9rem;
+  margin: 1rem 0 0.4rem;
+}
+
+.sv-report-body__p {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 0 0 0.85rem;
+}
+
+.sv-report-body__hist {
+  margin: 0.5rem 0 1.25rem;
+}
+
 .sv-prompt {
   margin-top: 1.5rem;
   padding: 1rem 1.1rem;

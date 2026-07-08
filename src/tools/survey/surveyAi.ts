@@ -12,7 +12,7 @@
 // is exposed to the page — the same trade-off already accepted for the ERPNext
 // secret here. This keeps the app a pure static site with no backend.
 
-import type { Analysis, ComparisonSummary, QuestionSummary } from './surveyModel';
+import { cleanLabel, type Analysis, type ComparisonSummary, type QuestionSummary } from './surveyModel';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -22,7 +22,7 @@ const fmt = (n: number) => n.toFixed(2);
 const listQuestions = (items: QuestionSummary[]): string =>
   items.length === 0
     ? 'none detected'
-    : items.map((i) => `${i.question} (mean ${fmt(i.mean)})`).join('; ');
+    : items.map((i) => `${cleanLabel(i.question)} (mean ${fmt(i.mean)})`).join('; ');
 
 /**
  * Render the analysis as a plain-text data block. Deterministic and free of any
@@ -52,7 +52,7 @@ export function buildSurveyDataBlock(a: Analysis): string {
     lines.push('- none detected');
   } else {
     for (const i of a.currentSummaries) {
-      lines.push(`- ${i.question} | ${fmt(i.mean)} | ${i.count} | ${i.interpretation}`);
+      lines.push(`- ${cleanLabel(i.question)} | ${fmt(i.mean)} | ${i.count} | ${i.interpretation}`);
     }
   }
   lines.push('');
@@ -75,7 +75,7 @@ export function buildSurveyDataBlock(a: Analysis): string {
     );
     for (const c of a.comparisonSummaries as ComparisonSummary[]) {
       lines.push(
-        `  ${c.currentQuestion} | ${c.comparisonQuestion} | ${c.matchType} | ${fmt(c.currentMean)} | ${fmt(c.comparisonMean)} | ${fmt(c.change)} | ${c.direction}`,
+        `  ${cleanLabel(c.currentQuestion)} | ${cleanLabel(c.comparisonQuestion)} | ${c.matchType} | ${fmt(c.currentMean)} | ${fmt(c.comparisonMean)} | ${fmt(c.change)} | ${c.direction}`,
       );
     }
   }
