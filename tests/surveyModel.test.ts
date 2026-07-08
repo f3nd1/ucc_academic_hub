@@ -32,6 +32,20 @@ describe('convertLikertToNumber', () => {
     expect(convertLikertToNumber('banana')).toBeNull();
     expect(convertLikertToNumber(null)).toBeNull();
   });
+  it('matches bilingual exports where a translation follows the English phrase', () => {
+    // Real-world Google Forms exports append a translation, e.g.
+    // "Strongly Agree 非常同意" — the exact-match lookup alone missed these.
+    expect(convertLikertToNumber('Strongly Agree 非常同意')).toBe(5);
+    expect(convertLikertToNumber('Agree 同意')).toBe(4);
+    expect(convertLikertToNumber('Neutral 中立')).toBe(3);
+    expect(convertLikertToNumber('Disagree 不同意')).toBe(2);
+    expect(convertLikertToNumber('Strongly Disagree 非常不同意')).toBe(1);
+  });
+  it('does not let a shorter key shadow a longer one with the same prefix word', () => {
+    // "strongly disagree ..." must not match "disagree" or "strongly agree".
+    expect(convertLikertToNumber('strongly disagree 非常不同意')).toBe(1);
+    expect(convertLikertToNumber('strongly agree 非常同意')).toBe(5);
+  });
 });
 
 describe('detectSurveyColumns', () => {
@@ -46,6 +60,39 @@ describe('detectSurveyColumns', () => {
     expect(cols).not.toContain('Course'); // excluded by name
     expect(cols).not.toContain('Email'); // excluded by name
     expect(cols).not.toContain('Comment'); // <70% convertible
+  });
+
+  it('does not misclassify a long question sentence as metadata just because it contains an excluded word', () => {
+    // Real Google Forms exports write full-sentence headers, e.g. "...during
+    // this module." or "...provided appropriate academic guidance...". Those
+    // legitimately contain "module" and "id" (inside "guidance") as ordinary
+    // English, and must still be detected as Likert question columns.
+    const longHeaderRows: DataRow[] = [
+      {
+        Course: 'DS',
+        'The teacher provided appropriate academic guidance when needed.': 'Strongly Agree 非常同意',
+        'The physical facilities supported my learning during this module.': 'Agree 同意',
+      },
+      {
+        Course: 'DS',
+        'The teacher provided appropriate academic guidance when needed.': 'Agree 同意',
+        'The physical facilities supported my learning during this module.': 'Strongly Agree 非常同意',
+      },
+    ];
+    const cols = detectSurveyColumns(longHeaderRows, Object.keys(longHeaderRows[0]));
+    expect(cols).toContain('The teacher provided appropriate academic guidance when needed.');
+    expect(cols).toContain('The physical facilities supported my learning during this module.');
+    expect(cols).not.toContain('Course');
+  });
+
+  it('still excludes short metadata-style headers that happen to contain an excluded substring', () => {
+    const rows2: DataRow[] = [
+      { Modules: 'Leadership', 'Q1 clarity': 'Agree' },
+      { Modules: 'Leadership', 'Q1 clarity': 5 },
+    ];
+    const cols = detectSurveyColumns(rows2, Object.keys(rows2[0]));
+    expect(cols).not.toContain('Modules');
+    expect(cols).toContain('Q1 clarity');
   });
 });
 

@@ -68,6 +68,10 @@ export const LIKERT_MAP: Record<string, number> = {
   'highly agree': 5,
 };
 
+// Longest keys first, so "strongly agree" is tried before "agree" and can't be
+// shadowed by it (matters for the prefix match below).
+const LIKERT_KEYS_BY_LENGTH = Object.keys(LIKERT_MAP).sort((a, b) => b.length - a.length);
+
 /** Convert a numeric or text Likert value to a number, or null if it isn't one. */
 export function convertLikertToNumber(value: unknown): number | null {
   if (typeof value === 'number' && !Number.isNaN(value)) return value;
@@ -78,7 +82,16 @@ export function convertLikertToNumber(value: unknown): number | null {
   const numeric = Number(normalised);
   if (!Number.isNaN(numeric)) return numeric;
 
-  return LIKERT_MAP[normalised] ?? null;
+  if (normalised in LIKERT_MAP) return LIKERT_MAP[normalised];
+
+  // Bilingual exports (e.g. Google Forms) append a translation after the
+  // English phrase, e.g. "Strongly Agree 非常同意". Match on the English
+  // phrase as a prefix so that trailing text doesn't block detection.
+  for (const key of LIKERT_KEYS_BY_LENGTH) {
+    if (normalised.startsWith(key)) return LIKERT_MAP[key];
+  }
+
+  return null;
 }
 
 /** Columns that are clearly metadata, never survey questions. */
@@ -89,14 +102,30 @@ const EXCLUDED_COLUMN_PATTERNS = [
 ];
 
 /**
+ * Metadata headers are short labels ("Course", "Student ID", "Timestamp").
+ * Real Likert question headers are full sentences (e.g. "The teacher
+ * provided appropriate academic guidance..."), and those sentences routinely
+ * contain the same substrings in ordinary English ("...during this module",
+ * "...in a timely manner", "guidance" containing "id"). Only applying the
+ * exclusion patterns to short headers keeps metadata detection working
+ * without misclassifying long question text as metadata.
+ */
+const METADATA_HEADER_MAX_WORDS = 6;
+
+function isMetadataColumn(column: string): boolean {
+  const lower = column.toLowerCase().trim();
+  if (lower.split(/\s+/).filter(Boolean).length > METADATA_HEADER_MAX_WORDS) return false;
+  return EXCLUDED_COLUMN_PATTERNS.some((p) => lower.includes(p));
+}
+
+/**
  * Detect quantitative survey question columns: exclude obvious metadata, then
  * keep columns where at least 70% of non-empty values are numeric or map to a
  * Likert number.
  */
 export function detectSurveyColumns(rows: DataRow[], columns: string[]): string[] {
   return columns.filter((column) => {
-    const lower = column.toLowerCase();
-    if (EXCLUDED_COLUMN_PATTERNS.some((p) => lower.includes(p))) return false;
+    if (isMetadataColumn(column)) return false;
 
     const values = rows
       .map((row) => row[column])
