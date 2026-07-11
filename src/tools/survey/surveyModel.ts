@@ -16,7 +16,12 @@ export interface ParsedDataset {
 }
 
 export interface QuestionSummary {
+  /** The exact original column name — used for row lookups and as an id. */
   question: string;
+  /** Detected dimension/grouping, English only, e.g. "Assessment and Feedback". */
+  dimension: string;
+  /** Compact identifier for the report body, e.g. "Q1" (see deriveQuestionLabels). */
+  shortLabel: string;
   mean: number;
   count: number;
   interpretation: string;
@@ -33,11 +38,19 @@ export interface ComparisonMap {
 }
 
 export interface ComparisonSummary extends ComparisonMap {
+  /** Dimension + short label of the current question (mirrors QuestionSummary). */
+  currentDimension: string;
+  currentShortLabel: string;
   currentMean: number;
   comparisonMean: number;
   change: number;
   direction: Direction;
   comment: string;
+}
+
+export interface QuestionLabel {
+  dimension: string;
+  shortLabel: string;
 }
 
 export interface Metadata {
@@ -177,14 +190,18 @@ export function buildQuestionSummaries(
   rows: DataRow[],
   columns: string[],
   threshold: number,
+  labels?: Map<string, QuestionLabel>,
 ): QuestionSummary[] {
   return columns.map((column) => {
     const values = rows
       .map((row) => convertLikertToNumber(row[column]))
       .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v));
     const mean = calculateMean(values);
+    const { dimension, shortLabel } = labelFor(labels, column);
     return {
       question: column,
+      dimension,
+      shortLabel,
       mean,
       count: values.length,
       interpretation: interpretScore(mean, threshold),
@@ -197,6 +214,7 @@ export function buildComparisonSummaries(
   currentRows: DataRow[],
   comparisonRows: DataRow[],
   maps: ComparisonMap[],
+  labels?: Map<string, QuestionLabel>,
 ): ComparisonSummary[] {
   return maps.map((map) => {
     const current = currentRows
@@ -210,9 +228,12 @@ export function buildComparisonSummaries(
     const comparisonMean = calculateMean(comparison);
     const change = currentMean - comparisonMean;
     const direction = classifyDirection(change);
+    const { dimension, shortLabel } = labelFor(labels, map.currentQuestion);
 
     return {
       ...map,
+      currentDimension: dimension,
+      currentShortLabel: shortLabel,
       currentMean,
       comparisonMean,
       change,
@@ -417,15 +438,115 @@ export function cleanLabel(s: string): string {
   return s.replace(/\s*[\r\n]+\s*/g, ' ').trim();
 }
 
-const formatQuestionList = (items: QuestionSummary[]): string =>
-  items.length === 0
-    ? 'no clearly detected areas'
-    : items.map((i) => `${cleanLabel(i.question)} (${i.mean.toFixed(2)})`).join(', ');
+// CJK ideographs, Kana, CJK symbols/punctuation, and fullwidth forms — used to
+// find where the English part of a bilingual header ends.
+const CJK_RANGE = /\p{Script=Han}/u;
 
-const formatComparisonList = (items: ComparisonSummary[]): string =>
-  items.length === 0
-    ? 'no clearly detected areas'
-    : items.map((i) => `${cleanLabel(i.currentQuestion)} (${i.change.toFixed(2)})`).join(', ');
+/**
+ * Derive a short, English-only dimension label from a survey column header.
+ * Google Forms bilingual exports look like:
+ *   "Assessment and Feedback 评估与反馈\r\nHow strongly do you agree ... [item 项目]"
+ * The dimension is the English lead on the first line, before the translation.
+ * Falls back to the cleaned header when there is no recognisable lead.
+ */
+export function deriveDimension(header: string): string {
+  const firstLine = header.split(/[\r\n]+/)[0] ?? '';
+  const cjkAt = firstLine.search(CJK_RANGE);
+  const english = (cjkAt >= 0 ? firstLine.slice(0, cjkAt) : firstLine).trim();
+  return english || cleanLabel(header);
+}
+
+/**
+ * Assign each detected question column a compact reference label ("Q1", "Q2",
+ * ...) in column order, plus its derived dimension. Keyed by the exact column
+ * name so callers can look labels up from a question id. Computed once when a
+ * dataset is analysed and reused everywhere, so the report body can refer to
+ * questions by "Q3" instead of repeating the full bilingual sentence.
+ */
+export function deriveQuestionLabels(columns: string[]): Map<string, QuestionLabel> {
+  const map = new Map<string, QuestionLabel>();
+  columns.forEach((column, i) => {
+    map.set(column, { dimension: deriveDimension(column), shortLabel: `Q${i + 1}` });
+  });
+  return map;
+}
+
+/** Look up a column's label, falling back to a derived one if absent. */
+function labelFor(labels: Map<string, QuestionLabel> | undefined, column: string): QuestionLabel {
+  return labels?.get(column) ?? { dimension: deriveDimension(column), shortLabel: column };
+}
+
+/** A signed, 2dp number, e.g. "+0.17" / "-0.83" — for change columns/prose. */
+const signed = (n: number): string => `${n >= 0 ? '+' : ''}${n.toFixed(2)}`;
+
+interface DimensionGroup {
+  dimension: string;
+  items: QuestionSummary[];
+  avg: number;
+}
+
+/** Group question summaries by dimension, preserving first-seen order. */
+function groupByDimension(items: QuestionSummary[]): DimensionGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, QuestionSummary[]>();
+  for (const it of items) {
+    if (!map.has(it.dimension)) {
+      map.set(it.dimension, []);
+      order.push(it.dimension);
+    }
+    map.get(it.dimension)!.push(it);
+  }
+  return order.map((d) => {
+    const arr = map.get(d)!;
+    return { dimension: d, items: arr, avg: calculateMean(arr.map((x) => x.mean)) };
+  });
+}
+
+interface ComparisonDimensionGroup {
+  dimension: string;
+  items: ComparisonSummary[];
+  avgChange: number;
+}
+
+/** Group comparison summaries by the current question's dimension. */
+function groupComparisonByDimension(items: ComparisonSummary[]): ComparisonDimensionGroup[] {
+  const order: string[] = [];
+  const map = new Map<string, ComparisonSummary[]>();
+  for (const it of items) {
+    if (!map.has(it.currentDimension)) {
+      map.set(it.currentDimension, []);
+      order.push(it.currentDimension);
+    }
+    map.get(it.currentDimension)!.push(it);
+  }
+  return order.map((d) => {
+    const arr = map.get(d)!;
+    return { dimension: d, items: arr, avgChange: calculateMean(arr.map((x) => x.change)) };
+  });
+}
+
+/** Short qualitative phrase for a dimension average, relative to threshold. */
+function dimensionPhrase(avg: number, threshold: number): string {
+  if (avg < threshold) return 'below the action threshold';
+  if (avg >= 4.2) return 'a strong result';
+  if (avg >= 3.5) return 'a generally positive result';
+  return 'a moderate result';
+}
+
+/** Join whole sentences until adding the next would exceed maxWords. */
+function capToWords(sentences: string[], maxWords: number): string {
+  const out: string[] = [];
+  let count = 0;
+  for (const raw of sentences) {
+    const s = raw.trim();
+    if (!s) continue;
+    const w = s.split(/\s+/).length;
+    if (out.length > 0 && count + w > maxWords) break;
+    out.push(s);
+    count += w;
+  }
+  return out.join(' ');
+}
 
 // --- Structured report -------------------------------------------------------
 //
@@ -460,7 +581,7 @@ export type ReportBlock =
 export function buildReportBlocks(a: Analysis): ReportBlock[] {
   const {
     metadata, currentSummaries, comparisonSummaries, threshold,
-    actionAreas, strongestAreas, lowerRatedAreas, hasComparison, qualitativeThemes,
+    actionAreas, hasComparison, qualitativeThemes,
     currentHistogram, comparisonHistogram,
   } = a;
 
@@ -469,6 +590,14 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
   const declined = comparisonSummaries.filter((i) => i.direction === 'Declined');
   const stable = comparisonSummaries.filter((i) => i.direction === 'Stable');
   const comparisonAvailable = hasComparison && comparisonSummaries.length > 0;
+
+  // Dimension roll-ups drive the concise, grouped prose (never per-question).
+  const dimGroups = groupByDimension(currentSummaries);
+  const byAvgDesc = [...dimGroups].sort((x, y) => y.avg - x.avg);
+  const strongDims = byAvgDesc.slice(0, 2);
+  const weakDim = byAvgDesc[byAvgDesc.length - 1];
+  // Per-question comparison lookup for the summary table's comparison columns.
+  const compByCurrent = new Map(comparisonSummaries.map((c) => [c.currentQuestion, c]));
 
   const blocks: ReportBlock[] = [];
   const heading = (text: string) => blocks.push({ type: 'heading', text });
@@ -479,22 +608,40 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
 
   let n = 1;
 
+  // 1. Executive Summary — synthesised, dimension-level, capped at 120 words.
   heading(`${n}. Executive Summary`);
   {
-    let p = `The results indicate an overall mean score of ${overallMean.toFixed(2)} across the detected quantitative survey items. Students rated ${formatQuestionList(strongestAreas)} particularly positively. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. `;
-    p += actionAreas.length > 0
-      ? `Based on the selected action threshold of ${threshold.toFixed(2)}, ${actionAreas.length} area or areas may benefit from further enhancement. `
-      : `No detected quantitative area fell below the selected action threshold of ${threshold.toFixed(2)}. `;
-    if (comparisonAvailable)
-      p += `Compared with the comparison dataset, ${improved.length} item or items improved, ${declined.length} item or items declined, and ${stable.length} item or items remained broadly stable. `;
-    p += `The findings provide a useful basis for strengthening course enhancement, teaching quality, learner experience, assessment design, and module delivery.`;
-    paragraph(p);
+    const sentences: string[] = [];
+    sentences.push(
+      `Across ${metadata.responseCount} response${metadata.responseCount === 1 ? '' : 's'}, the survey returned an overall mean of ${overallMean.toFixed(2)} on a five-point scale.`,
+    );
+    if (strongDims.length > 0) {
+      const names = strongDims.map((d) => d.dimension).join(' and ');
+      sentences.push(
+        `The strongest ${strongDims.length > 1 ? 'dimensions were' : 'dimension was'} ${names}, rated around ${strongDims[0].avg.toFixed(2)}.`,
+      );
+    }
+    if (weakDim && (strongDims.length === 0 || weakDim.dimension !== strongDims[0].dimension)) {
+      const below = weakDim.avg < threshold ? `, below the action threshold of ${threshold.toFixed(2)}` : '';
+      sentences.push(`The lowest-rated dimension was ${weakDim.dimension} at ${weakDim.avg.toFixed(2)}${below}.`);
+    }
+    if (actionAreas.length > 0) {
+      sentences.push(`${actionAreas.length} item${actionAreas.length === 1 ? '' : 's'} fell below the action threshold and warrant attention.`);
+    }
+    if (comparisonAvailable) {
+      const trend = improved.length > declined.length ? 'improving' : declined.length > improved.length ? 'declining' : 'broadly stable';
+      sentences.push(
+        `Against the comparison dataset, ${improved.length} improved, ${declined.length} declined, and ${stable.length} were broadly stable, an overall ${trend} pattern.`,
+      );
+    }
+    paragraph(capToWords(sentences, 120));
   }
   n += 1;
 
+  // 2. Survey Overview — the one place metadata/counts are stated.
   heading(`${n}. Survey Overview`);
   {
-    let p = `The survey relates to ${metadata.courseName}. The detected module name or names are ${metadata.moduleNames.join(', ')}. The reporting period is ${metadata.reportingPeriod}. The current dataset contains ${metadata.responseCount} response or responses. The survey evaluated ${currentSummaries.length} quantitative item or items. `;
+    let p = `The survey relates to ${metadata.courseName}. The detected module name or names are ${metadata.moduleNames.join(', ')}. The reporting period is ${metadata.reportingPeriod}. The current dataset contains ${metadata.responseCount} response or responses. The survey evaluated ${currentSummaries.length} quantitative item or items across ${dimGroups.length} dimension or dimensions. `;
     if (hasComparison) {
       p += comparisonSummaries.length > 0
         ? `Comparison data was provided and ${comparisonSummaries.length} comparable item or items were identified through exact or manual question mapping.`
@@ -506,63 +653,74 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
   }
   n += 1;
 
+  // 3. Summary Table — dimension + short label + scores only (no raw question text).
   heading(`${n}. Summary Table of Results`);
-  blocks.push({
-    type: 'table',
-    headers: ['Survey Dimension / Question', 'Mean Score / Rating', 'Response Count', 'Interpretation'],
-    rows: currentSummaries.map((i) => [
-      cleanLabel(i.question), i.mean.toFixed(2), String(i.count), i.interpretation,
-    ]),
-  });
   if (comparisonAvailable) {
-    subheading('Comparison Summary');
     blocks.push({
       type: 'table',
-      headers: [
-        'Current Question', 'Comparison Question', 'Match Type',
-        'Current Score', 'Comparison Score', 'Change', 'Direction of Change', 'Interpretation',
-      ],
-      rows: comparisonSummaries.map((i) => [
-        cleanLabel(i.currentQuestion), cleanLabel(i.comparisonQuestion), i.matchType,
-        i.currentMean.toFixed(2), i.comparisonMean.toFixed(2), i.change.toFixed(2), i.direction, i.comment,
-      ]),
+      headers: ['Dimension', 'Ref', 'Current avg', 'Comparison avg', 'Δ change'],
+      rows: currentSummaries.map((i) => {
+        const c = compByCurrent.get(i.question);
+        return [
+          i.dimension, i.shortLabel, i.mean.toFixed(2),
+          c ? c.comparisonMean.toFixed(2) : '—',
+          c ? signed(c.change) : '—',
+        ];
+      }),
+    });
+  } else {
+    blocks.push({
+      type: 'table',
+      headers: ['Dimension', 'Ref', 'Current avg', 'Interpretation'],
+      rows: currentSummaries.map((i) => [i.dimension, i.shortLabel, i.mean.toFixed(2), i.interpretation]),
     });
   }
   n += 1;
 
+  // 4. Histogram of Current Survey Results.
   heading(`${n}. Histogram of Current Survey Results`);
-  paragraph('The histogram of current survey results shows how the detected survey questions are distributed across the score bands, providing a visual indication of whether results are concentrated at lower, moderate, or stronger levels of student rating.');
+  paragraph('The histogram below shows how the detected survey questions are distributed across the score bands, indicating whether results concentrate at lower, moderate, or stronger levels of student rating.');
   blocks.push({ type: 'histogram', title: 'Current Survey Results Histogram', bins: currentHistogram });
   n += 1;
 
+  // 5. Quantitative Analysis — grouped by dimension, short labels only.
   heading(`${n}. Quantitative Analysis`);
-  {
-    let p = `The quantitative results show that the highest-rated areas were ${formatQuestionList(strongestAreas)}. These results suggest that students responded positively to these aspects of the course or module experience. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}. These areas may benefit from further monitoring and enhancement, especially where the scores are close to or below the selected action threshold. `;
-    p += actionAreas.length > 0
-      ? `The areas below threshold were ${formatQuestionList(actionAreas)}. These results suggest that targeted action may be required to improve the learner experience in these specific areas.`
-      : `As no item fell below the selected action threshold, the results suggest that the current quantitative performance is generally acceptable across the detected survey dimensions.`;
+  for (const g of dimGroups) {
+    let p = `${g.dimension} averaged ${g.avg.toFixed(2)}, ${dimensionPhrase(g.avg, threshold)}.`;
+    if (g.items.length > 1) {
+      const sorted = [...g.items].sort((x, y) => y.mean - x.mean);
+      const top = sorted[0];
+      const low = sorted[sorted.length - 1];
+      if (top.mean !== low.mean)
+        p += ` Ratings ranged from ${low.shortLabel} (${low.mean.toFixed(2)}) to ${top.shortLabel} (${top.mean.toFixed(2)}).`;
+    }
+    const below = g.items.filter((i) => i.belowThreshold);
+    if (below.length > 0)
+      p += ` Below the action threshold: ${below.map((i) => i.shortLabel).join(', ')}.`;
     paragraph(p);
   }
   n += 1;
 
   if (comparisonAvailable) {
+    // 6. Comparative Analysis — grouped by dimension, short labels only.
     heading(`${n}. Comparative Analysis`);
-    {
-      let p = `The comparative analysis shows that the strongest improvements were observed in ${formatComparisonList(improved)}. Areas of relative decline were ${formatComparisonList(declined)}. Areas that remained broadly stable were ${formatComparisonList(stable)}. `;
-      p += `The comparison included exact question matches and manually mapped similar questions where applicable. `;
-      if (improved.length > 0)
-        p += `The positive movements suggest that some aspects of teaching, delivery, learner support, materials, assessment, or engagement may have strengthened compared with the comparison dataset. `;
-      if (declined.length > 0)
-        p += `The declined areas should be reviewed constructively to identify whether refinements are needed in course delivery, assessment design, learning support, or student engagement. `;
-      if (stable.length > 0)
-        p += `The stable areas indicate continuity in the learner experience and should continue to be monitored.`;
+    for (const g of groupComparisonByDimension(comparisonSummaries)) {
+      const dir = classifyDirection(g.avgChange);
+      let p = `${g.dimension} moved ${signed(g.avgChange)} overall against the comparison dataset (${dir.toLowerCase()}).`;
+      if (g.items.length > 1) {
+        const sorted = [...g.items].sort((x, y) => y.change - x.change);
+        const best = sorted[0];
+        const worst = sorted[sorted.length - 1];
+        if (best.change !== worst.change)
+          p += ` The largest gain was ${best.currentShortLabel} (${signed(best.change)}) and the largest drop was ${worst.currentShortLabel} (${signed(worst.change)}).`;
+      }
       paragraph(p);
     }
     n += 1;
 
     if (comparisonHistogram.length > 0) {
       heading(`${n}. Histogram of Comparative Results`);
-      paragraph('The histogram of comparative results shows the distribution of change across comparable items, indicating how many areas declined, remained broadly stable, or improved when compared against the comparison dataset.');
+      paragraph('The histogram below shows the distribution of change across comparable items, indicating how many areas declined, remained broadly stable, or improved against the comparison dataset.');
       blocks.push({ type: 'histogram', title: 'Comparative Results Histogram', bins: comparisonHistogram });
       n += 1;
     }
@@ -573,7 +731,7 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
     for (const theme of qualitativeThemes) {
       subheading(theme.title);
       paragraph(
-        `Student comments under this theme suggest that this area formed part of the learner experience. The comments indicate recurring attention to ${theme.title.toLowerCase()}, which may be considered when reviewing course delivery and learner support. Illustrative comment: "${theme.comments[0]}"`,
+        `Student comments under this theme indicate recurring attention to ${theme.title.toLowerCase()}, which may be considered when reviewing course delivery and learner support. Illustrative comment: "${theme.comments[0]}"`,
       );
     }
     n += 1;
@@ -582,27 +740,38 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
   if (metadata.hasMultipleModules) {
     heading(`${n}. Cross-Module Pooled Analysis`);
     {
-      let p = `The pooled findings across the detected modules suggest that students responded most positively to ${formatQuestionList(strongestAreas)}. Recurring areas for enhancement include ${formatQuestionList(lowerRatedAreas)}. The pooled results provide an institutional-level view of the learner experience and can support course-level quality monitoring.`;
+      let p = `Pooled across the detected modules, students responded most positively in ${strongDims.map((d) => d.dimension).join(' and ')}. Recurring areas for enhancement centre on ${weakDim ? weakDim.dimension : 'no clearly detected area'}. The pooled view supports course-level quality monitoring.`;
       if (comparisonAvailable)
-        p += ` In comparison with the comparison dataset, the pooled pattern shows ${improved.length} improved area or areas, ${declined.length} declined area or areas, and ${stable.length} broadly stable area or areas.`;
+        p += ` The pooled pattern shows ${improved.length} improved, ${declined.length} declined, and ${stable.length} broadly stable item or items.`;
       paragraph(p);
     }
     n += 1;
   }
 
   if (comparisonAvailable) {
+    // Key Improvements / Decline as compact tables (short label + dimension + scores).
     heading(`${n}. Key Improvements and Areas of Decline`);
     subheading('A. Areas of Improvement');
     if (improved.length > 0) {
-      for (const i of improved)
-        paragraph(`${cleanLabel(i.currentQuestion)}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents an improvement of ${i.change.toFixed(2)}, suggesting positive movement in this area.`);
+      blocks.push({
+        type: 'table',
+        headers: ['Ref', 'Dimension', 'Current', 'Comparison', 'Δ'],
+        rows: [...improved]
+          .sort((x, y) => y.change - x.change)
+          .map((i) => [i.currentShortLabel, i.currentDimension, i.currentMean.toFixed(2), i.comparisonMean.toFixed(2), signed(i.change)]),
+      });
     } else {
       paragraph('The results do not indicate any significant areas of improvement based on the provided comparable data.');
     }
     subheading('B. Areas Requiring Attention');
     if (declined.length > 0) {
-      for (const i of declined)
-        paragraph(`${cleanLabel(i.currentQuestion)}: The current result was ${i.currentMean.toFixed(2)}, compared with ${i.comparisonMean.toFixed(2)}. This represents a decline of ${Math.abs(i.change).toFixed(2)}, suggesting that further review may be useful.`);
+      blocks.push({
+        type: 'table',
+        headers: ['Ref', 'Dimension', 'Current', 'Comparison', 'Δ'],
+        rows: [...declined]
+          .sort((x, y) => x.change - y.change)
+          .map((i) => [i.currentShortLabel, i.currentDimension, i.currentMean.toFixed(2), i.comparisonMean.toFixed(2), signed(i.change)]),
+      });
     } else {
       paragraph('The results do not indicate any significant areas of decline based on the provided data.');
     }
@@ -610,19 +779,19 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
   }
 
   heading(`${n}. Key Insights`);
-  paragraph(`1. The overall mean score of ${overallMean.toFixed(2)} indicates the general level of student satisfaction across the detected quantitative survey dimensions.`);
-  paragraph(`2. The strongest current areas were ${formatQuestionList(strongestAreas)}, suggesting that these aspects are perceived positively by students.`);
-  paragraph(`3. The relatively lower-rated areas were ${formatQuestionList(lowerRatedAreas)}, indicating where further enhancement may be most useful.`);
+  paragraph(`1. The overall mean of ${overallMean.toFixed(2)} reflects the general level of student satisfaction across the ${dimGroups.length} detected dimension or dimensions.`);
+  paragraph(`2. The strongest ${strongDims.length > 1 ? 'dimensions were' : 'dimension was'} ${strongDims.map((d) => `${d.dimension} (${d.avg.toFixed(2)})`).join(', ')}.`);
+  paragraph(`3. The area most in need of enhancement is ${weakDim ? `${weakDim.dimension} (${weakDim.avg.toFixed(2)})` : 'no clearly detected area'}.`);
   paragraph(
     comparisonAvailable
-      ? `4. Compared with the comparison dataset, the results show ${improved.length} improved item or items, ${declined.length} declined item or items, and ${stable.length} stable item or items.`
+      ? `4. Against the comparison dataset, ${improved.length} improved, ${declined.length} declined, and ${stable.length} remained broadly stable.`
       : `4. As no comparison dataset was provided, the analysis focuses on the current cross-sectional survey results.`,
   );
   n += 1;
 
   heading(`${n}. Recommendations`);
   subheading('Teaching and Facilitation');
-  paragraph('Lecturers should review the lower-rated areas and identify practical teaching strategies that can improve clarity, engagement, pacing, and learner support.');
+  paragraph('Lecturers should review the lower-rated dimensions and identify practical teaching strategies that can improve clarity, engagement, pacing, and learner support.');
   subheading('Assessment and Feedback');
   paragraph('Programme and module teams should review assessment-related items, especially where scores are relatively lower or below threshold, to ensure expectations, instructions, and feedback processes are clear.');
   subheading('Learning Materials and Resources');
@@ -637,11 +806,21 @@ export function buildReportBlocks(a: Analysis): ReportBlock[] {
 
   heading(`${n}. Conclusion`);
   {
-    let p = `Overall, the survey results provide a constructive picture of the current learner experience. The findings highlight areas of strength while identifying specific areas where enhancement may support teaching quality, course delivery, learner engagement, assessment design, and academic management.`;
+    let p = `Overall, the survey results provide a constructive picture of the current learner experience, highlighting areas of strength while identifying specific dimensions where enhancement may support teaching quality, course delivery, learner engagement, and assessment design.`;
     if (comparisonAvailable)
-      p += ` Compared with the comparison dataset, the overall pattern should be interpreted through the identified improvements, declines, and areas of stability, with priority given to sustaining positive movement and addressing areas requiring further attention.`;
+      p += ` The comparison should be interpreted through the identified improvements, declines, and areas of stability, with priority given to sustaining positive movement and addressing areas requiring further attention.`;
     paragraph(p);
   }
+  n += 1;
+
+  // Final appendix — the ONLY place the full original question wording appears.
+  heading(`${n}. Question Reference`);
+  paragraph('The full original wording of each question, including the original bilingual text, is listed once here. All sections above refer to these questions by their short labels.');
+  blocks.push({
+    type: 'table',
+    headers: ['Ref', 'Dimension', 'Full question text'],
+    rows: currentSummaries.map((i) => [i.shortLabel, i.dimension, cleanLabel(i.question)]),
+  });
 
   return blocks;
 }
@@ -691,9 +870,12 @@ export function analyse(
   comparison: { rows: DataRow[]; maps: ComparisonMap[] } | null,
 ): Analysis {
   const surveyColumns = detectSurveyColumns(currentRows, currentColumns);
-  const currentSummaries = buildQuestionSummaries(currentRows, surveyColumns, threshold);
+  // One label set (Q1..Qn + dimension), derived once and shared by the current
+  // and comparison summaries so the same question reads the same everywhere.
+  const labels = deriveQuestionLabels(surveyColumns);
+  const currentSummaries = buildQuestionSummaries(currentRows, surveyColumns, threshold, labels);
   const comparisonSummaries = comparison
-    ? buildComparisonSummaries(currentRows, comparison.rows, comparison.maps)
+    ? buildComparisonSummaries(currentRows, comparison.rows, comparison.maps, labels)
     : [];
 
   return {

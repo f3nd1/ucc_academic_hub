@@ -2707,6 +2707,66 @@ a.chg-entry__hash:hover {
   min-width: 2px;
 }
 
+/* ---------------- Survey: D3 bar chart ---------------- */
+.sv-d3 {
+  position: relative;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.sv-d3__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* Bar fill reads the active theme's accent, so the chart matches every skin. */
+.sv-d3__bar {
+  fill: var(--accent);
+  transition: opacity 0.12s ease;
+}
+
+.sv-d3__bar:hover {
+  opacity: 0.8;
+}
+
+.sv-d3__grid {
+  stroke: var(--border);
+  stroke-dasharray: 3 3;
+}
+
+.sv-d3__axis {
+  stroke: var(--border);
+}
+
+.sv-d3__tick {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.sv-d3__axislabel {
+  fill: var(--muted);
+  font-size: 11px;
+}
+
+.sv-d3__tip {
+  position: absolute;
+  transform: translate(-50%, -130%);
+  background: #1e1e1e;
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+
+.sv-d3__tip span {
+  opacity: 0.85;
+}
+
 /* ---------------- AI Log ---------------- */
 .ailog__table {
   width: 100%;

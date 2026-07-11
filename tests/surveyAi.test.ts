@@ -11,18 +11,18 @@ const baseAnalysis = (over: Partial<Analysis> = {}): Analysis => ({
     hasMultipleModules: false,
   },
   currentSummaries: [
-    { question: 'Clarity', mean: 4.5, count: 20, interpretation: 'Strong result.', belowThreshold: false },
-    { question: 'Pace', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
+    { question: 'Clarity', dimension: 'Clarity', shortLabel: 'Q1', mean: 4.5, count: 20, interpretation: 'Strong result.', belowThreshold: false },
+    { question: 'Pace', dimension: 'Pace', shortLabel: 'Q2', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
   ],
   comparisonSummaries: [],
   actionAreas: [
-    { question: 'Pace', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
+    { question: 'Pace', dimension: 'Pace', shortLabel: 'Q2', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
   ],
   strongestAreas: [
-    { question: 'Clarity', mean: 4.5, count: 20, interpretation: 'Strong result.', belowThreshold: false },
+    { question: 'Clarity', dimension: 'Clarity', shortLabel: 'Q1', mean: 4.5, count: 20, interpretation: 'Strong result.', belowThreshold: false },
   ],
   lowerRatedAreas: [
-    { question: 'Pace', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
+    { question: 'Pace', dimension: 'Pace', shortLabel: 'Q2', mean: 2.8, count: 20, interpretation: 'Below threshold.', belowThreshold: true },
   ],
   qualitativeThemes: [],
   currentHistogram: [
@@ -40,10 +40,13 @@ describe('buildSurveyDataBlock', () => {
     const block = buildSurveyDataBlock(baseAnalysis());
     expect(block).toContain('Course: Data Science');
     expect(block).toContain('Action threshold: 3.00');
-    expect(block).toContain('Clarity | 4.50 | 20');
-    expect(block).toContain('Pace | 2.80 | 20');
+    // Quantitative rows now use ref | dimension | mean | count | interpretation.
+    expect(block).toContain('Q1 | Clarity | 4.50 | 20');
+    expect(block).toContain('Q2 | Pace | 2.80 | 20');
     // overall mean = (4.5 + 2.8) / 2 = 3.65
     expect(block).toContain('Overall mean across detected items: 3.65');
+    // Full wording is provided once, in the reference list.
+    expect(block).toContain('Question reference');
   });
 
   it('states plainly when there is no comparison and no comments', () => {
@@ -67,6 +70,8 @@ describe('buildSurveyDataBlock', () => {
             currentQuestion: 'Clarity',
             comparisonQuestion: 'Clarity',
             matchType: 'Exact',
+            currentDimension: 'Clarity',
+            currentShortLabel: 'Q1',
             currentMean: 4.5,
             comparisonMean: 4.0,
             change: 0.5,
@@ -76,7 +81,8 @@ describe('buildSurveyDataBlock', () => {
         ],
       }),
     );
-    expect(block).toContain('Clarity | Clarity | Exact | 4.50 | 4.00 | 0.50 | Improved');
+    // Comparison rows now use ref | dimension | match | current | comparison | change | direction.
+    expect(block).toContain('Q1 | Clarity | Exact | 4.50 | 4.00 | 0.50 | Improved');
   });
 });
 

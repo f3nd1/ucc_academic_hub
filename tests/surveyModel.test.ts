@@ -16,6 +16,8 @@ import {
   buildReportBlocks,
   renderBlocksAsPlainText,
   cleanLabel,
+  deriveDimension,
+  deriveQuestionLabels,
   STABILITY_MARGIN,
   type DataRow,
   type QuestionSummary,
@@ -299,43 +301,96 @@ describe('cleanLabel', () => {
   });
 });
 
-describe('buildReportBlocks', () => {
+describe('buildReportBlocks (concise, dimension-grouped)', () => {
+  // Two dimensions ("Learning Facilities", "Assessment and Feedback") with a
+  // bilingual multi-line header on the first question, to exercise the short
+  // labels and the reference appendix.
   const rows: DataRow[] = [
     {
       Course: 'DS', Module: 'M1', Timestamp: new Date('2026-03-01'),
-      'Multi\nLine Question': 5, Q2: 2, Comment: 'clear teaching',
+      'Learning Facilities 学习设施\r\nThe rooms were adequate. 教室足够。': 5,
+      'Assessment and Feedback 评估\r\nFeedback was timely.': 4,
+      Comment: 'clear teaching',
     },
     {
       Course: 'DS', Module: 'M1', Timestamp: new Date('2026-03-02'),
-      'Multi\nLine Question': 4, Q2: 2, Comment: 'good',
+      'Learning Facilities 学习设施\r\nThe rooms were adequate. 教室足够。': 4,
+      'Assessment and Feedback 评估\r\nFeedback was timely.': 2,
+      Comment: 'good',
     },
   ];
 
-  it('produces a title block and typed section blocks (headings, tables, histograms)', () => {
+  it('title block; summary table is Dimension/Ref, not raw question text', () => {
     const a = analyse(rows, Object.keys(rows[0]), 3, null);
     const blocks = buildReportBlocks(a);
     expect(blocks[0]).toEqual({ type: 'title', course: 'DS', period: 'March 2026' });
-    expect(blocks.some((b) => b.type === 'heading' && b.text === '1. Executive Summary')).toBe(true);
-    const summaryTable = blocks.find((b) => b.type === 'table' && b.headers[0] === 'Survey Dimension / Question');
+    const summaryTable = blocks.find(
+      (b): b is Extract<typeof b, { type: 'table' }> => b.type === 'table' && b.headers[0] === 'Dimension',
+    );
     expect(summaryTable).toBeDefined();
-    const histogramBlocks = blocks.filter((b) => b.type === 'histogram');
-    expect(histogramBlocks.length).toBeGreaterThan(0);
+    expect(summaryTable!.headers).toEqual(['Dimension', 'Ref', 'Current avg', 'Interpretation']);
+    // The Dimension/Ref cells carry the derived dimension + Q1/Q2, not full text.
+    expect(summaryTable!.rows.map((r) => r[1])).toEqual(['Q1', 'Q2']);
+    expect(summaryTable!.rows.map((r) => r[0])).toContain('Learning Facilities');
+    expect(summaryTable!.rows.some((r) => r.some((c) => c.includes('adequate')))).toBe(false);
   });
 
-  it('cleans embedded newlines out of table cell text (never shown as a raw line break)', () => {
+  it('the full original wording appears exactly once, in the Question Reference table', () => {
     const a = analyse(rows, Object.keys(rows[0]), 3, null);
     const blocks = buildReportBlocks(a);
-    const summaryTable = blocks.find(
-      (b): b is Extract<typeof b, { type: 'table' }> =>
-        b.type === 'table' && b.headers[0] === 'Survey Dimension / Question',
-    );
-    const questionCells = summaryTable!.rows.map((r) => r[0]);
-    expect(questionCells).toContain('Multi Line Question');
-    expect(questionCells.some((c) => c.includes('\n'))).toBe(false);
+    const refIdx = blocks.findIndex((b) => b.type === 'heading' && /Question Reference/.test(b.text));
+    expect(refIdx).toBeGreaterThan(0);
+    const refTable = blocks
+      .slice(refIdx)
+      .find((b): b is Extract<typeof b, { type: 'table' }> => b.type === 'table');
+    const fullCells = refTable!.rows.map((r) => r[2]);
+    expect(fullCells.some((c) => c.includes('The rooms were adequate.'))).toBe(true);
+    expect(fullCells.some((c) => c.includes('\n'))).toBe(false); // newlines cleaned
+
+    // No block BEFORE the reference section repeats the full question wording.
+    const beforeRef = blocks.slice(0, refIdx);
+    const textOf = (b: (typeof blocks)[number]): string =>
+      b.type === 'paragraph' || b.type === 'heading' || b.type === 'subheading'
+        ? b.text
+        : b.type === 'table'
+          ? [...b.headers, ...b.rows.flat()].join(' ')
+          : '';
+    expect(beforeRef.some((b) => textOf(b).includes('The rooms were adequate.'))).toBe(false);
+  });
+
+  it('executive summary is short (<=120 words), dimension-level, no raw question text', () => {
+    const a = analyse(rows, Object.keys(rows[0]), 3, null);
+    const blocks = buildReportBlocks(a);
+    const idx = blocks.findIndex((b) => b.type === 'heading' && /Executive Summary/.test(b.text));
+    const exec = blocks[idx + 1];
+    expect(exec.type).toBe('paragraph');
+    const text = exec.type === 'paragraph' ? exec.text : '';
+    expect(text.split(/\s+/).length).toBeLessThanOrEqual(120);
+    expect(text).not.toContain('The rooms were adequate.');
   });
 
   it('renderBlocksAsPlainText output is what buildReport() returns (single source of truth)', () => {
     const a = analyse(rows, Object.keys(rows[0]), 3, null);
     expect(buildReport(a)).toBe(renderBlocksAsPlainText(buildReportBlocks(a)));
+  });
+});
+
+describe('deriveDimension / deriveQuestionLabels', () => {
+  it('extracts the English lead of a bilingual header as the dimension', () => {
+    expect(deriveDimension('Assessment and Feedback 评估与反馈\r\nHow strongly do you agree...')).toBe(
+      'Assessment and Feedback',
+    );
+    expect(deriveDimension('Q1 clarity')).toBe('Q1 clarity');
+  });
+  it('assigns Q1..Qn in column order with each column\'s dimension', () => {
+    const labels = deriveQuestionLabels([
+      'Teaching and Learning 教学\r\nItem A',
+      'Teaching and Learning 教学\r\nItem B',
+    ]);
+    expect(labels.get('Teaching and Learning 教学\r\nItem A')).toEqual({
+      dimension: 'Teaching and Learning',
+      shortLabel: 'Q1',
+    });
+    expect(labels.get('Teaching and Learning 教学\r\nItem B')?.shortLabel).toBe('Q2');
   });
 });

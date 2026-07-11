@@ -10,10 +10,10 @@ import {
   exactMatches,
   mergeMaps,
   type ComparisonMap,
-  type HistogramBin,
   type ParsedDataset,
   type ReportBlock,
 } from './surveyModel';
+import { SurveyHistogram } from './SurveyHistogram';
 import { isSupportedFile, parseSpreadsheetFile } from './surveyParse';
 import { exportReportToWord, exportReportToPdf } from './surveyExports';
 import { buildSurveyDataBlock, generateAiReport, AiReportError } from './surveyAi';
@@ -62,30 +62,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     <div className="sv-inforow">
       <p className="sv-inforow__label">{label}</p>
       <p className="sv-inforow__value">{value}</p>
-    </div>
-  );
-}
-
-/** One horizontal bar per bin, scaled to the largest count in the set. */
-function Histogram({ bins }: { bins: HistogramBin[] }) {
-  const maxCount = Math.max(...bins.map((b) => b.count), 1);
-  return (
-    <div className="sv-hist">
-      {bins.map((bin) => (
-        <div className="sv-hist__row" key={bin.label}>
-          <div className="sv-hist__head">
-            <span className="sv-hist__label">{bin.label}</span>
-            <span className="sv-hist__count">{bin.count}</span>
-          </div>
-          <div className="sv-hist__track">
-            <div
-              className="sv-hist__bar"
-              style={{ width: `${(bin.count / maxCount) * 100}%` }}
-              aria-label={`${bin.label}: ${bin.count}`}
-            />
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -155,7 +131,7 @@ function ReportView({ blocks }: { blocks: ReportBlock[] }) {
             return (
               <div className="sv-report-body__hist" key={i}>
                 <h4 className="sv-report-body__h4">{b.title}</h4>
-                <Histogram bins={b.bins} />
+                <SurveyHistogram bins={b.bins} />
               </div>
             );
           default:
@@ -664,11 +640,13 @@ export function SurveyPage() {
       {currentSummaries.length > 0 && (
         <>
           <h2 className="survey__h2">Summary table of current results</h2>
+          <p className="hint">Hover a row to see the full original question text.</p>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Survey dimension / question</th>
+                  <th>Ref</th>
+                  <th>Dimension</th>
                   <th>Mean score</th>
                   <th>Response count</th>
                   <th>Interpretation</th>
@@ -676,8 +654,13 @@ export function SurveyPage() {
               </thead>
               <tbody>
                 {currentSummaries.map((s) => (
-                  <tr key={s.question} className={s.belowThreshold ? 'row--conflict' : ''}>
-                    <td>{cleanLabel(s.question)}</td>
+                  <tr
+                    key={s.question}
+                    className={s.belowThreshold ? 'row--conflict' : ''}
+                    title={cleanLabel(s.question)}
+                  >
+                    <td>{s.shortLabel}</td>
+                    <td>{s.dimension}</td>
                     <td>{s.mean.toFixed(2)}</td>
                     <td>{s.count}</td>
                     <td>{s.interpretation}</td>
@@ -696,7 +679,7 @@ export function SurveyPage() {
           <p className="hint">
             Distribution of the detected survey questions across score bands.
           </p>
-          <Histogram bins={analysis.currentHistogram} />
+          <SurveyHistogram bins={analysis.currentHistogram} yLabel="Questions" />
         </>
       )}
 
@@ -711,7 +694,8 @@ export function SurveyPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Question</th>
+                  <th>Ref</th>
+                  <th>Dimension</th>
                   <th>Mean score</th>
                   <th>Threshold</th>
                   <th>Gap</th>
@@ -719,8 +703,9 @@ export function SurveyPage() {
               </thead>
               <tbody>
                 {actionAreas.map((s) => (
-                  <tr key={s.question}>
-                    <td>{cleanLabel(s.question)}</td>
+                  <tr key={s.question} title={cleanLabel(s.question)}>
+                    <td>{s.shortLabel}</td>
+                    <td>{s.dimension}</td>
                     <td>{s.mean.toFixed(2)}</td>
                     <td>{threshold.toFixed(2)}</td>
                     <td>{(s.mean - threshold).toFixed(2)}</td>
@@ -740,27 +725,28 @@ export function SurveyPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Current question</th>
-                  <th>Comparison question</th>
+                  <th>Ref</th>
+                  <th>Dimension</th>
                   <th>Match type</th>
                   <th>Current</th>
                   <th>Comparison</th>
                   <th>Change</th>
                   <th>Direction</th>
-                  <th>Analytical comment</th>
                 </tr>
               </thead>
               <tbody>
                 {comparisonSummaries.map((s) => (
-                  <tr key={`${s.currentQuestion}-${s.comparisonQuestion}`}>
-                    <td>{cleanLabel(s.currentQuestion)}</td>
-                    <td>{cleanLabel(s.comparisonQuestion)}</td>
+                  <tr
+                    key={`${s.currentQuestion}-${s.comparisonQuestion}`}
+                    title={`${cleanLabel(s.currentQuestion)}  ↔  ${cleanLabel(s.comparisonQuestion)}`}
+                  >
+                    <td>{s.currentShortLabel}</td>
+                    <td>{s.currentDimension}</td>
                     <td>{s.matchType}</td>
                     <td>{s.currentMean.toFixed(2)}</td>
                     <td>{s.comparisonMean.toFixed(2)}</td>
                     <td>{s.change.toFixed(2)}</td>
                     <td>{s.direction}</td>
-                    <td>{s.comment}</td>
                   </tr>
                 ))}
               </tbody>
@@ -777,7 +763,7 @@ export function SurveyPage() {
             Distribution of change across comparable items against the
             comparison dataset.
           </p>
-          <Histogram bins={analysis.comparisonHistogram} />
+          <SurveyHistogram bins={analysis.comparisonHistogram} yLabel="Items" />
         </>
       )}
 

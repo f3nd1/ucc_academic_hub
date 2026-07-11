@@ -22,7 +22,7 @@ const fmt = (n: number) => n.toFixed(2);
 const listQuestions = (items: QuestionSummary[]): string =>
   items.length === 0
     ? 'none detected'
-    : items.map((i) => `${cleanLabel(i.question)} (mean ${fmt(i.mean)})`).join('; ');
+    : items.map((i) => `${i.shortLabel} (${i.dimension}, mean ${fmt(i.mean)})`).join('; ');
 
 /**
  * Render the analysis as a plain-text data block. Deterministic and free of any
@@ -47,12 +47,12 @@ export function buildSurveyDataBlock(a: Analysis): string {
   lines.push(`- Overall mean across detected items: ${fmt(overallMean)}`);
   lines.push('');
 
-  lines.push('Quantitative results (question | mean | response count | interpretation):');
+  lines.push('Quantitative results (ref | dimension | mean | response count | interpretation):');
   if (a.currentSummaries.length === 0) {
     lines.push('- none detected');
   } else {
     for (const i of a.currentSummaries) {
-      lines.push(`- ${cleanLabel(i.question)} | ${fmt(i.mean)} | ${i.count} | ${i.interpretation}`);
+      lines.push(`- ${i.shortLabel} | ${i.dimension} | ${fmt(i.mean)} | ${i.count} | ${i.interpretation}`);
     }
   }
   lines.push('');
@@ -71,11 +71,11 @@ export function buildSurveyDataBlock(a: Analysis): string {
     lines.push('- Comparison data was provided, but no comparable questions were mapped.');
   } else {
     lines.push(
-      '- Rows (current question | comparison question | match type | current mean | comparison mean | change | direction):',
+      '- Rows (ref | dimension | match type | current mean | comparison mean | change | direction):',
     );
     for (const c of a.comparisonSummaries as ComparisonSummary[]) {
       lines.push(
-        `  ${cleanLabel(c.currentQuestion)} | ${cleanLabel(c.comparisonQuestion)} | ${c.matchType} | ${fmt(c.currentMean)} | ${fmt(c.comparisonMean)} | ${fmt(c.change)} | ${c.direction}`,
+        `  ${c.currentShortLabel} | ${c.currentDimension} | ${c.matchType} | ${fmt(c.currentMean)} | ${fmt(c.comparisonMean)} | ${fmt(c.change)} | ${c.direction}`,
       );
     }
   }
@@ -98,6 +98,15 @@ export function buildSurveyDataBlock(a: Analysis): string {
     lines.push('');
     lines.push('Histogram of comparative results (change band: item count):');
     for (const bin of a.comparisonHistogram) lines.push(`- ${bin.label}: ${bin.count}`);
+  }
+  lines.push('');
+
+  // Full wording is provided ONCE here for the model's own reference. It must
+  // NOT be repeated in the report body (see the prompt); the report refers to
+  // questions by their ref (Q1, Q2, ...) only.
+  lines.push('Question reference (ref | dimension | full original text — do NOT repeat inline):');
+  for (const i of a.currentSummaries) {
+    lines.push(`- ${i.shortLabel} | ${i.dimension} | ${cleanLabel(i.question)}`);
   }
 
   return lines.join('\n');
