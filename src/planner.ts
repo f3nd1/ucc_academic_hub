@@ -149,8 +149,18 @@ export function buildPlanner(
   const months: PlannerMonth[] = [];
 
   if (lessons.length > 0) {
-    const first = parseLocal(lessons[0].date);
-    const last = parseLocal(lessons[lessons.length - 1].date);
+    // Scan for the earliest and latest date rather than trusting array order:
+    // a hand-added or date-edited entry from the Amend screen leaves the list
+    // unsorted, and reading lessons[0]/lessons[last] then yields a backwards
+    // range that renders no months at all.
+    let firstIso = lessons[0].date;
+    let lastIso = lessons[0].date;
+    for (const l of lessons) {
+      if (l.date < firstIso) firstIso = l.date;
+      if (l.date > lastIso) lastIso = l.date;
+    }
+    const first = parseLocal(firstIso);
+    const last = parseLocal(lastIso);
     const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
     const end = new Date(last.getFullYear(), last.getMonth(), 1);
 

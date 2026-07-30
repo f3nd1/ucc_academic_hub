@@ -140,35 +140,36 @@ describe('generateCourseSchedule — Parallel', () => {
     expect(lessons.every((l) => l.date >= '2026-07-01' && l.date <= '2026-07-03')).toBe(true);
   });
 
-  it('pulls the next module up to the day after the previous one ends', () => {
-    // Module A finishes on 2026-07-07 (Jul 4/5 is a weekend); B originally
-    // starts 2026-07-01 but is pulled to the next valid day, 2026-07-08.
+  // "Parallel" means the modules run AT THE SAME TIME. Each module keeps its
+  // own window and is never pushed behind another, so overlapping windows
+  // deliberately share dates — this is what makes a morning module plus an
+  // afternoon module on one day schedulable at all.
+  it('runs modules concurrently: overlapping windows share the same dates', () => {
     const lessons = generateCourseSchedule(
       course(
         [
-          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 5 }),
-          mod({ id: 'b', name: 'B', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 2 }),
+          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 3, startTime: '09:00', endTime: '12:00' }),
+          mod({ id: 'b', name: 'B', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 3, startTime: '14:00', endTime: '17:00' }),
         ],
         'parallel',
       ),
       NO_HOLIDAYS,
     );
+    // Both modules start from their own start date — B is NOT pushed after A.
     expect(lessons.filter((l) => l.moduleId === 'a').map((l) => l.date)).toEqual([
       '2026-07-01',
       '2026-07-02',
       '2026-07-03',
-      '2026-07-06',
-      '2026-07-07',
     ]);
-    // No empty valid teaching day between A's last lesson and B's first.
     expect(lessons.filter((l) => l.moduleId === 'b').map((l) => l.date)).toEqual([
-      '2026-07-08',
-      '2026-07-09',
+      '2026-07-01',
+      '2026-07-02',
+      '2026-07-03',
     ]);
     expect(lessons.every((l) => l.kind === 'lesson')).toBe(true); // no AL in Parallel
   });
 
-  it('never pulls a module earlier than its own start date', () => {
+  it('still honours each module’s own start date', () => {
     const lessons = generateCourseSchedule(
       course(
         [
@@ -179,7 +180,6 @@ describe('generateCourseSchedule — Parallel', () => {
       ),
       NO_HOLIDAYS,
     );
-    // A ends 2026-07-02; B's own start (2026-08-03) is later, so it wins.
     expect(lessons.filter((l) => l.moduleId === 'b').map((l) => l.date)).toEqual([
       '2026-08-03',
       '2026-08-04',
@@ -243,6 +243,47 @@ describe('generateCourseSchedule — Series', () => {
     expect(al).not.toContain('2026-08-08');
     expect(al).not.toContain('2026-08-09');
     expect(al).not.toContain('2026-08-10');
+  });
+
+  // "Series" means one module after another: the carry-forward that used to sit
+  // (misleadingly) in Parallel lives here, so a series never doubles two
+  // modules onto one date.
+  it('pulls the next module up to the day after the previous one ends', () => {
+    // Module A's lessons are spread across July; B starts after A's last one.
+    const lessons = generateCourseSchedule(
+      course(
+        [
+          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-08', totalLessons: 6 }),
+          mod({ id: 'b', name: 'B', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-31', totalLessons: 2 }),
+        ],
+        'series',
+      ),
+      NO_HOLIDAYS,
+    );
+    const aDates = lessons.filter((l) => l.moduleId === 'a' && l.kind === 'lesson').map((l) => l.date);
+    const bDates = lessons.filter((l) => l.moduleId === 'b' && l.kind === 'lesson').map((l) => l.date);
+    // Every B lesson falls strictly after A's last lesson — no shared dates.
+    expect(bDates[0] > aDates[aDates.length - 1]).toBe(true);
+    expect(aDates.filter((d) => bDates.includes(d))).toEqual([]);
+  });
+
+  it('never pulls a module earlier than its own start date', () => {
+    const lessons = generateCourseSchedule(
+      course(
+        [
+          mod({ id: 'a', name: 'A', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-02', totalLessons: 2 }),
+          mod({ id: 'b', name: 'B', moduleStartDate: '2026-08-03', moduleEndDate: '2026-08-14', totalLessons: 2 }),
+        ],
+        'series',
+      ),
+      NO_HOLIDAYS,
+    );
+    // A ends 2026-07-02; B's own start (2026-08-03) is later, so it wins. B's
+    // two lessons then spread evenly to the ends of its own window, which is
+    // Series' distribution rule rather than a packed run of consecutive days.
+    expect(
+      lessons.filter((l) => l.moduleId === 'b' && l.kind === 'lesson').map((l) => l.date),
+    ).toEqual(['2026-08-03', '2026-08-14']);
   });
 });
 
@@ -331,18 +372,18 @@ describe('detectConflicts (teacher + time + classroom, all three)', () => {
   });
 });
 
-describe('Series — two modules landing on the same date (multi-session day)', () => {
-  // Two module rows with an identical single-day window and non-overlapping
-  // times share a date the way a course admin would enter a morning and
-  // afternoon session: no scheduler changes needed, since each module's own
-  // Series pass is independent of every other module's.
+describe('Parallel — two modules landing on the same date (multi-session day)', () => {
+  // The scenario a course admin actually asks for: a morning module and an
+  // afternoon module on the SAME date. Parallel is the mode that expresses it,
+  // because it schedules each module independently rather than queueing the
+  // second behind the first.
   const sameDayCourse = (a: Partial<Module>, b: Partial<Module>) =>
     course(
       [
         mod({ id: 'a', name: 'AM Session', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1, ...a }),
         mod({ id: 'b', name: 'PM Session', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1, ...b }),
       ],
-      'series',
+      'parallel',
     );
 
   it('produces two ScheduledLesson entries for the same date when times do not overlap', () => {
@@ -356,9 +397,34 @@ describe('Series — two modules landing on the same date (multi-session day)', 
     expect(lessons).toHaveLength(2);
     expect(lessons.every((l) => l.date === '2026-07-01' && l.kind === 'lesson')).toBe(true);
     expect(lessons.map((l) => l.moduleId).sort()).toEqual(['a', 'b']);
+    // Sorted by start time within the shared date, so views render AM then PM.
+    expect(lessons.map((l) => l.startTime)).toEqual(['09:00', '14:00']);
 
     const scan = detectConflicts(lessons);
     expect(scan.conflicts).toHaveLength(0);
+  });
+
+  it('places both sessions across a multi-day window, not just one date', () => {
+    // The user's literal case over a real window: 9-12 and 14-17 every teaching
+    // day, both modules present on every date.
+    const lessons = generateCourseSchedule(
+      course(
+        [
+          mod({ id: 'a', name: 'AM', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-03', totalLessons: 3, startTime: '09:00', endTime: '12:00', teacher: 'Ms Tan', classroom: 'R1' }),
+          mod({ id: 'b', name: 'PM', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-03', totalLessons: 3, startTime: '14:00', endTime: '17:00', teacher: 'Mr Lim', classroom: 'R2' }),
+        ],
+        'parallel',
+      ),
+      NO_HOLIDAYS,
+    );
+    const byDate = new Map<string, number>();
+    for (const l of lessons) byDate.set(l.date, (byDate.get(l.date) ?? 0) + 1);
+    expect([...byDate.entries()]).toEqual([
+      ['2026-07-01', 2],
+      ['2026-07-02', 2],
+      ['2026-07-03', 2],
+    ]);
+    expect(detectConflicts(lessons).conflicts).toHaveLength(0);
   });
 
   it('still flags a conflict when two same-day sessions genuinely overlap in time, teacher, and classroom', () => {
@@ -383,5 +449,46 @@ describe('Series — two modules landing on the same date (multi-session day)', 
       NO_HOLIDAYS,
     );
     expect(lessons).toHaveLength(1);
+  });
+});
+
+describe('hand-added sessions (Amend "Add session")', () => {
+  // The Amend screen gives every hand-added session a fresh moduleId rather
+  // than reusing an existing one, precisely because detectConflicts only
+  // compares lessons from DIFFERENT modules. A shared id would have made a
+  // genuine double-booking invisible.
+  const generated = generateCourseSchedule(
+    course([mod({ id: 'm1', name: 'Module One', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1, startTime: '09:00', endTime: '12:00' })], 'parallel'),
+    NO_HOLIDAYS,
+  );
+
+  const manual = (patch: Partial<ScheduledLesson>): ScheduledLesson =>
+    lesson({
+      groupId: 'manual-1',
+      moduleId: 'manual-1',
+      moduleName: 'New session',
+      lessonNo: 1,
+      date: '2026-07-01',
+      startTime: '14:00',
+      endTime: '17:00',
+      teacher: 'Ms Tan',
+      classroom: 'R1',
+      ...patch,
+    });
+
+  it('an afternoon session added to a morning lesson’s date raises no conflict', () => {
+    const scan = detectConflicts([...generated, manual({})]);
+    expect(scan.conflicts).toHaveLength(0);
+    expect(scan.lessons.filter((l) => l.date === '2026-07-01')).toHaveLength(2);
+  });
+
+  it('an added session that overlaps the original is still flagged', () => {
+    // Same date, same teacher, same room, overlapping 11:00-14:00 vs 09:00-12:00.
+    const scan = detectConflicts([
+      ...generated,
+      manual({ startTime: '11:00', endTime: '14:00' }),
+    ]);
+    expect(scan.conflicts).toHaveLength(1);
+    expect(scan.conflicts[0].type).toBe('teacherRoomTime');
   });
 });

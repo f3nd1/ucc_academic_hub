@@ -24,6 +24,7 @@ import {
   type ErpRecordSummary,
 } from '../../erpnext';
 import { loadErpFieldMapping } from '../../erpFieldMapping';
+import type { ScheduledLesson } from '../../types';
 import type { FirstDayOfWeek } from '../../shared/settings';
 import { useSettings } from '../../shared/settingsStore';
 import { useTimetableStore, type ViewMode } from '../../timetableStore';
@@ -58,6 +59,10 @@ import {
 
 const EXPORT_EMPTY_MESSAGE =
   'Generate a timetable before exporting — there is nothing to download yet.';
+
+// Counter for hand-added sessions, so each gets a moduleId no generated module
+// can collide with (generated ids come from the form's "mod-" sequence).
+let manualSeq = 0;
 
 export function TimetablePage() {
   const [settings] = useSettings();
@@ -143,11 +148,20 @@ export function TimetablePage() {
     // Real lessons only; AL buffer days pad the course but are not sessions.
     const real = lessons.filter((l) => l.kind === 'lesson');
     if (real.length === 0) return null;
+    // Earliest/latest by scan, not by array position: a hand-added session is
+    // appended at the end regardless of its date, which made "Last" report the
+    // added row's date instead of the true final lesson.
+    let first = real[0].date;
+    let last = real[0].date;
+    for (const l of real) {
+      if (l.date < first) first = l.date;
+      if (l.date > last) last = l.date;
+    }
     return {
       total: real.length,
       al: lessons.length - real.length,
-      first: formatDisplayDate(real[0].date),
-      last: formatDisplayDate(real[real.length - 1].date),
+      first: formatDisplayDate(first),
+      last: formatDisplayDate(last),
     };
   }, [lessons]);
 
@@ -292,6 +306,56 @@ export function TimetablePage() {
         : l,
     );
     const scanned = detectConflicts(updated);
+    setLessons(scanned.lessons);
+    setConflicts(scanned.conflicts);
+  };
+
+  // Add an extra session by hand. The generator only spreads a module's own
+  // lessons across its own window, so pinning a second session to a date that
+  // already has one is necessarily manual. The new entry gets a FRESH moduleId
+  // rather than reusing an existing one: detectConflicts only compares lessons
+  // from different modules, so a distinct id is what lets a genuine overlap
+  // with the original session still be flagged.
+  const handleAmendAdd = () => {
+    if (!lessons) return;
+    const real = lessons.filter((l) => l.kind === 'lesson');
+    // Anchor to the earliest existing date so the row lands inside the
+    // timetable's month range and is visible in Calendar/Hybrid straight away.
+    const anchor = real.reduce<string>(
+      (min, l) => (min === '' || l.date < min ? l.date : min),
+      '',
+    );
+    const template = real.find((l) => l.date === anchor);
+    const date = anchor || todayIso;
+    const added: ScheduledLesson = {
+      groupId: `manual-${++manualSeq}`,
+      moduleId: `manual-${manualSeq}`,
+      moduleName: 'New session',
+      kind: 'lesson',
+      lessonNo: 1,
+      lessonName: '',
+      activity: '',
+      date,
+      day: dayName(parseLocal(date)),
+      // An afternoon default so it does not overlap a typical morning session.
+      startTime: '14:00',
+      endTime: '17:00',
+      teacher: template?.teacher ?? '',
+      classroom: template?.classroom ?? '',
+      classGroup: template?.classGroup ?? '',
+    };
+    const scanned = detectConflicts([...lessons, added]);
+    setLessons(scanned.lessons);
+    setConflicts(scanned.conflicts);
+    setView('amend');
+  };
+
+  const handleAmendRemove = (moduleId: string, lessonNo: number) => {
+    if (!lessons) return;
+    const remaining = lessons.filter(
+      (l) => !(l.moduleId === moduleId && l.lessonNo === lessonNo),
+    );
+    const scanned = detectConflicts(remaining);
     setLessons(scanned.lessons);
     setConflicts(scanned.conflicts);
   };
@@ -625,7 +689,12 @@ export function TimetablePage() {
               courseName={course!.name}
             />
           ) : view === 'amend' ? (
-            <AmendView lessons={lessons!} onEdit={handleAmendEdit} />
+            <AmendView
+              lessons={lessons!}
+              onEdit={handleAmendEdit}
+              onAdd={handleAmendAdd}
+              onRemove={handleAmendRemove}
+            />
           ) : (
             plannerModel && <HybridView model={plannerModel} />
           )

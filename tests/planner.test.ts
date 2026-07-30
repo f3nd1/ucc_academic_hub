@@ -103,6 +103,19 @@ describe('buildPlanner structure', () => {
     // 2026-07-01 (Wednesday) → week 0, row 2.
     expect(m.grid[2][0].dateIso).toBe('2026-07-01');
   });
+
+  // The Amend screen deliberately keeps row order stable while you type, so a
+  // date edit or a hand-added session leaves the stored array unsorted. Deriving
+  // the month range from lessons[0]/lessons[last] then gave first > last and the
+  // planner rendered no months at all.
+  it('spans the full month range even when the input is not sorted by date', () => {
+    const unsorted = [
+      { ...lessons[0], date: '2026-08-14', day: 'Friday' },
+      { ...lessons[1], date: '2026-07-01', day: 'Wednesday' },
+    ];
+    const out = buildPlanner(unsorted, COURSE, HOLIDAYS, 'monday', '2026-07-03');
+    expect(out.months.map((m) => m.monthName)).toEqual(['July', 'August']);
+  });
 });
 
 describe('cell classification', () => {

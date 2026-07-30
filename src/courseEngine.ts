@@ -254,13 +254,52 @@ export function pickEvenlySpacedDates(
 }
 
 /**
- * PARALLEL delivery: each module's lessons land on CONSECUTIVE valid teaching
- * days — no empty teaching-day gaps between them. When a module finishes before
- * its own end date, the next module is pulled forward to start on the next valid
- * teaching day after the previous module's last lesson (never earlier than the
- * module's own start date). No AL days are produced.
+ * PARALLEL delivery: modules run AT THE SAME TIME. Each module is scheduled
+ * independently inside its own [Module Start, Module End] window, on
+ * CONSECUTIVE valid teaching days from its own start date, with no AL days.
+ * Two modules whose windows overlap therefore SHARE dates, which is the point:
+ * a course can run a morning module and an afternoon module on one day, and
+ * their differing times keep them out of conflict.
+ *
+ * This used to push each module to begin after the previous one ended, which
+ * made "Parallel" behave like a series and made a same-day pair impossible to
+ * schedule — the opposite of what the mode is named for and of what the field
+ * hint promised ("Parallel = all at once").
  */
 function generateParallel(
+  course: Course,
+  blocked: Set<string>,
+): ScheduledLesson[] {
+  const all: ScheduledLesson[] = [];
+
+  for (const mod of course.modules) {
+    const dates = validTeachingDatesInRange(
+      mod.moduleStartDate,
+      mod.moduleEndDate,
+      blocked,
+    );
+    const take = Math.min(mod.totalLessons, dates.length);
+    for (let i = 0; i < take; i++) {
+      all.push(makeModuleLesson(mod, i + 1, dates[i]));
+    }
+  }
+
+  return sortLessons(all);
+}
+
+/**
+ * SERIES delivery: modules run ONE AFTER ANOTHER. A module's lessons are spread
+ * EVENLY across its own [Module Start, Module End] window, and every valid
+ * teaching day that falls BETWEEN two scheduled lessons becomes an AL
+ * (Autonomous Learning) day. No AL is produced before the first lesson, after
+ * the last, or on blocked days; when lessons are already consecutive there is
+ * nothing to fill.
+ *
+ * The next module is pulled forward to start on the first valid teaching day
+ * after the previous module's last lesson, but never earlier than its own start
+ * date — so a series never doubles two modules onto one date.
+ */
+function generateSeries(
   course: Course,
   blocked: Set<string>,
 ): ScheduledLesson[] {
@@ -281,47 +320,22 @@ function generateParallel(
       blocked,
     );
     const take = Math.min(mod.totalLessons, dates.length);
-    for (let i = 0; i < take; i++) {
-      all.push(makeModuleLesson(mod, i + 1, dates[i]));
-    }
-
-    const lastDate = dates[take - 1];
-    if (lastDate) carryStart = nextValidTeachingDate(lastDate, blocked);
-  }
-
-  return sortLessons(all);
-}
-
-/**
- * SERIES delivery: each module's lessons are spread EVENLY across its own
- * [Module Start, Module End] window, and every valid teaching day that falls
- * BETWEEN two scheduled lessons becomes an AL (Autonomous Learning) day. No AL
- * is produced before the first lesson, after the last, or on blocked days; when
- * lessons are already consecutive there is nothing to fill.
- */
-function generateSeries(
-  course: Course,
-  blocked: Set<string>,
-): ScheduledLesson[] {
-  const all: ScheduledLesson[] = [];
-
-  for (const mod of course.modules) {
-    const dates = validTeachingDatesInRange(
-      mod.moduleStartDate,
-      mod.moduleEndDate,
-      blocked,
-    );
-    const take = Math.min(mod.totalLessons, dates.length);
     const lessonDates = new Set(pickEvenlySpacedDates(dates, take));
 
     let lessonNo = 0;
+    let lastLessonDate = '';
     for (const iso of dates) {
       if (lessonDates.has(iso)) {
         all.push(makeModuleLesson(mod, ++lessonNo, iso));
+        lastLessonDate = iso;
       } else if (lessonNo > 0 && lessonNo < take) {
         // A valid teaching day strictly between the first and last lesson.
         all.push(makeModuleAL(mod, iso));
       }
+    }
+
+    if (lastLessonDate) {
+      carryStart = nextValidTeachingDate(lastLessonDate, blocked);
     }
   }
 

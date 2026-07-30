@@ -86,4 +86,16 @@ describe('buildCalendarMonths', () => {
   it('empty input yields no months', () => {
     expect(buildCalendarMonths([], 'monday')).toEqual([]);
   });
+
+  // The Amend screen keeps row order stable while you type, so a date edit or a
+  // hand-added session leaves the stored array unsorted. Reading first/last by
+  // array position then produced a backwards range and rendered nothing.
+  it('spans the full range even when the input is not sorted by date', () => {
+    const unsorted = [
+      { ...lessons[0], date: '2026-08-14', day: 'Friday' },
+      { ...lessons[1], date: '2026-07-01', day: 'Wednesday' },
+    ];
+    const out = buildCalendarMonths(unsorted, 'monday');
+    expect(out.map((m) => m.monthName)).toEqual(['July', 'August']);
+  });
 });

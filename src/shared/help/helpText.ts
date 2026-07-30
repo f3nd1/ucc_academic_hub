@@ -24,7 +24,7 @@ export const TOOLTIPS: Record<string, string> = {
   startMonth:
     'Each module begins on the 1st of its start month, or the next valid teaching day if the 1st is blocked.',
   deliveryMode:
-    'Parallel schedules each module on consecutive teaching days with no gaps; if a module finishes before its end date, the next module starts on the next valid teaching day. Series spreads a module’s lessons evenly across its window and marks the valid teaching days in between as AL (Autonomous Learning).',
+    'Parallel runs the modules at the same time: each is scheduled independently on consecutive teaching days inside its own window, so modules whose windows overlap share dates (for example a morning module and an afternoon one on the same day). Series runs them one after another: a module’s lessons are spread evenly across its window with the valid teaching days in between marked AL (Autonomous Learning), and the next module starts after the previous one finishes.',
   moduleName: 'The name of this module, shown in every view and export.',
   modules:
     'A course can hold several modules. Add a row per module; each has its own teacher, room, lessons, and times.',
