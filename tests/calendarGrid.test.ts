@@ -99,3 +99,52 @@ describe('buildCalendarMonths', () => {
     expect(out.map((m) => m.monthName)).toEqual(['July', 'August']);
   });
 });
+
+describe('buildCalendarMonths — holiday/weekend classification (Calendar PDF colouring)', () => {
+  const lessons = generateCourseSchedule(COURSE, NO_HOLIDAYS);
+  const cellFor = (months: ReturnType<typeof buildCalendarMonths>, iso: string) =>
+    months
+      .flatMap((m) => m.weeks.flat())
+      .find((c) => c.iso === iso)!;
+
+  it('without a holidays arg, entry-free weekdays classify as blank and weekends as weekend', () => {
+    const months = buildCalendarMonths(lessons, 'monday');
+    // 2026-07-04 is a Saturday with no entries.
+    expect(cellFor(months, '2026-07-04').kind).toBe('weekend');
+    // 2026-07-13 (Monday) has no lesson (only 8 lessons, filling through 07-10)
+    // and no holidays were passed, so it's an ordinary blank teaching day.
+    expect(cellFor(months, '2026-07-13').kind).toBe('blank');
+  });
+
+  it('classifies public holidays, school holidays, and leaves lesson cells unclassified', () => {
+    const holidays: HolidaySet = {
+      uccHolidays: [{ date: '2026-07-14', name: 'Term Break' }],
+      publicHolidays: [{ date: '2026-07-13', name: 'National Day' }],
+    };
+    const months = buildCalendarMonths(lessons, 'monday', holidays);
+    const publicCell = cellFor(months, '2026-07-13');
+    expect(publicCell.kind).toBe('publicHoliday');
+    expect(publicCell.holidayName).toBe('National Day');
+
+    const schoolCell = cellFor(months, '2026-07-14');
+    expect(schoolCell.kind).toBe('schoolHoliday');
+    expect(schoolCell.holidayName).toBe('Term Break');
+
+    // A cell with a real lesson is never classified — colouring for it comes
+    // from the lesson data itself, not from this weekend/holiday precedence.
+    const lessonCell = cellFor(months, '2026-07-01');
+    expect(lessonCell.entries.length).toBeGreaterThan(0);
+    expect(lessonCell.kind).toBeUndefined();
+  });
+
+  it('out-of-month cells are never classified', () => {
+    const holidays: HolidaySet = {
+      uccHolidays: [],
+      publicHolidays: [{ date: '2026-07-13', name: 'National Day' }],
+    };
+    const months = buildCalendarMonths(lessons, 'monday', holidays);
+    for (const cell of months[0].weeks.flat()) {
+      if (!cell.inMonth) expect(cell.kind).toBeUndefined();
+    }
+  });
+});

@@ -1,9 +1,17 @@
 import { Fragment } from 'react';
-import type { PlannerModel, PlannerCell } from '../planner';
-import { activityText, dateText, lessonLines, teacherLines } from '../planner';
+import type { PlannerModel, PlannerCell, PlannerColumnMode } from '../planner';
+import {
+  activityText,
+  columnModeLabel,
+  dateText,
+  lessonLines,
+  teacherLines,
+} from '../planner';
 
 interface Props {
   model: PlannerModel;
+  columnMode: PlannerColumnMode;
+  onColumnModeChange: (mode: PlannerColumnMode) => void;
 }
 
 /** CSS modifier for the activity cell's colour by kind (conflict wins). */
@@ -26,7 +34,8 @@ const activityClass = (cell: PlannerCell): string => {
 };
 
 /** The UCC ULEC course-planner matrix: month blocks of weekday × week cells. */
-export function HybridView({ model }: Props) {
+export function HybridView({ model, columnMode, onColumnModeChange }: Props) {
+  const columnLabel = columnModeLabel(columnMode);
   return (
     <div className="planner">
       <div className="planner__band">
@@ -40,6 +49,25 @@ export function HybridView({ model }: Props) {
         <div>
           <span className="planner__key">Updated:</span> {model.updatedDisplay}
         </div>
+      </div>
+
+      <div
+        className="segmented planner__mode"
+        role="radiogroup"
+        aria-label="Second column shows"
+      >
+        {(['module', 'activity'] as PlannerColumnMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={columnMode === mode}
+            className={columnMode === mode ? 'active' : ''}
+            onClick={() => onColumnModeChange(mode)}
+          >
+            {columnModeLabel(mode)}
+          </button>
+        ))}
       </div>
 
       {model.months.map((m) => (
@@ -60,7 +88,7 @@ export function HybridView({ model }: Props) {
                 {Array.from({ length: m.weeks }, (_, w) => (
                   <Fragment key={w}>
                     <th>Date</th>
-                    <th>Activity</th>
+                    <th>{columnLabel}</th>
                     <th>Lesson</th>
                     <th>Teacher</th>
                   </Fragment>
@@ -84,7 +112,7 @@ export function HybridView({ model }: Props) {
                         <td className="planner__date">{dateText(cell)}</td>
                         <td className={activityClass(cell)}>
                           {cell.conflict ? '⚠ ' : ''}
-                          {activityText(cell)}
+                          {activityText(cell, columnMode)}
                         </td>
                         <td className="planner__lesson">
                           {lessons.map((ln, i) => (

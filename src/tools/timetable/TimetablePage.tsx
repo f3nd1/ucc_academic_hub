@@ -78,6 +78,8 @@ export function TimetablePage() {
     setLayout,
     setupCollapsed,
     setSetupCollapsed,
+    plannerColumnMode,
+    setPlannerColumnMode,
     lessons,
     setLessons,
     course,
@@ -415,9 +417,10 @@ export function TimetablePage() {
           course!,
           wizard.firstDayOfWeek,
           scopeTitleLabel(wizard.scope),
+          holidays ?? undefined,
         );
       } else if (view === 'hybrid' && plannerModel) {
-        exportPlannerPdf(plannerModel);
+        exportPlannerPdf(plannerModel, plannerColumnMode);
       } else {
         exportListPdf(lessons!, course!, scopeTitleLabel(wizard.scope));
       }
@@ -447,7 +450,7 @@ export function TimetablePage() {
       setMessages([EXPORT_EMPTY_MESSAGE]);
       return;
     }
-    exportPlannerCsv(plannerModel);
+    exportPlannerCsv(plannerModel, plannerColumnMode);
   };
 
   const handlePlannerSheets = async () => {
@@ -462,6 +465,7 @@ export function TimetablePage() {
     const result = await exportPlannerToSheets(
       plannerModel,
       settings.googleClientId,
+      plannerColumnMode,
     );
     navigateTab(result.url);
     setBanner({ ok: result.ok, message: result.message });
@@ -719,7 +723,13 @@ export function TimetablePage() {
               onRemove={handleAmendRemove}
             />
           ) : (
-            plannerModel && <HybridView model={plannerModel} />
+            plannerModel && (
+              <HybridView
+                model={plannerModel}
+                columnMode={plannerColumnMode}
+                onColumnModeChange={setPlannerColumnMode}
+              />
+            )
           )
         ) : (
           !messages.length && (

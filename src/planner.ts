@@ -210,12 +210,26 @@ export function buildPlanner(
   };
 }
 
-/** Activity text for a cell (used by view + exports so wording matches). */
-export function activityText(cell: PlannerCell): string {
+/**
+ * Which value the second sub-column shows for teaching cells: the activity
+ * (Listening/Reading/…) or the module name. Non-teaching kinds (AL, weekend,
+ * holidays) are unaffected by the mode — there's nothing to switch there.
+ */
+export type PlannerColumnMode = 'activity' | 'module';
+
+/** Column header text for the mode-switched sub-column. */
+export const columnModeLabel = (mode: PlannerColumnMode): string =>
+  mode === 'module' ? 'Module' : 'Activity';
+
+/** Activity/Module text for a cell (used by view + exports so wording matches). */
+export function activityText(
+  cell: PlannerCell,
+  mode: PlannerColumnMode = 'activity',
+): string {
   switch (cell.kind) {
     case 'teaching':
       return (cell.entries ?? [])
-        .map((e) => e.activity ?? '')
+        .map((e) => (mode === 'module' ? e.moduleName : (e.activity ?? '')))
         .filter(Boolean)
         .join(' / ');
     case 'al':

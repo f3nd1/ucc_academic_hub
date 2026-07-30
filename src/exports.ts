@@ -1,10 +1,11 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Course, ScheduledLesson } from './types';
+import type { Course, HolidaySet, ScheduledLesson } from './types';
 import type { FirstDayOfWeek } from './shared/settings';
 import { TEACHER_LABEL, CLASS_GROUP_LABEL, AL_LABEL } from './constants';
 import { formatDisplayDate } from './shared/dates';
 import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
+import { addPageFooters, drawBrandHeaderBand, BRAND, BRAND_AL_TINT } from './shared/pdfBrand';
 
 // The on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
 // header (and its field label) in a single place. The Date column shows the
@@ -105,19 +106,14 @@ export function exportCsv(lessons: ScheduledLesson[], course: Course): void {
   download(blob, `${fileStem(course.name)}-timetable.csv`);
 }
 
-/** Course header lines shared by the PDF layouts. */
+/** Course header band (UCC brand dark-blue), shared by the PDF layouts. */
 function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): number {
-  doc.setFontSize(16);
-  doc.text(`${scopeLabel}: ${course.name}`, 14, 16);
-  doc.setFontSize(10);
-  doc.text(
+  return drawBrandHeaderBand(doc, [
+    `${scopeLabel}: ${course.name}`,
     `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
       course.deliveryMode === 'series' ? 'Series' : 'Parallel'
     }`,
-    14,
-    23,
-  );
-  return 28; // first table Y
+  ]);
 }
 
 /**
@@ -141,36 +137,46 @@ export function exportListPdf(
     head: [[...COLUMN_HEADERS]],
     body: lessons.map(rowFor),
     startY,
-    styles: { fontSize: 9, cellPadding: 2 },
-    headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+    styles: { fontSize: 9, cellPadding: 2, textColor: BRAND.nearBlack },
+    headStyles: { fillColor: BRAND.darkBlue, textColor: BRAND.white },
+    alternateRowStyles: { fillColor: BRAND.grey },
   });
 
+  addPageFooters(doc);
   doc.save(`${fileStem(course.name)}-timetable.pdf`);
 }
 
-// Cell fills for the calendar PDF, matched to the on-screen view.
+// Cell fills for the calendar PDF, UCC brand palette. 'teaching' (a real
+// lesson) is deliberately absent — it stays white/default so lesson cells
+// read as the primary content against the coloured special-day cells.
 const CAL_FILLS: Record<string, [number, number, number]> = {
-  teaching: [217, 240, 217],
-  al: [229, 233, 242],
+  al: BRAND_AL_TINT,
   conflict: [250, 222, 222],
-  out: [244, 246, 249],
+  weekend: BRAND.grey,
+  schoolHoliday: BRAND.lightGold,
+  publicHoliday: BRAND.gold,
+  out: BRAND.grey,
 };
 
 /**
  * Calendar-view PDF: one month grid per section — 7 weekday columns in
  * first-day-of-week order, day number plus full class details per cell, AL
- * days marked, conflicted cells shaded. Matches the on-screen Calendar view.
+ * days marked, conflicted cells shaded, weekends/holidays coloured by the UCC
+ * brand palette. Matches the on-screen Calendar view (`holidays` is optional
+ * only so a caller without a generated holiday set doesn't have to pass one;
+ * the Timetable page always has one once a schedule exists).
  */
 export function exportCalendarPdf(
   lessons: ScheduledLesson[],
   course: Course,
   firstDayOfWeek: FirstDayOfWeek,
   scopeLabel = 'Course',
+  holidays?: HolidaySet,
 ): void {
   const doc = new jsPDF({ orientation: 'landscape' });
   let y = pdfHeader(doc, course, scopeLabel);
 
-  const months = buildCalendarMonths(lessons, firstDayOfWeek);
+  const months = buildCalendarMonths(lessons, firstDayOfWeek, holidays);
   const headers = weekdayHeaders(firstDayOfWeek);
 
   for (const m of months) {
@@ -187,7 +193,13 @@ export function exportCalendarPdf(
         const al = cell.entries.some((l) => l.kind === 'AL');
         const conflicted = real.some((l) => (l.conflicts?.length ?? 0) > 0);
         kindRow.push(
-          conflicted ? 'conflict' : real.length > 0 ? 'teaching' : al ? 'al' : '',
+          conflicted
+            ? 'conflict'
+            : real.length > 0
+              ? 'teaching'
+              : al
+                ? 'al'
+                : (cell.kind ?? 'blank'),
         );
         const lines = [String(cell.dayNum)];
         for (const l of real) {
@@ -198,6 +210,10 @@ export function exportCalendarPdf(
           );
         }
         if (real.length === 0 && al) lines.push(AL_LABEL);
+        if (real.length === 0 && !al && cell.kind && cell.kind !== 'blank') {
+          const label = cell.kind === 'weekend' ? 'Weekend' : cell.holidayName || cell.kind;
+          lines.push(label);
+        }
         return lines.join('\n');
       });
       kinds.push(kindRow);
@@ -205,13 +221,22 @@ export function exportCalendarPdf(
     });
 
     doc.setFontSize(12);
+    doc.setTextColor(...BRAND.darkBlue);
     doc.text(`${m.monthName} ${m.year}`, 14, y + 6);
+    doc.setTextColor(0, 0, 0);
     autoTable(doc, {
       head: [headers],
       body,
       startY: y + 9,
-      styles: { fontSize: 7, cellPadding: 1.5, valign: 'top', minCellHeight: 14 },
-      headStyles: { fillColor: [37, 99, 235], textColor: 255, halign: 'center' },
+      styles: {
+        fontSize: 7,
+        cellPadding: 1.5,
+        valign: 'top',
+        minCellHeight: 14,
+        textColor: BRAND.nearBlack,
+      },
+      headStyles: { fillColor: BRAND.darkBlue, textColor: BRAND.white, halign: 'center' },
+      alternateRowStyles: { fillColor: BRAND.grey },
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const kind = kinds[data.row.index]?.[data.column.index];
@@ -230,6 +255,7 @@ export function exportCalendarPdf(
     }
   }
 
+  addPageFooters(doc);
   doc.save(`${fileStem(course.name)}-calendar.pdf`);
 }
 

@@ -97,4 +97,30 @@ describe('buildPlannerLayout', () => {
     // Fills sit in Activity sub-columns: (c - 2) % 4 === 1.
     for (const f of layout.fills) expect((f.c - 2) % 4).toBe(1);
   });
+
+  it('defaults to the activity mode (unchanged behaviour)', () => {
+    const explicit = buildPlannerLayout(model, ' / ', 'activity');
+    expect(explicit.values).toEqual(layout.values);
+  });
+
+  it('module mode relabels the header and swaps cell values to the module name', () => {
+    const moduleLayout = buildPlannerLayout(model, ' / ', 'module');
+    const h2 = moduleLayout.values[5];
+    expect(h2.slice(2, 6)).toEqual(['Date', 'Module', 'Lesson', 'Teacher']);
+    // The teaching cell that showed "Listening" in activity mode now shows
+    // the module name; Lesson/Teacher sub-columns are untouched either way.
+    expect(moduleLayout.values.flat()).toContain('Course X');
+    expect(moduleLayout.values.flat()).not.toContain('Listening');
+  });
+
+  it('special-day fills use the UCC brand palette (public holiday on 10 July)', () => {
+    // 06/07/08/09 July teach; 10 July (Fri) is the public holiday, skipped; the
+    // next lesson lands 13 July. So 10 July is the sole publicHoliday fill.
+    const closeTo = (a: [number, number, number], b: [number, number, number]) =>
+      a.every((v, i) => Math.abs(v - b[i]) < 0.01);
+    const gold: [number, number, number] = [206 / 255, 158 / 255, 93 / 255]; // #CE9E5D
+    expect(layout.fills.some((f) => closeTo(f.rgb, gold))).toBe(true);
+    // The old hardcoded pinkish public-holiday colour must be gone.
+    expect(layout.fills.some((f) => closeTo(f.rgb, [0.98, 0.87, 0.87]))).toBe(false);
+  });
 });
