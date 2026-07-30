@@ -42,8 +42,17 @@ export function buildCalendarMonths(
     else byDate.set(l.date, [l]);
   }
 
-  const first = parseLocal(lessons[0].date);
-  const last = parseLocal(lessons[lessons.length - 1].date);
+  // Earliest/latest by scan, not by array position — an Amend edit or a
+  // hand-added session leaves the list unsorted, and a backwards range would
+  // render no months.
+  let firstIso = lessons[0].date;
+  let lastIso = lessons[0].date;
+  for (const l of lessons) {
+    if (l.date < firstIso) firstIso = l.date;
+    if (l.date > lastIso) lastIso = l.date;
+  }
+  const first = parseLocal(firstIso);
+  const last = parseLocal(lastIso);
   const months: CalendarMonth[] = [];
   const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
   const end = new Date(last.getFullYear(), last.getMonth(), 1);

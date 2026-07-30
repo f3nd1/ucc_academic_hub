@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { ScheduledLesson } from '../types';
 import { COLUMN_HEADERS } from '../exports';
 import { formatDisplayDate } from '../shared/dates';
@@ -11,8 +12,24 @@ interface Props {
 /**
  * The classic table: dates as DD MMMM YYYY, Module column, AL buffer rows
  * muted, conflicted lessons highlighted, per-lesson GCal link.
+ *
+ * Rows are sorted by date then start time on the way in, so a date carrying
+ * more than one session (a morning module and an afternoon one) lists them in
+ * chronological order even after an Amend edit has left the stored array
+ * unsorted.
  */
 export function ListView({ lessons, courseName }: Props) {
+  const rows = useMemo(
+    () =>
+      [...lessons].sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.startTime.localeCompare(b.startTime) ||
+          a.moduleName.localeCompare(b.moduleName),
+      ),
+    [lessons],
+  );
+
   return (
     <div className="table-wrap">
       <table>
@@ -25,7 +42,7 @@ export function ListView({ lessons, courseName }: Props) {
           </tr>
         </thead>
         <tbody>
-          {lessons.map((l, i) => {
+          {rows.map((l, i) => {
             const conflicted = (l.conflicts?.length ?? 0) > 0;
             const rowClass =
               l.kind === 'AL'

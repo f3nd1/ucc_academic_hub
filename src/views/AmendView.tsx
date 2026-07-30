@@ -21,6 +21,10 @@ interface Props {
     field: AmendableField,
     value: string,
   ) => void;
+  /** Append a blank extra session, prefilled and ready to edit in place. */
+  onAdd: () => void;
+  /** Remove a hand-added or generated session outright. */
+  onRemove: (moduleId: string, lessonNo: number) => void;
 }
 
 /**
@@ -30,8 +34,13 @@ interface Props {
  * different modules share a teacher + classroom + overlapping time on the same
  * date is highlighted here (and in every other view). Row order is kept stable
  * while editing so a date change never makes the row you're typing in jump.
+ *
+ * "Add session" exists because the generator only ever places a module's own
+ * lessons across its own window: pinning one extra session to a date that
+ * already has one (an afternoon workshop on a morning module's day) is a manual
+ * act, not something a delivery mode can express.
  */
-export function AmendView({ lessons, onEdit }: Props) {
+export function AmendView({ lessons, onEdit, onAdd, onRemove }: Props) {
   const rows = lessons.filter((l) => l.kind === 'lesson');
 
   const cell = (
@@ -55,38 +64,59 @@ export function AmendView({ lessons, onEdit }: Props) {
   );
 
   return (
-    <div className="table-wrap">
-      <table className="rv-table amend-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Module</th>
-            <th>Lesson</th>
-            <th>Activity</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Teacher</th>
-            <th>Classroom</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((l) => (
-            <tr
-              key={`${l.moduleId}#${l.lessonNo}`}
-              className={l.conflicts?.length ? 'row--conflict' : ''}
-            >
-              {cell(l, 'date', 'date', 'Lesson date')}
-              {cell(l, 'moduleName', 'text', 'Module name')}
-              {cell(l, 'lessonName', 'text', 'Lesson name')}
-              {cell(l, 'activity', 'text', 'Activity')}
-              {cell(l, 'startTime', 'time', 'Start time')}
-              {cell(l, 'endTime', 'time', 'End time')}
-              {cell(l, 'teacher', 'text', 'Teacher')}
-              {cell(l, 'classroom', 'text', 'Classroom')}
+    <>
+      <div className="table-wrap">
+        <table className="rv-table amend-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Module</th>
+              <th>Lesson</th>
+              <th>Activity</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Teacher</th>
+              <th>Classroom</th>
+              <th aria-label="Remove" />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((l) => (
+              <tr
+                key={`${l.moduleId}#${l.lessonNo}`}
+                className={l.conflicts?.length ? 'row--conflict' : ''}
+              >
+                {cell(l, 'date', 'date', 'Lesson date')}
+                {cell(l, 'moduleName', 'text', 'Module name')}
+                {cell(l, 'lessonName', 'text', 'Lesson name')}
+                {cell(l, 'activity', 'text', 'Activity')}
+                {cell(l, 'startTime', 'time', 'Start time')}
+                {cell(l, 'endTime', 'time', 'End time')}
+                {cell(l, 'teacher', 'text', 'Teacher')}
+                {cell(l, 'classroom', 'text', 'Classroom')}
+                <td>
+                  <button
+                    type="button"
+                    className="btn amend__remove"
+                    aria-label={`Remove session on ${l.date}`}
+                    title="Remove this session"
+                    onClick={() => onRemove(l.moduleId, l.lessonNo)}
+                  >
+                    –
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" className="btn btn--demo" onClick={onAdd}>
+        + Add session
+      </button>
+      <p className="hint">
+        Adds an extra session you can pin to any date, including one that already
+        has a lesson. Set its own times so it does not overlap.
+      </p>
+    </>
   );
 }

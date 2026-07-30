@@ -1122,6 +1122,15 @@ select {
   white-space: nowrap;
 }
 
+/* Matches the holiday table's remove control so the two read as one system. */
+.amend__remove {
+  padding: 0.25rem 0;
+  width: 34px;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--error-ink);
+}
+
 /* v5: AL buffer + conflict styling */
 .row--al td {
   color: var(--muted);

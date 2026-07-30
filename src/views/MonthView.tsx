@@ -26,7 +26,9 @@ interface Cell {
 export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
   const startOffset = firstDayOfWeek === 'monday' ? 1 : 0;
 
-  // Lessons indexed by ISO date (support >1 per day defensively).
+  // Lessons indexed by ISO date. A date can hold several sessions (a morning
+  // and an afternoon module, say), so each day's entries are ordered by start
+  // time to read top-to-bottom chronologically in the cell.
   const byDate = useMemo(() => {
     const m = new Map<string, ScheduledLesson[]>();
     for (const l of lessons) {
@@ -34,13 +36,20 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
       if (arr) arr.push(l);
       else m.set(l.date, [l]);
     }
+    for (const arr of m.values()) {
+      arr.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
     return m;
   }, [lessons]);
 
-  // Visible month, initialised (and re-synced) to the first lesson's month.
+  // Visible month, initialised (and re-synced) to the earliest lesson's month.
+  // Found by scan rather than lessons[0]: an Amend edit or a hand-added session
+  // leaves the list unsorted, and the view would then open on the wrong month.
   const firstLessonMonth = useMemo(() => {
     if (lessons.length === 0) return null;
-    const d = parseLocal(lessons[0].date);
+    let earliest = lessons[0].date;
+    for (const l of lessons) if (l.date < earliest) earliest = l.date;
+    const d = parseLocal(earliest);
     return { year: d.getFullYear(), month: d.getMonth() };
   }, [lessons]);
 
