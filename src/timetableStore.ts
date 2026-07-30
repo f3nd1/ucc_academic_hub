@@ -2,6 +2,7 @@ import { createContext, useContext, type Dispatch, type SetStateAction } from 'r
 import type { ScheduledLesson, Course, Conflict, HolidaySet } from './types';
 import type { WizardState } from './wizard/wizardModel';
 import type { LoadedItem } from './shared/savedItems';
+import type { PlannerColumnMode } from './planner';
 
 export type ViewMode = 'list' | 'calendar' | 'hybrid' | 'amend';
 export type Banner = { ok: boolean; message: string } | null;
@@ -24,6 +25,11 @@ export interface TimetableStore {
    *  the full width; persisted under "ucc:timetable:setupCollapsed". */
   setupCollapsed: boolean;
   setSetupCollapsed: (collapsed: boolean) => void;
+  /** Hybrid planner's second sub-column: Activity or Module name. Applies to
+   *  the on-screen view and every planner export (PDF/CSV/Sheets); persisted
+   *  under "ucc:timetable:plannerColumnMode". */
+  plannerColumnMode: PlannerColumnMode;
+  setPlannerColumnMode: (mode: PlannerColumnMode) => void;
   lessons: ScheduledLesson[] | null;
   setLessons: Dispatch<SetStateAction<ScheduledLesson[] | null>>;
   course: Course | null;

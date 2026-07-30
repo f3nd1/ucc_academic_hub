@@ -1,8 +1,22 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { PlannerModel, PlannerCell } from './planner';
-import { activityText, dateText, lessonLines, teacherLines } from './planner';
+import type { PlannerModel, PlannerCell, PlannerColumnMode } from './planner';
+import {
+  activityText,
+  columnModeLabel,
+  dateText,
+  lessonLines,
+  teacherLines,
+} from './planner';
 import { requestSheetsToken } from './googleSheets';
+import { addPageFooters, drawBrandHeaderBand, BRAND, BRAND_AL_TINT } from './shared/pdfBrand';
+
+/** BRAND's 0-255 channels as 0-1 fractions, for Sheets' colour objects. */
+const unit = (rgb: readonly [number, number, number]): [number, number, number] => [
+  rgb[0] / 255,
+  rgb[1] / 255,
+  rgb[2] / 255,
+];
 
 // Shared flat layout for both planner exports (CSV + Google Sheets). Rows/cols
 // are 0-indexed. Columns: 0 = month label, 1 = weekday, then each week is four
@@ -27,12 +41,16 @@ interface Layout {
   headers: { r: number; c: number }[]; // bold header cells
 }
 
+// UCC brand palette, shared with the PDF export via unit() (Sheets colours are
+// 0-1 fractions, PDF/canvas colours are 0-255). 'teaching' (a real lesson) is
+// deliberately absent — it stays white/default, the primary content against
+// the coloured special-day cells. 'conflict' is unrelated to the brand
+// palette (a distinct problem indicator) and keeps its existing colour.
 const FILL: Record<string, [number, number, number]> = {
-  teaching: [0.85, 0.94, 0.85],
-  al: [0.9, 0.92, 0.96],
-  weekend: [0.93, 0.93, 0.93],
-  schoolHoliday: [0.99, 0.95, 0.8],
-  publicHoliday: [0.98, 0.87, 0.87],
+  al: unit(BRAND_AL_TINT),
+  weekend: unit(BRAND.grey),
+  schoolHoliday: unit(BRAND.lightGold),
+  publicHoliday: unit(BRAND.gold),
   conflict: [0.96, 0.7, 0.7],
 };
 
@@ -61,7 +79,9 @@ const put = (
 export function buildPlannerLayout(
   model: PlannerModel,
   teacherJoin: string,
+  columnMode: PlannerColumnMode = 'activity',
 ): Layout {
+  const columnLabel = columnModeLabel(columnMode);
   const values: string[][] = [];
   const merges: Merge[] = [];
   const fills: Fill[] = [];
@@ -90,14 +110,14 @@ export function buildPlannerLayout(
     headers.push({ r: h1, c: 0 });
     merges.push({ r0: h1, r1: h1 + 2, c0: 0, c1: 2 });
 
-    // Week N grouped headers + Date/Activity/Lesson/Teacher sub-headers.
+    // Week N grouped headers + Date/Activity-or-Module/Lesson/Teacher sub-headers.
     for (let w = 0; w < m.weeks; w++) {
       const c = 2 + w * 4;
       put(values, h1, c, `Week ${w + 1}`, width);
       headers.push({ r: h1, c });
       merges.push({ r0: h1, r1: h1 + 1, c0: c, c1: c + 4 });
       put(values, h2, c, 'Date', width);
-      put(values, h2, c + 1, 'Activity', width);
+      put(values, h2, c + 1, columnLabel, width);
       put(values, h2, c + 2, 'Lesson', width);
       put(values, h2, c + 3, 'Teacher', width);
       headers.push(
@@ -117,7 +137,7 @@ export function buildPlannerLayout(
         const cell = m.grid[r][w];
         const c = 2 + w * 4;
         put(values, rowIndex, c, dateText(cell), width);
-        put(values, rowIndex, c + 1, activityText(cell), width);
+        put(values, rowIndex, c + 1, activityText(cell, columnMode), width);
         put(
           values,
           rowIndex,
@@ -151,8 +171,11 @@ export function buildPlannerLayout(
 const csvQuote = (v: string) => `"${v.replace(/"/g, '""')}"`;
 const fileStem = (s: string) => (s.trim() || 'planner').replace(/[^\w.-]+/g, '-');
 
-export function exportPlannerCsv(model: PlannerModel): void {
-  const { values } = buildPlannerLayout(model, ' / ');
+export function exportPlannerCsv(
+  model: PlannerModel,
+  columnMode: PlannerColumnMode = 'activity',
+): void {
+  const { values } = buildPlannerLayout(model, ' / ', columnMode);
   const width = values.reduce((m, r) => Math.max(m, r.length), 0);
   const lines = values.map((r) => {
     const padded = [...r];
@@ -184,6 +207,7 @@ export interface PlannerSheetsResult {
 export async function exportPlannerToSheets(
   model: PlannerModel,
   clientId: string,
+  columnMode: PlannerColumnMode = 'activity',
 ): Promise<PlannerSheetsResult> {
   if (!clientId.trim())
     return {
@@ -207,7 +231,11 @@ export async function exportPlannerToSheets(
   }
   const auth = { Authorization: `Bearer ${token}` };
 
-  const { values, merges, fills, headers } = buildPlannerLayout(model, '\n');
+  const { values, merges, fills, headers } = buildPlannerLayout(
+    model,
+    '\n',
+    columnMode,
+  );
 
   try {
     // Create the spreadsheet with a "Planner" sheet.
@@ -297,8 +325,15 @@ export async function exportPlannerToSheets(
           },
           cell: {
             userEnteredFormat: {
-              textFormat: { bold: true },
-              backgroundColor: { red: 0.83, green: 0.88, blue: 0.96 },
+              textFormat: {
+                bold: true,
+                foregroundColor: { red: 1, green: 1, blue: 1 },
+              },
+              backgroundColor: {
+                red: unit(BRAND.darkBlue)[0],
+                green: unit(BRAND.darkBlue)[1],
+                blue: unit(BRAND.darkBlue)[2],
+              },
             },
           },
           fields: 'userEnteredFormat(textFormat,backgroundColor)',
@@ -348,17 +383,19 @@ export async function exportPlannerToSheets(
 const to255 = (rgb: [number, number, number]): [number, number, number] =>
   [Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255)];
 
-export function exportPlannerPdf(model: PlannerModel): void {
+export function exportPlannerPdf(
+  model: PlannerModel,
+  columnMode: PlannerColumnMode = 'activity',
+): void {
   const doc = new jsPDF({ orientation: 'landscape' });
+  const columnLabel = columnModeLabel(columnMode);
 
-  doc.setFontSize(16);
-  doc.text(`${model.scopeLabel}: ${model.course}`, 14, 16);
-  doc.setFontSize(10);
-  doc.text(`Timing: ${model.timing}    Updated: ${model.updatedDisplay}`, 14, 23);
-
-  let y = 28;
+  let y = drawBrandHeaderBand(doc, [
+    `${model.scopeLabel}: ${model.course}`,
+    `Timing: ${model.timing}    Updated: ${model.updatedDisplay}`,
+  ]);
   for (const m of model.months) {
-    // Head: merged corner + Week N groups over Date/Activity/Teacher.
+    // Head: merged corner + Week N groups over Date/Activity-or-Module/Teacher.
     const head = [
       [
         { content: `${m.monthName} ${m.year}`, colSpan: 2, rowSpan: 2 },
@@ -369,7 +406,7 @@ export function exportPlannerPdf(model: PlannerModel): void {
       ],
       Array.from({ length: m.weeks }).flatMap(() => [
         'Date',
-        'Activity',
+        columnLabel,
         'Lesson',
         'Teacher',
       ]),
@@ -385,7 +422,7 @@ export function exportPlannerPdf(model: PlannerModel): void {
       for (const cell of rowCells) {
         cells.push(
           dateText(cell),
-          activityText(cell),
+          activityText(cell, columnMode),
           lessonLines(cell).join('\n'),
           teacherLines(cell).join('\n'),
         );
@@ -397,19 +434,27 @@ export function exportPlannerPdf(model: PlannerModel): void {
       head,
       body,
       startY: y,
-      styles: { fontSize: 6.5, cellPadding: 1.2, valign: 'top' },
+      styles: {
+        fontSize: 6.5,
+        cellPadding: 1.2,
+        valign: 'top',
+        textColor: BRAND.nearBlack,
+      },
       headStyles: {
-        fillColor: [37, 99, 235],
-        textColor: 255,
+        fillColor: BRAND.darkBlue,
+        textColor: BRAND.white,
         halign: 'center',
       },
+      alternateRowStyles: { fillColor: BRAND.grey },
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const col = data.column.index;
         if (col < 2 || (col - 2) % 4 !== 1) {
           if (col === 0) {
-            data.cell.styles.fillColor = [37, 99, 235];
-            data.cell.styles.textColor = 255;
+            // Month-label column: same dark-blue band as the header, so the
+            // month/week divider reads as one consistent brand element.
+            data.cell.styles.fillColor = BRAND.darkBlue;
+            data.cell.styles.textColor = BRAND.white;
             data.cell.styles.halign = 'center';
             data.cell.styles.valign = 'middle';
           }
@@ -435,5 +480,6 @@ export function exportPlannerPdf(model: PlannerModel): void {
     }
   }
 
+  addPageFooters(doc);
   doc.save(`${fileStem(model.course)}-planner.pdf`);
 }

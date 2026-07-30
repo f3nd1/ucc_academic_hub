@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildPlanner,
   activityText,
+  columnModeLabel,
   dateText,
   lessonLines,
   teacherLines,
@@ -115,6 +116,13 @@ describe('buildPlanner structure', () => {
     ];
     const out = buildPlanner(unsorted, COURSE, HOLIDAYS, 'monday', '2026-07-03');
     expect(out.months.map((m) => m.monthName)).toEqual(['July', 'August']);
+  });
+});
+
+describe('columnModeLabel', () => {
+  it('labels the sub-column header for each mode', () => {
+    expect(columnModeLabel('module')).toBe('Module');
+    expect(columnModeLabel('activity')).toBe('Activity');
   });
 });
 
@@ -240,6 +248,7 @@ describe('v5 cells: AL and multi-entry teaching', () => {
       moduleId: 'g2',
       moduleName: 'Other Module',
       lessonName: 'X1',
+      activity: 'Reading',
       teacher: 'Mr Lim',
       startTime: '11:00',
       endTime: '12:00',
@@ -256,6 +265,13 @@ describe('v5 cells: AL and multi-entry teaching', () => {
     expect(cell.entries).toHaveLength(2);
     expect(lessonLines(cell)).toEqual(['L1', 'X1']);
     expect(teacherLines(cell)).toEqual(['Ms Tan', 'Mr Lim']);
+
+    // Activity/Module toggle: 'activity' (the default before this change)
+    // shows the activity values; 'module' shows the module names instead.
+    // Both modes leave Lesson/Teacher untouched.
+    expect(activityText(cell)).toBe('Listening / Reading');
+    expect(activityText(cell, 'activity')).toBe('Listening / Reading');
+    expect(activityText(cell, 'module')).toBe('Course X / Other Module');
   });
 });
 

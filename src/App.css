@@ -580,6 +580,10 @@ tbody tr:nth-child(even) {
   font-size: 0.9rem;
 }
 
+.planner__mode {
+  margin-bottom: 1rem;
+}
+
 .planner__key {
   color: var(--muted);
   font-weight: 600;
