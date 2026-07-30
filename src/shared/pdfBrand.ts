@@ -18,10 +18,22 @@ export const BRAND = {
 
 // AL (Autonomous Learning) is filler, not real content — a restrained tint of
 // lightBlue (blended toward white) rather than the full, attention-grabbing
-// colour, so it stays visually secondary to real lesson cells.
+// colour, so it stays visually secondary to real lesson cells. Both the
+// Hybrid and Calendar PDF exports reference this SAME constant directly (no
+// per-export copy), so there is exactly one AL colour value across both.
 export const BRAND_AL_TINT: [number, number, number] = [209, 212, 221]; // ~30% lightBlue over white
 
+// Subdued grid-line colour: structures every cell without competing with the
+// coloured special-day fills (Weekend/SchoolHoliday/PublicHoliday/AL).
+export const BRAND_GRID_LINE: [number, number, number] = [200, 205, 214];
+
 const COPYRIGHT_TEXT = 'Copyright © United Ceres College Pte Ltd.';
+
+/** Shared table look for every PDF export: subdued 1px borders on every cell. */
+export const BRAND_GRID_STYLE = {
+  lineWidth: 0.1,
+  lineColor: BRAND_GRID_LINE,
+} as const;
 
 /**
  * Draw a full-width dark-blue header band across the top of the CURRENT page,
@@ -62,7 +74,9 @@ export function addPageFooters(doc: jsPDF): void {
 
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(8);
+    // Deliberately small — a footer, not a heading — roughly 70-75% of the
+    // smallest body text size used across the three PDF exports (6.5-9pt).
+    doc.setFontSize(6);
     doc.setTextColor(...BRAND.lightBlue);
     doc.text(COPYRIGHT_TEXT, 14, pageHeight - 8);
     doc.text(`Page ${i} / ${totalPages}`, pageWidth - 14, pageHeight - 8, {

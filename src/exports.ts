@@ -5,7 +5,13 @@ import type { FirstDayOfWeek } from './shared/settings';
 import { TEACHER_LABEL, CLASS_GROUP_LABEL, AL_LABEL } from './constants';
 import { formatDisplayDate } from './shared/dates';
 import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
-import { addPageFooters, drawBrandHeaderBand, BRAND, BRAND_AL_TINT } from './shared/pdfBrand';
+import {
+  addPageFooters,
+  drawBrandHeaderBand,
+  BRAND,
+  BRAND_AL_TINT,
+  BRAND_GRID_STYLE,
+} from './shared/pdfBrand';
 
 // The on-screen / PDF columns, in order. TEACHER_LABEL keeps the "Teacher"
 // header (and its field label) in a single place. The Date column shows the
@@ -174,12 +180,36 @@ export function exportCalendarPdf(
   holidays?: HolidaySet,
 ): void {
   const doc = new jsPDF({ orientation: 'landscape' });
-  let y = pdfHeader(doc, course, scopeLabel);
+  const headerLines = [
+    `${scopeLabel}: ${course.name}`,
+    `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
+      course.deliveryMode === 'series' ? 'Series' : 'Parallel'
+    }`,
+  ];
 
   const months = buildCalendarMonths(lessons, firstDayOfWeek, holidays);
   const headers = weekdayHeaders(firstDayOfWeek);
 
-  for (const m of months) {
+  // Fixed-width grid: all 7 weekday columns get an identical, content-independent
+  // share of the page's printable width, so column widths never shift between a
+  // light month and a heavy one (a day with several same-day sessions grows in
+  // height, never in width).
+  const margin = { left: 14, right: 14 };
+  const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
+  const colWidth = usableWidth / 7;
+  const columnStyles = Object.fromEntries(
+    Array.from({ length: 7 }, (_, i) => [i, { cellWidth: colWidth }]),
+  );
+
+  months.forEach((m, monthIndex) => {
+    // One month per page: every month after the first starts on a fresh page,
+    // so the header band is never missing on a continuation page (previously
+    // it only ever appeared once at the very top of page 1, so any page break
+    // — light course or heavy — left later months with no header at all,
+    // reading as if the band had been clipped off).
+    if (monthIndex > 0) doc.addPage();
+    const bandY = drawBrandHeaderBand(doc, headerLines);
+
     // Per-cell kind matrix aligned with the body for the colour hook.
     const kinds: string[][] = [];
     const body = m.weeks.map((week) => {
@@ -201,7 +231,10 @@ export function exportCalendarPdf(
                 ? 'al'
                 : (cell.kind ?? 'blank'),
         );
-        const lines = [String(cell.dayNum)];
+        // The day number is drawn separately (didDrawCell) in a larger, bold,
+        // brand dark-blue style so it reads as the cell's primary anchor;
+        // the body text here carries only the lesson/holiday detail lines.
+        const lines: string[] = [];
         for (const l of real) {
           lines.push(
             `${(l.conflicts?.length ?? 0) > 0 ? '! ' : ''}${l.lessonName}`,
@@ -222,18 +255,25 @@ export function exportCalendarPdf(
 
     doc.setFontSize(12);
     doc.setTextColor(...BRAND.darkBlue);
-    doc.text(`${m.monthName} ${m.year}`, 14, y + 6);
+    doc.text(`${m.monthName} ${m.year}`, 14, bandY + 6);
     doc.setTextColor(0, 0, 0);
     autoTable(doc, {
       head: [headers],
       body,
-      startY: y + 9,
+      startY: bandY + 9,
+      margin: { ...margin, top: bandY },
+      tableWidth: usableWidth,
+      columnStyles,
       styles: {
         fontSize: 7,
-        cellPadding: 1.5,
+        // Extra top padding reserves room for the larger date number drawn
+        // above the lesson-detail lines in didDrawCell, without the two
+        // overlapping.
+        cellPadding: { top: 5, right: 1.5, bottom: 1.5, left: 1.5 },
         valign: 'top',
         minCellHeight: 14,
         textColor: BRAND.nearBlack,
+        ...BRAND_GRID_STYLE,
       },
       headStyles: { fillColor: BRAND.darkBlue, textColor: BRAND.white, halign: 'center' },
       alternateRowStyles: { fillColor: BRAND.grey },
@@ -243,17 +283,23 @@ export function exportCalendarPdf(
         if (kind && CAL_FILLS[kind]) data.cell.styles.fillColor = CAL_FILLS[kind];
         if (kind === 'out') data.cell.styles.textColor = [160, 168, 180];
       },
+      didDrawCell: (data) => {
+        if (data.section !== 'body') return;
+        const cell = m.weeks[data.row.index]?.[data.column.index];
+        if (!cell || !cell.inMonth) return;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(...BRAND.darkBlue);
+        doc.text(String(cell.dayNum), data.cell.x + 1.5, data.cell.y + 4.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...BRAND.nearBlack);
+      },
+      didDrawPage: () => {
+        drawBrandHeaderBand(doc, headerLines);
+      },
     });
-    y =
-      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
-        ?.finalY ?? y;
-    y += 8;
-    // New page when the next month would not fit.
-    if (y > doc.internal.pageSize.getHeight() - 60 && m !== months[months.length - 1]) {
-      doc.addPage();
-      y = 14;
-    }
-  }
+  });
 
   addPageFooters(doc);
   doc.save(`${fileStem(course.name)}-calendar.pdf`);

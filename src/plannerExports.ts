@@ -9,7 +9,13 @@ import {
   teacherLines,
 } from './planner';
 import { requestSheetsToken } from './googleSheets';
-import { addPageFooters, drawBrandHeaderBand, BRAND, BRAND_AL_TINT } from './shared/pdfBrand';
+import {
+  addPageFooters,
+  drawBrandHeaderBand,
+  BRAND,
+  BRAND_AL_TINT,
+  BRAND_GRID_STYLE,
+} from './shared/pdfBrand';
 
 /** BRAND's 0-255 channels as 0-1 fractions, for Sheets' colour objects. */
 const unit = (rgb: readonly [number, number, number]): [number, number, number] => [
@@ -383,18 +389,78 @@ export async function exportPlannerToSheets(
 const to255 = (rgb: [number, number, number]): [number, number, number] =>
   [Math.round(rgb[0] * 255), Math.round(rgb[1] * 255), Math.round(rgb[2] * 255)];
 
+// Reference font size used to measure header-label width; the exported font
+// for a given month's table is scaled down from this so the labels never
+// wrap mid-word (jsPDF's getTextWidth scales linearly with font size).
+const REFERENCE_FONT_SIZE = 6.5;
+const MIN_FONT_SIZE = 4.5;
+const SUB_COLUMN_PADDING_MM = 2.4; // cellPadding 1.2mm left + right
+// Comfortable safety margin below the exact fit: getTextWidth measures the
+// glyphs alone, but autoTable's own wrap decision leaves less room than that
+// in practice, so targeting the exact available width still wrapped labels
+// right at the boundary.
+const FIT_SAFETY_FACTOR = 0.82;
+const MONTH_COL_WIDTH_MM = 10;
+const WEEKDAY_COL_WIDTH_MM = 16;
+
+/**
+ * Pick a font size so the widest sub-column header label ("Activity") fits
+ * inside `colWidthMm` at that size. Column width is set EXPLICITLY (via
+ * columnStyles below) rather than left to autoTable's own content-based
+ * 'auto' sizing — the two disagreed in practice: a 6-week month's Date/
+ * Module/Lesson/Teacher labels still wrapped into fragments like "Lesso"/"n"
+ * even when scaled against autoTable's actual computed width, because 'auto'
+ * mode weights columns by their body content (e.g. "Data Fundamentals") much
+ * more than the short header labels. Fixing the width ourselves makes the
+ * fit fully predictable.
+ */
+function fontSizeForColumnWidth(doc: jsPDF, columnLabel: string, colWidthMm: number): number {
+  doc.setFontSize(REFERENCE_FONT_SIZE);
+  const widestLabelMm = Math.max(
+    doc.getTextWidth('Date'),
+    doc.getTextWidth(columnLabel),
+    doc.getTextWidth('Lesson'),
+    doc.getTextWidth('Teacher'),
+  );
+  const availableMm = (colWidthMm - SUB_COLUMN_PADDING_MM) * FIT_SAFETY_FACTOR;
+  if (widestLabelMm <= availableMm) return REFERENCE_FONT_SIZE;
+  const scaled = REFERENCE_FONT_SIZE * (availableMm / widestLabelMm);
+  return Math.max(MIN_FONT_SIZE, scaled);
+}
+
 export function exportPlannerPdf(
   model: PlannerModel,
   columnMode: PlannerColumnMode = 'activity',
 ): void {
   const doc = new jsPDF({ orientation: 'landscape' });
   const columnLabel = columnModeLabel(columnMode);
-
-  let y = drawBrandHeaderBand(doc, [
+  const headerLines = [
     `${model.scopeLabel}: ${model.course}`,
     `Timing: ${model.timing}    Updated: ${model.updatedDisplay}`,
-  ]);
-  for (const m of model.months) {
+  ];
+  const margin = { left: 14, right: 14 };
+  const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
+
+  model.months.forEach((m, monthIndex) => {
+    // One month per page: every month after the first starts on a fresh page,
+    // so Week N columns always have the full page width to themselves and
+    // column widths never shrink as more months are added to the course.
+    if (monthIndex > 0) doc.addPage();
+    const y = drawBrandHeaderBand(doc, headerLines);
+
+    // Every Date/Activity-or-Module/Lesson/Teacher sub-column across every
+    // week gets the same explicit width, so a heavier month (more weeks)
+    // simply divides the page's width among more columns rather than
+    // silently inheriting whatever autoTable would have guessed.
+    const subColWidth =
+      (usableWidth - MONTH_COL_WIDTH_MM - WEEKDAY_COL_WIDTH_MM) / (m.weeks * 4);
+    const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth);
+    const columnStyles: Record<number, { cellWidth: number }> = {
+      0: { cellWidth: MONTH_COL_WIDTH_MM },
+      1: { cellWidth: WEEKDAY_COL_WIDTH_MM },
+    };
+    for (let c = 2; c < 2 + m.weeks * 4; c++) columnStyles[c] = { cellWidth: subColWidth };
+
     // Head: merged corner + Week N groups over Date/Activity-or-Module/Teacher.
     const head = [
       [
@@ -434,11 +500,19 @@ export function exportPlannerPdf(
       head,
       body,
       startY: y,
+      // Reserves the header band's height on any page autoTable itself adds
+      // (a single month's 7 rows practically never overflow one page, but
+      // this keeps the band from ever being skipped if one ever does), and
+      // didDrawPage repaints the band on every such page.
+      margin: { ...margin, top: y },
+      tableWidth: usableWidth,
+      columnStyles,
       styles: {
-        fontSize: 6.5,
+        fontSize,
         cellPadding: 1.2,
         valign: 'top',
         textColor: BRAND.nearBlack,
+        ...BRAND_GRID_STYLE,
       },
       headStyles: {
         fillColor: BRAND.darkBlue,
@@ -466,19 +540,11 @@ export function exportPlannerPdf(
         const rgb = cell.conflict ? FILL.conflict : FILL[cell.kind];
         if (rgb) data.cell.styles.fillColor = to255(rgb);
       },
+      didDrawPage: () => {
+        drawBrandHeaderBand(doc, headerLines);
+      },
     });
-    y =
-      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable
-        ?.finalY ?? y;
-    y += 8;
-    if (
-      y > doc.internal.pageSize.getHeight() - 60 &&
-      m !== model.months[model.months.length - 1]
-    ) {
-      doc.addPage();
-      y = 14;
-    }
-  }
+  });
 
   addPageFooters(doc);
   doc.save(`${fileStem(model.course)}-planner.pdf`);
