@@ -623,7 +623,7 @@ tbody tr:nth-child(even) {
   color: var(--muted);
 }
 
-.planner__teacher div:nth-child(2) {
+.planner__teacher {
   color: var(--muted);
 }
 

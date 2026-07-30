@@ -1,12 +1,12 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { PlannerModel, PlannerCell } from './planner';
-import { activityText, dateText, teacherLines } from './planner';
+import { activityText, dateText, lessonLines, teacherLines } from './planner';
 import { requestSheetsToken } from './googleSheets';
 
 // Shared flat layout for both planner exports (CSV + Google Sheets). Rows/cols
-// are 0-indexed. Columns: 0 = month label, 1 = weekday, then each week is three
-// columns (Date, Activity, Teacher).
+// are 0-indexed. Columns: 0 = month label, 1 = weekday, then each week is four
+// columns (Date, Activity, Lesson, Teacher).
 
 interface Fill {
   r: number;
@@ -67,7 +67,7 @@ export function buildPlannerLayout(
   const fills: Fill[] = [];
   const headers: { r: number; c: number }[] = [];
 
-  const totalWidth = (weeks: number) => 2 + weeks * 3;
+  const totalWidth = (weeks: number) => 2 + weeks * 4;
 
   put(values, 0, 0, `${model.scopeLabel}:`, 2);
   put(values, 0, 1, model.course, 2);
@@ -90,16 +90,22 @@ export function buildPlannerLayout(
     headers.push({ r: h1, c: 0 });
     merges.push({ r0: h1, r1: h1 + 2, c0: 0, c1: 2 });
 
-    // Week N grouped headers + Date/Activity/Teacher sub-headers.
+    // Week N grouped headers + Date/Activity/Lesson/Teacher sub-headers.
     for (let w = 0; w < m.weeks; w++) {
-      const c = 2 + w * 3;
+      const c = 2 + w * 4;
       put(values, h1, c, `Week ${w + 1}`, width);
       headers.push({ r: h1, c });
-      merges.push({ r0: h1, r1: h1 + 1, c0: c, c1: c + 3 });
+      merges.push({ r0: h1, r1: h1 + 1, c0: c, c1: c + 4 });
       put(values, h2, c, 'Date', width);
       put(values, h2, c + 1, 'Activity', width);
-      put(values, h2, c + 2, 'Teacher', width);
-      headers.push({ r: h2, c }, { r: h2, c: c + 1 }, { r: h2, c: c + 2 });
+      put(values, h2, c + 2, 'Lesson', width);
+      put(values, h2, c + 3, 'Teacher', width);
+      headers.push(
+        { r: h2, c },
+        { r: h2, c: c + 1 },
+        { r: h2, c: c + 2 },
+        { r: h2, c: c + 3 },
+      );
     }
 
     // 7 weekday rows.
@@ -109,13 +115,20 @@ export function buildPlannerLayout(
       put(values, rowIndex, 1, model.weekdayLabels[r], width);
       for (let w = 0; w < m.weeks; w++) {
         const cell = m.grid[r][w];
-        const c = 2 + w * 3;
+        const c = 2 + w * 4;
         put(values, rowIndex, c, dateText(cell), width);
         put(values, rowIndex, c + 1, activityText(cell), width);
         put(
           values,
           rowIndex,
           c + 2,
+          lessonLines(cell).join(teacherJoin),
+          width,
+        );
+        put(
+          values,
+          rowIndex,
+          c + 3,
           teacherLines(cell).join(teacherJoin),
           width,
         );
@@ -327,8 +340,9 @@ export async function exportPlannerToSheets(
 // ---------------------------------------------------------------------------
 // Planner (Hybrid) PDF — the matrix layout, matching the on-screen view and
 // the Planner Sheets export: month blocks, weekday rows, Week N columns with
-// Date/Activity/Teacher sub-cells, colour-coded special days. Every visible
-// date stays DD MMMM YYYY (the planner model only carries display text).
+// Date/Activity/Lesson/Teacher sub-cells, colour-coded special days. Every
+// visible date stays DD MMMM YYYY (the planner model only carries display
+// text).
 // ---------------------------------------------------------------------------
 
 const to255 = (rgb: [number, number, number]): [number, number, number] =>
@@ -350,12 +364,13 @@ export function exportPlannerPdf(model: PlannerModel): void {
         { content: `${m.monthName} ${m.year}`, colSpan: 2, rowSpan: 2 },
         ...Array.from({ length: m.weeks }, (_, w) => ({
           content: `Week ${w + 1}`,
-          colSpan: 3,
+          colSpan: 4,
         })),
       ],
       Array.from({ length: m.weeks }).flatMap(() => [
         'Date',
         'Activity',
+        'Lesson',
         'Teacher',
       ]),
     ];
@@ -371,6 +386,7 @@ export function exportPlannerPdf(model: PlannerModel): void {
         cells.push(
           dateText(cell),
           activityText(cell),
+          lessonLines(cell).join('\n'),
           teacherLines(cell).join('\n'),
         );
       }
@@ -390,7 +406,7 @@ export function exportPlannerPdf(model: PlannerModel): void {
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const col = data.column.index;
-        if (col < 2 || (col - 2) % 3 !== 1) {
+        if (col < 2 || (col - 2) % 4 !== 1) {
           if (col === 0) {
             data.cell.styles.fillColor = [37, 99, 235];
             data.cell.styles.textColor = 255;
@@ -399,7 +415,7 @@ export function exportPlannerPdf(model: PlannerModel): void {
           }
           return;
         }
-        const week = Math.floor((col - 2) / 3);
+        const week = Math.floor((col - 2) / 4);
         const cell = cellsByRow[data.row.index]?.[week];
         if (!cell) return;
         const rgb = cell.conflict ? FILL.conflict : FILL[cell.kind];

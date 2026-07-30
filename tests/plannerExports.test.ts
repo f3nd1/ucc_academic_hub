@@ -57,18 +57,18 @@ describe('buildPlannerLayout', () => {
     expect(layout.values[2][1]).toBe('03 July 2026');
   });
 
-  it('lays out Week N headers with Date/Activity/Teacher sub-columns', () => {
+  it('lays out Week N headers with Date/Activity/Lesson/Teacher sub-columns', () => {
     const h1 = layout.values[4];
     const h2 = layout.values[5];
     expect(h1[0]).toBe('July 2026');
     expect(h1[2]).toBe('Week 1');
-    expect(h1[5]).toBe('Week 2');
-    expect(h2.slice(2, 5)).toEqual(['Date', 'Activity', 'Teacher']);
+    expect(h1[6]).toBe('Week 2');
+    expect(h2.slice(2, 6)).toEqual(['Date', 'Activity', 'Lesson', 'Teacher']);
   });
 
-  it('merges each Week header across its three sub-columns', () => {
+  it('merges each Week header across its four sub-columns', () => {
     const weekMerges = layout.merges.filter(
-      (m) => m.r0 === 4 && m.r1 === 5 && m.c1 - m.c0 === 3,
+      (m) => m.r0 === 4 && m.r1 === 5 && m.c1 - m.c0 === 4,
     );
     expect(weekMerges.length).toBe(model.months[0].weeks);
   });
@@ -94,7 +94,7 @@ describe('buildPlannerLayout', () => {
 
   it('colour-fills only special-day activity cells', () => {
     expect(layout.fills.length).toBeGreaterThan(0);
-    // Fills sit in Activity sub-columns: (c - 2) % 3 === 1.
-    for (const f of layout.fills) expect((f.c - 2) % 3).toBe(1);
+    // Fills sit in Activity sub-columns: (c - 2) % 4 === 1.
+    for (const f of layout.fills) expect((f.c - 2) % 4).toBe(1);
   });
 });

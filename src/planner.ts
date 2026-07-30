@@ -232,12 +232,19 @@ export function dateText(cell: PlannerCell): string {
   return cell.dateDisplay ?? '';
 }
 
-/** Teacher sub-column: label + teacher per entry when teaching, else "-". */
+/** Lesson sub-column: one lesson label per entry when teaching, else "-". */
+export function lessonLines(cell: PlannerCell): string[] {
+  if (cell.kind === 'teaching') {
+    return (cell.entries ?? []).map((e) => e.lessonName).filter(Boolean);
+  }
+  if (cell.kind === 'empty' || cell.kind === 'blank') return [];
+  return ['-'];
+}
+
+/** Teacher sub-column: one teacher name per entry when teaching, else "-". */
 export function teacherLines(cell: PlannerCell): string[] {
   if (cell.kind === 'teaching') {
-    return (cell.entries ?? []).flatMap((e) =>
-      [e.lessonName, e.teacher].filter(Boolean),
-    );
+    return (cell.entries ?? []).map((e) => e.teacher).filter(Boolean);
   }
   if (cell.kind === 'empty' || cell.kind === 'blank') return [];
   return ['-'];
