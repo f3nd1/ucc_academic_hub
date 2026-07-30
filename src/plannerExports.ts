@@ -1,6 +1,11 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { PlannerModel, PlannerCell, PlannerColumnMode } from './planner';
+import type {
+  PlannerModel,
+  PlannerMonth,
+  PlannerCell,
+  PlannerColumnMode,
+} from './planner';
 import {
   activityText,
   columnModeLabel,
@@ -10,6 +15,7 @@ import {
 } from './planner';
 import { requestSheetsToken } from './googleSheets';
 import { parseLocal } from './shared/dates';
+import { AL_LABEL } from './constants';
 import {
   addPageFooters,
   drawPlainHeader,
@@ -401,8 +407,15 @@ const SUB_COLUMN_PADDING_MM = 2.4; // cellPadding 1.2mm left + right
 // in practice, so targeting the exact available width still wrapped labels
 // right at the boundary.
 const FIT_SAFETY_FACTOR = 0.82;
-const MONTH_COL_WIDTH_MM = 10;
-const WEEKDAY_COL_WIDTH_MM = 16;
+// Holds a 3-letter weekday abbreviation ("Mon") plus the "Day" head label —
+// both far narrower than the "Monday" this was originally sized for, so this
+// shrank from 16mm once the weekday labels themselves went to 3 letters.
+const WEEKDAY_COL_WIDTH_MM = 10;
+// Every Hybrid PDF page is sized against a 5-week template, never against
+// however many week-columns the current month actually has. A 6-week month
+// splits across two pages (weeks 1-5, then week 6 alone) instead of shrinking
+// every column to squeeze a 6th week onto one page — see exportPlannerPdf.
+const PAGE_WEEK_BUDGET = 5;
 
 /**
  * Pick a font size so the widest sub-column header label ("Activity") fits
@@ -458,6 +471,35 @@ function pdfDateText(cell: PlannerCell): string {
   return cell.dateIso ? compactDate(cell.dateIso) : '';
 }
 
+// Two ASCII periods rather than the "…" glyph — jsPDF's built-in Helvetica
+// is a WinAnsi subset and this codebase has never confirmed U+2026 renders
+// in it, whereas plain ASCII is guaranteed.
+const TRUNCATION_SUFFIX = '..';
+
+/**
+ * Shorten `text` to the longest prefix (plus TRUNCATION_SUFFIX) that fits
+ * `maxWidthMm` at `fontSize`, measured with jsPDF's real font metrics — the
+ * PDF-only fix for module names like "Data Fundamentals" wrapping across
+ * 2-3 lines in every populated cell (the biggest space cost on the page).
+ * Falls through untouched when the text already fits. Applied generally to
+ * every Module/Lesson/Teacher body string, not just module names, since any
+ * of them can run long (a holiday name, a long lesson title).
+ */
+function truncateToWidth(doc: jsPDF, text: string, maxWidthMm: number, fontSize: number): string {
+  if (!text) return text;
+  doc.setFontSize(fontSize);
+  if (doc.getTextWidth(text) <= maxWidthMm) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = text.slice(0, mid).trimEnd() + TRUNCATION_SUFFIX;
+    if (doc.getTextWidth(candidate) <= maxWidthMm) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo === 0 ? TRUNCATION_SUFFIX : text.slice(0, lo).trimEnd() + TRUNCATION_SUFFIX;
+}
+
 export function exportPlannerPdf(
   model: PlannerModel,
   columnMode: PlannerColumnMode = 'activity',
@@ -471,36 +513,52 @@ export function exportPlannerPdf(
   const margin = { left: 14, right: 14 };
   const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
 
-  model.months.forEach((m, monthIndex) => {
-    // One month per page: every month after the first starts on a fresh page,
-    // so Week N columns always have the full page width to themselves and
-    // column widths never shrink as more months are added to the course.
-    if (monthIndex > 0) doc.addPage();
+  // Column width is derived from a FIXED 5-week-per-page budget, never from
+  // however many weeks the current month actually has — every page (a full
+  // 5-week page or a 1-week continuation page) gets the same comfortable
+  // column width, and a 6-week month splits across two pages instead of
+  // shrinking every column to squeeze a 6th week in (see the months.forEach
+  // loop below).
+  const subColWidth = (usableWidth - WEEKDAY_COL_WIDTH_MM) / (PAGE_WEEK_BUDGET * 4);
+  const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth);
+  const textMaxWidthMm = (subColWidth - SUB_COLUMN_PADDING_MM) * FIT_SAFETY_FACTOR;
+  const columnStyles: Record<number, { cellWidth: number }> = {
+    0: { cellWidth: WEEKDAY_COL_WIDTH_MM },
+  };
+  for (let c = 1; c <= PAGE_WEEK_BUDGET * 4; c++) columnStyles[c] = { cellWidth: subColWidth };
+
+  /**
+   * Render one page's worth of week-columns (weeks `weekStart..weekStart +
+   * weekCount - 1` of month `m`, 0-indexed) — either a full month (weekCount
+   * === m.weeks) or one slice of a split 6-week month. `titleSuffix` marks a
+   * continuation page (" (cont.)") so it's clear it's still the same month.
+   */
+  function renderWeekPage(
+    m: PlannerMonth,
+    weekStart: number,
+    weekCount: number,
+    titleSuffix: string,
+  ) {
     const y = drawPlainHeader(doc, headerLines);
 
-    // Every Date/Activity-or-Module/Lesson/Teacher sub-column across every
-    // week gets the same explicit width, so a heavier month (more weeks)
-    // simply divides the page's width among more columns rather than
-    // silently inheriting whatever autoTable would have guessed.
-    const subColWidth =
-      (usableWidth - MONTH_COL_WIDTH_MM - WEEKDAY_COL_WIDTH_MM) / (m.weeks * 4);
-    const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth);
-    const columnStyles: Record<number, { cellWidth: number }> = {
-      0: { cellWidth: MONTH_COL_WIDTH_MM },
-      1: { cellWidth: WEEKDAY_COL_WIDTH_MM },
-    };
-    for (let c = 2; c < 2 + m.weeks * 4; c++) columnStyles[c] = { cellWidth: subColWidth };
+    // Month/year sits above the table (matching the Calendar PDF's month
+    // title) rather than in a table column — a table corner cell narrow
+    // enough to fit the 5-week budget has no room left for "August 2026".
+    doc.setFontSize(12);
+    doc.setTextColor(...BRAND.darkBlue);
+    doc.text(`${m.monthName} ${m.year}${titleSuffix}`, 14, y + 6);
+    doc.setTextColor(0, 0, 0);
+    const tableStartY = y + 9;
 
-    // Head: merged corner + Week N groups over Date/Activity-or-Module/Teacher.
     const head = [
       [
-        { content: `${m.monthName} ${m.year}`, colSpan: 2, rowSpan: 2 },
-        ...Array.from({ length: m.weeks }, (_, w) => ({
-          content: `Week ${w + 1}`,
+        { content: 'Day', rowSpan: 2 },
+        ...Array.from({ length: weekCount }, (_, w) => ({
+          content: `Week ${weekStart + w + 1}`,
           colSpan: 4,
         })),
       ],
-      Array.from({ length: m.weeks }).flatMap(() => [
+      Array.from({ length: weekCount }).flatMap(() => [
         'Date',
         columnLabel,
         'Lesson',
@@ -508,36 +566,54 @@ export function exportPlannerPdf(
       ]),
     ];
 
-    // Body: month label merged down 7 weekday rows; cells from the shared
-    // planner helpers so wording matches the view and the Sheets export.
-    const cellsByRow: PlannerCell[][] = m.grid;
-    const body = m.grid.map((rowCells, r) => {
-      const cells: (string | { content: string; rowSpan?: number })[] = [];
-      if (r === 0) cells.push({ content: m.monthName, rowSpan: 7 });
-      // 3-letter form only — the on-screen Hybrid view, CSV, and Sheets
-      // exports keep the full weekday name from model.weekdayLabels.
-      cells.push(model.weekdayLabels[r].slice(0, 3));
-      for (const cell of rowCells) {
-        cells.push(
-          pdfDateText(cell),
-          activityText(cell, columnMode),
-          lessonLines(cell).join('\n'),
-          teacherLines(cell).join('\n'),
-        );
+    // Body: weekday label starts each row; cells from the shared planner
+    // helpers so wording matches the view and the Sheets export, run through
+    // the PDF-only compact date/truncation helpers. An AL cell collapses its
+    // Module/Lesson/Teacher trio (three near-empty cells: "AL", "-", "-")
+    // into one merged cell — there was never going to be a lesson or teacher
+    // on a buffer day.
+    type BodyCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+    const body: BodyCell[][] = Array.from({ length: 7 }, (_, r) => {
+      const cells: BodyCell[] = [model.weekdayLabels[r].slice(0, 3)];
+      for (let w = weekStart; w < weekStart + weekCount; w++) {
+        const cell = m.grid[r][w];
+        if (cell.kind === 'al') {
+          cells.push(
+            pdfDateText(cell),
+            {
+              content: activityText(cell, columnMode),
+              colSpan: 3,
+              styles: { halign: 'center' },
+            },
+          );
+        } else {
+          cells.push(
+            pdfDateText(cell),
+            truncateToWidth(doc, activityText(cell, columnMode), textMaxWidthMm, fontSize),
+            lessonLines(cell)
+              .map((l) => truncateToWidth(doc, l, textMaxWidthMm, fontSize))
+              .join('\n'),
+            teacherLines(cell)
+              .map((l) => truncateToWidth(doc, l, textMaxWidthMm, fontSize))
+              .join('\n'),
+          );
+        }
       }
       return cells;
     });
 
+    const tableWidth = WEEKDAY_COL_WIDTH_MM + weekCount * 4 * subColWidth;
+
     autoTable(doc, {
       head,
       body,
-      startY: y,
+      startY: tableStartY,
       // Reserves the header band's height on any page autoTable itself adds
-      // (a single month's 7 rows practically never overflow one page, but
-      // this keeps the band from ever being skipped if one ever does), and
-      // didDrawPage repaints the band on every such page.
+      // (a single page's 7 rows practically never overflow one page, but
+      // this keeps the header from ever being skipped if one ever does), and
+      // didDrawPage repaints it on every such page.
       margin: { ...margin, top: y },
-      tableWidth: usableWidth,
+      tableWidth,
       columnStyles,
       styles: {
         fontSize,
@@ -555,19 +631,9 @@ export function exportPlannerPdf(
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const col = data.column.index;
-        if (col < 2 || (col - 2) % 4 !== 1) {
-          if (col === 0) {
-            // Month-label column: same dark-blue band as the header, so the
-            // month/week divider reads as one consistent brand element.
-            data.cell.styles.fillColor = BRAND.darkBlue;
-            data.cell.styles.textColor = BRAND.white;
-            data.cell.styles.halign = 'center';
-            data.cell.styles.valign = 'middle';
-          }
-          return;
-        }
-        const week = Math.floor((col - 2) / 4);
-        const cell = cellsByRow[data.row.index]?.[week];
+        if (col < 1 || (col - 1) % 4 !== 1) return;
+        const week = weekStart + Math.floor((col - 1) / 4);
+        const cell = m.grid[data.row.index]?.[week];
         if (!cell) return;
         const rgb = cell.conflict ? FILL.conflict : FILL[cell.kind];
         if (rgb) data.cell.styles.fillColor = to255(rgb);
@@ -576,8 +642,20 @@ export function exportPlannerPdf(
         drawPlainHeader(doc, headerLines);
       },
     });
+  }
+
+  model.months.forEach((m, monthIndex) => {
+    // One month per page (or two, for a 6-week month): every month after the
+    // first starts on a fresh page.
+    if (monthIndex > 0) doc.addPage();
+    const firstPageWeeks = Math.min(m.weeks, PAGE_WEEK_BUDGET);
+    renderWeekPage(m, 0, firstPageWeeks, '');
+    if (m.weeks > PAGE_WEEK_BUDGET) {
+      doc.addPage();
+      renderWeekPage(m, PAGE_WEEK_BUDGET, m.weeks - PAGE_WEEK_BUDGET, ' (cont.)');
+    }
   });
 
-  addPageFooters(doc);
+  addPageFooters(doc, `${AL_LABEL} = Autonomous Learning`);
   doc.save(`${fileStem(model.course)}-planner.pdf`);
 }
