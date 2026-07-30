@@ -330,3 +330,58 @@ describe('detectConflicts (teacher + time + classroom, all three)', () => {
     expect(scan.lessons.every((l) => l.conflicts?.length)).toBe(true);
   });
 });
+
+describe('Series — two modules landing on the same date (multi-session day)', () => {
+  // Two module rows with an identical single-day window and non-overlapping
+  // times share a date the way a course admin would enter a morning and
+  // afternoon session: no scheduler changes needed, since each module's own
+  // Series pass is independent of every other module's.
+  const sameDayCourse = (a: Partial<Module>, b: Partial<Module>) =>
+    course(
+      [
+        mod({ id: 'a', name: 'AM Session', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1, ...a }),
+        mod({ id: 'b', name: 'PM Session', moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1, ...b }),
+      ],
+      'series',
+    );
+
+  it('produces two ScheduledLesson entries for the same date when times do not overlap', () => {
+    const lessons = generateCourseSchedule(
+      sameDayCourse(
+        { startTime: '09:00', endTime: '12:00', teacher: 'Ms Tan', classroom: 'R1' },
+        { startTime: '14:00', endTime: '17:00', teacher: 'Mr Lim', classroom: 'R2' },
+      ),
+      NO_HOLIDAYS,
+    );
+    expect(lessons).toHaveLength(2);
+    expect(lessons.every((l) => l.date === '2026-07-01' && l.kind === 'lesson')).toBe(true);
+    expect(lessons.map((l) => l.moduleId).sort()).toEqual(['a', 'b']);
+
+    const scan = detectConflicts(lessons);
+    expect(scan.conflicts).toHaveLength(0);
+  });
+
+  it('still flags a conflict when two same-day sessions genuinely overlap in time, teacher, and classroom', () => {
+    const lessons = generateCourseSchedule(
+      sameDayCourse(
+        { startTime: '09:00', endTime: '12:00', teacher: 'Ms Tan', classroom: 'R1' },
+        { startTime: '11:00', endTime: '14:00', teacher: 'Ms Tan', classroom: 'R1' },
+      ),
+      NO_HOLIDAYS,
+    );
+    expect(lessons).toHaveLength(2);
+
+    const scan = detectConflicts(lessons);
+    expect(scan.conflicts).toHaveLength(1);
+    expect(scan.conflicts[0].type).toBe('teacherRoomTime');
+    expect(scan.lessons.every((l) => l.conflicts?.length)).toBe(true);
+  });
+
+  it('a single module still gets exactly one session per day (no regression)', () => {
+    const lessons = generateCourseSchedule(
+      course([mod({ moduleStartDate: '2026-07-01', moduleEndDate: '2026-07-01', totalLessons: 1 })], 'series'),
+      NO_HOLIDAYS,
+    );
+    expect(lessons).toHaveLength(1);
+  });
+});

@@ -3,6 +3,7 @@ import {
   buildPlanner,
   activityText,
   dateText,
+  lessonLines,
   teacherLines,
   type PlannerCell,
 } from '../src/planner';
@@ -117,7 +118,8 @@ describe('cell classification', () => {
     expect(cell.entries![0].teacher).toBe('Ms Tan');
     expect(activityText(cell)).toBe('Listening');
     expect(dateText(cell)).toBe('06 July 2026');
-    expect(teacherLines(cell)).toEqual(['L1', 'Ms Tan']);
+    expect(lessonLines(cell)).toEqual(['L1']);
+    expect(teacherLines(cell)).toEqual(['Ms Tan']);
   });
 
   it('public holiday cell names the holiday', () => {
@@ -137,6 +139,7 @@ describe('cell classification', () => {
     expect(cell.kind).toBe('weekend');
     expect(activityText(cell)).toBe('Weekend');
     expect(dateText(cell)).toBe('-');
+    expect(lessonLines(cell)).toEqual(['-']);
     expect(teacherLines(cell)).toEqual(['-']);
   });
 
@@ -145,6 +148,7 @@ describe('cell classification', () => {
     const cell = cellFor(model, '2026-07-01')!;
     expect(cell.kind).toBe('blank');
     expect(dateText(cell)).toBe('');
+    expect(lessonLines(cell)).toEqual([]);
     expect(teacherLines(cell)).toEqual([]);
   });
 
@@ -212,6 +216,7 @@ describe('v5 cells: AL and multi-entry teaching', () => {
     expect(cell.kind).toBe('al');
     expect(activityText(cell)).toBe('AL');
     expect(dateText(cell)).toBe('02 July 2026');
+    expect(lessonLines(cell)).toEqual(['-']);
     expect(teacherLines(cell)).toEqual(['-']);
   });
 
@@ -236,7 +241,8 @@ describe('v5 cells: AL and multi-entry teaching', () => {
     const cell = cellFor(model, lessons[0].date)!;
     expect(cell.kind).toBe('teaching');
     expect(cell.entries).toHaveLength(2);
-    expect(teacherLines(cell)).toEqual(['L1', 'Ms Tan', 'X1', 'Mr Lim']);
+    expect(lessonLines(cell)).toEqual(['L1', 'X1']);
+    expect(teacherLines(cell)).toEqual(['Ms Tan', 'Mr Lim']);
   });
 });
 

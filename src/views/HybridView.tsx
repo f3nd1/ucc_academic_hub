@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { PlannerModel, PlannerCell } from '../planner';
-import { activityText, dateText, teacherLines } from '../planner';
+import { activityText, dateText, lessonLines, teacherLines } from '../planner';
 
 interface Props {
   model: PlannerModel;
@@ -51,7 +51,7 @@ export function HybridView({ model }: Props) {
                   {m.monthName} {m.year}
                 </th>
                 {Array.from({ length: m.weeks }, (_, w) => (
-                  <th className="planner__weekhead" colSpan={3} key={w}>
+                  <th className="planner__weekhead" colSpan={4} key={w}>
                     Week {w + 1}
                   </th>
                 ))}
@@ -61,6 +61,7 @@ export function HybridView({ model }: Props) {
                   <Fragment key={w}>
                     <th>Date</th>
                     <th>Activity</th>
+                    <th>Lesson</th>
                     <th>Teacher</th>
                   </Fragment>
                 ))}
@@ -76,7 +77,8 @@ export function HybridView({ model }: Props) {
                   )}
                   <td className="planner__weekday">{model.weekdayLabels[r]}</td>
                   {rowCells.map((cell, w) => {
-                    const lines = teacherLines(cell);
+                    const lessons = lessonLines(cell);
+                    const teachers = teacherLines(cell);
                     return (
                       <Fragment key={w}>
                         <td className="planner__date">{dateText(cell)}</td>
@@ -84,9 +86,14 @@ export function HybridView({ model }: Props) {
                           {cell.conflict ? '⚠ ' : ''}
                           {activityText(cell)}
                         </td>
-                        <td className="planner__teacher">
-                          {lines.map((ln, i) => (
+                        <td className="planner__lesson">
+                          {lessons.map((ln, i) => (
                             <div key={i}>{ln}</div>
+                          ))}
+                        </td>
+                        <td className="planner__teacher">
+                          {teachers.map((tn, i) => (
+                            <div key={i}>{tn}</div>
                           ))}
                         </td>
                       </Fragment>
