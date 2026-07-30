@@ -8,6 +8,7 @@ import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
 import {
   addPageFooters,
   drawBrandHeaderBand,
+  drawPlainHeader,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -179,12 +180,10 @@ export function exportCalendarPdf(
   scopeLabel = 'Course',
   holidays?: HolidaySet,
 ): void {
-  const doc = new jsPDF({ orientation: 'landscape' });
+  const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
   const headerLines = [
     `${scopeLabel}: ${course.name}`,
-    `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
-      course.deliveryMode === 'series' ? 'Series' : 'Parallel'
-    }`,
+    `Modules: ${course.modules.map((m) => m.name).join(', ')}`,
   ];
 
   const months = buildCalendarMonths(lessons, firstDayOfWeek, holidays);
@@ -194,12 +193,30 @@ export function exportCalendarPdf(
   // share of the page's printable width, so column widths never shift between a
   // light month and a heavy one (a day with several same-day sessions grows in
   // height, never in width).
-  const margin = { left: 14, right: 14 };
+  // FOOTER_RESERVE is also passed to autoTable as margin.bottom, so
+  // autoTable's own page-break decision agrees with the space this function
+  // reserves below the table — without that, autoTable used its own default
+  // bottom margin, decided the last, taller row didn't fit, and split that
+  // row's content onto a spillover page.
+  const FOOTER_RESERVE = 17; // copyright + AL legend lines
+  const margin = { left: 14, right: 14, bottom: FOOTER_RESERVE };
   const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
   const colWidth = usableWidth / 7;
   const columnStyles = Object.fromEntries(
     Array.from({ length: 7 }, (_, i) => [i, { cellWidth: colWidth }]),
   );
+
+  // Fixed, page-filling row height: divide the vertical space actually left
+  // over — after the plain-text header, the month title, the head row, and
+  // the footer/legend reserve — by the month's own week-row count, so every
+  // month (4, 5, or 6 weeks) uses the full page rather than leaving blank
+  // space below a grid sized only to its content (autoTable's minCellHeight
+  // is a floor, not an exact height, so this is computed as the floor value,
+  // with a small safety factor below the exact fit — the head row's real
+  // rendered height runs slightly over the estimate below).
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const HEAD_ROW_HEIGHT = 9; // weekday header row ("Mon".."Sun")
+  const ROW_HEIGHT_SAFETY_FACTOR = 0.85;
 
   months.forEach((m, monthIndex) => {
     // One month per page: every month after the first starts on a fresh page,
@@ -208,7 +225,7 @@ export function exportCalendarPdf(
     // — light course or heavy — left later months with no header at all,
     // reading as if the band had been clipped off).
     if (monthIndex > 0) doc.addPage();
-    const bandY = drawBrandHeaderBand(doc, headerLines);
+    const headerY = drawPlainHeader(doc, headerLines);
 
     // Per-cell kind matrix aligned with the body for the colour hook.
     const kinds: string[][] = [];
@@ -253,15 +270,28 @@ export function exportCalendarPdf(
       return row;
     });
 
+    const tableStartY = headerY + 9;
+    const availableHeight = pageHeight - tableStartY - HEAD_ROW_HEIGHT - FOOTER_RESERVE;
+    const minCellHeight = Math.max(
+      14,
+      (availableHeight / m.weeks.length) * ROW_HEIGHT_SAFETY_FACTOR,
+    );
+
     doc.setFontSize(12);
     doc.setTextColor(...BRAND.darkBlue);
-    doc.text(`${m.monthName} ${m.year}`, 14, bandY + 6);
+    doc.text(`${m.monthName} ${m.year}`, 14, headerY + 6);
     doc.setTextColor(0, 0, 0);
     autoTable(doc, {
       head: [headers],
       body,
-      startY: bandY + 9,
-      margin: { ...margin, top: bandY },
+      startY: tableStartY,
+      margin: { ...margin, top: headerY },
+      // A row that doesn't quite fit moves whole to the next page rather
+      // than splitting its content across two pages (the default 'auto'
+      // produced a near-empty spillover page: the last row's computed
+      // height ran a hair over the remaining space, so its detail text was
+      // silently dropped rather than following the row).
+      rowPageBreak: 'avoid',
       tableWidth: usableWidth,
       columnStyles,
       styles: {
@@ -271,7 +301,7 @@ export function exportCalendarPdf(
         // overlapping.
         cellPadding: { top: 5, right: 1.5, bottom: 1.5, left: 1.5 },
         valign: 'top',
-        minCellHeight: 14,
+        minCellHeight,
         textColor: BRAND.nearBlack,
         ...BRAND_GRID_STYLE,
       },
@@ -296,12 +326,12 @@ export function exportCalendarPdf(
         doc.setTextColor(...BRAND.nearBlack);
       },
       didDrawPage: () => {
-        drawBrandHeaderBand(doc, headerLines);
+        drawPlainHeader(doc, headerLines);
       },
     });
   });
 
-  addPageFooters(doc);
+  addPageFooters(doc, `${AL_LABEL} = Autonomous Learning`);
   doc.save(`${fileStem(course.name)}-calendar.pdf`);
 }
 

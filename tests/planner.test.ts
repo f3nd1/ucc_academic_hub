@@ -200,6 +200,19 @@ describe('first-day-of-week and 6-week months', () => {
     expect(model.months[0].grid[1][1].dateIso).toBe('2026-07-06');
   });
 
+  it('a month spanning five calendar weeks gets exactly five week columns, never a phantom sixth', () => {
+    // July 2026 starts on a Wednesday; Monday-first lead = 2, 2 + 31 = 33 days
+    // of grid cells → ceil(33 / 7) = 5 week columns, not 6.
+    const lessons = generateSchedule(CONFIG, HOLIDAYS);
+    const model = buildPlanner(lessons, COURSE, HOLIDAYS, 'monday', '2026-07-03');
+    expect(model.months[0].weeks).toBe(5);
+    for (const row of model.months[0].grid) expect(row).toHaveLength(5);
+    // 31 July (the month's last day, a Friday) lands in week column 5 (index
+    // 4) — if a phantom 6th week ever crept in, this would land in column 5
+    // (index 5) with an empty week 5 in between.
+    expect(model.months[0].grid[4][4].dateIso).toBe('2026-07-31');
+  });
+
   it('a month spanning six calendar weeks gets six week columns', () => {
     // March 2026 starts on a Sunday; Monday-first lead = 6, 6+31 = 37 → 6 weeks.
     const cfg: ClassGroupConfig = {

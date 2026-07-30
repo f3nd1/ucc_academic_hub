@@ -61,13 +61,34 @@ export function drawBrandHeaderBand(doc: jsPDF, lines: string[]): number {
 }
 
 /**
+ * Draw the course/scope header as plain black text directly on the white
+ * page background (first line larger + bold, rest smaller) instead of a
+ * filled colour band. The Calendar and Hybrid PDFs switched to this after
+ * the dark-blue band was found to get cropped at the top of some printers'
+ * usable page area. Returns the Y position the first table should start at.
+ */
+export function drawPlainHeader(doc: jsPDF, lines: string[]): number {
+  doc.setTextColor(0, 0, 0);
+  let y = 9;
+  lines.forEach((line, i) => {
+    doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
+    doc.setFontSize(i === 0 ? 14 : 9);
+    doc.text(line, 14, y);
+    y += i === 0 ? 7 : 5;
+  });
+  doc.setFont('helvetica', 'normal');
+  return y + 3;
+}
+
+/**
  * Draw "Page X / Y" and the UCC copyright line in the footer of every page of
  * a finished document. Must be called once, after all content (including
  * every doc.addPage()) has been drawn — jsPDF only knows the true page count
  * at that point, and autoTable's own per-page hooks fire before later
- * addPage() calls exist.
+ * addPage() calls exist. `legendText`, when given, is drawn one line above
+ * the copyright line (e.g. explaining an abbreviation used in the grid).
  */
-export function addPageFooters(doc: jsPDF): void {
+export function addPageFooters(doc: jsPDF, legendText?: string): void {
   const totalPages = doc.getNumberOfPages();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -78,6 +99,7 @@ export function addPageFooters(doc: jsPDF): void {
     // smallest body text size used across the three PDF exports (6.5-9pt).
     doc.setFontSize(6);
     doc.setTextColor(...BRAND.lightBlue);
+    if (legendText) doc.text(legendText, 14, pageHeight - 12);
     doc.text(COPYRIGHT_TEXT, 14, pageHeight - 8);
     doc.text(`Page ${i} / ${totalPages}`, pageWidth - 14, pageHeight - 8, {
       align: 'right',

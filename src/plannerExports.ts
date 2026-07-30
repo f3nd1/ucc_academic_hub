@@ -9,9 +9,10 @@ import {
   teacherLines,
 } from './planner';
 import { requestSheetsToken } from './googleSheets';
+import { parseLocal } from './shared/dates';
 import {
   addPageFooters,
-  drawBrandHeaderBand,
+  drawPlainHeader,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -428,11 +429,40 @@ function fontSizeForColumnWidth(doc: jsPDF, columnLabel: string, colWidthMm: num
   return Math.max(MIN_FONT_SIZE, scaled);
 }
 
+// Short month names for the PDF's compact date form ("29 Jul 26"). A local
+// list rather than a shared/dates export — every other export in the app
+// (view, CSV, Sheets) deliberately keeps the full DD MMMM YYYY form, so this
+// stays scoped to the PDF's own tight page budget.
+const MONTH_NAMES_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Compact "29 Jul 26" form of an ISO date, for the PDF's Date sub-column only. */
+function compactDate(iso: string): string {
+  const d = parseLocal(iso);
+  const day = String(d.getDate()).padStart(2, '0');
+  const year2 = String(d.getFullYear()).slice(-2);
+  return `${day} ${MONTH_NAMES_SHORT[d.getMonth()]} ${year2}`;
+}
+
+/**
+ * PDF-only Date sub-column text: same blank/weekend-dash rules as the shared
+ * `dateText()`, but the compact "29 Jul 26" form instead of the on-screen/
+ * CSV/Sheets "29 July 2026" — the Hybrid PDF's page is the one place tight
+ * enough on width to need it.
+ */
+function pdfDateText(cell: PlannerCell): string {
+  if (cell.kind === 'empty' || cell.kind === 'blank') return '';
+  if (cell.kind === 'weekend') return '-';
+  return cell.dateIso ? compactDate(cell.dateIso) : '';
+}
+
 export function exportPlannerPdf(
   model: PlannerModel,
   columnMode: PlannerColumnMode = 'activity',
 ): void {
-  const doc = new jsPDF({ orientation: 'landscape' });
+  const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
   const columnLabel = columnModeLabel(columnMode);
   const headerLines = [
     `${model.scopeLabel}: ${model.course}`,
@@ -446,7 +476,7 @@ export function exportPlannerPdf(
     // so Week N columns always have the full page width to themselves and
     // column widths never shrink as more months are added to the course.
     if (monthIndex > 0) doc.addPage();
-    const y = drawBrandHeaderBand(doc, headerLines);
+    const y = drawPlainHeader(doc, headerLines);
 
     // Every Date/Activity-or-Module/Lesson/Teacher sub-column across every
     // week gets the same explicit width, so a heavier month (more weeks)
@@ -484,10 +514,12 @@ export function exportPlannerPdf(
     const body = m.grid.map((rowCells, r) => {
       const cells: (string | { content: string; rowSpan?: number })[] = [];
       if (r === 0) cells.push({ content: m.monthName, rowSpan: 7 });
-      cells.push(model.weekdayLabels[r]);
+      // 3-letter form only — the on-screen Hybrid view, CSV, and Sheets
+      // exports keep the full weekday name from model.weekdayLabels.
+      cells.push(model.weekdayLabels[r].slice(0, 3));
       for (const cell of rowCells) {
         cells.push(
-          dateText(cell),
+          pdfDateText(cell),
           activityText(cell, columnMode),
           lessonLines(cell).join('\n'),
           teacherLines(cell).join('\n'),
@@ -541,7 +573,7 @@ export function exportPlannerPdf(
         if (rgb) data.cell.styles.fillColor = to255(rgb);
       },
       didDrawPage: () => {
-        drawBrandHeaderBand(doc, headerLines);
+        drawPlainHeader(doc, headerLines);
       },
     });
   });

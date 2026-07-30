@@ -83,6 +83,15 @@ describe('buildCalendarMonths', () => {
     }
   });
 
+  it('a month spanning five calendar weeks produces exactly five week rows, never a phantom sixth', () => {
+    // July 2026 starts on a Wednesday; Monday-first lead = 2, 2 + 31 = 33 →
+    // ceil(33 / 7) = 5 week rows, not 6.
+    const m = months[0];
+    expect(m.weeks).toHaveLength(5);
+    // 31 July (the month's last day, a Friday) sits in the 5th (last) row.
+    expect(m.weeks[4][4].iso).toBe('2026-07-31');
+  });
+
   it('empty input yields no months', () => {
     expect(buildCalendarMonths([], 'monday')).toEqual([]);
   });
