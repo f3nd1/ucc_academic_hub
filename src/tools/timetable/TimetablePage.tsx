@@ -24,6 +24,7 @@ import {
   type ErpRecordSummary,
 } from '../../erpnext';
 import { loadErpFieldMapping } from '../../erpFieldMapping';
+import { Icon } from '../../shared/Icon';
 import type { ScheduledLesson } from '../../types';
 import type { FirstDayOfWeek } from '../../shared/settings';
 import { useSettings } from '../../shared/settingsStore';
@@ -75,6 +76,8 @@ export function TimetablePage() {
     setWizardStep,
     layout,
     setLayout,
+    setupCollapsed,
+    setSetupCollapsed,
     lessons,
     setLessons,
     course,
@@ -472,53 +475,73 @@ export function TimetablePage() {
     : [];
 
   return (
-    <div className="layout">
+    <div className={`layout${setupCollapsed ? ' layout--collapsed' : ''}`}>
       {/* ---------------- Left: wizard or full form ---------------- */}
-      {layout === 'wizard' ? (
-        <Wizard
-          state={wizard}
-          step={wizardStep}
-          setStep={setWizardStep}
-          setIntent={setIntent}
-          setScope={setScope}
-          setFirstDayOfWeek={setFirstDayOfWeek}
-          updateForm={updateForm}
-          updateModule={updateModule}
-          addModule={addModule}
-          duplicateModule={duplicateModule}
-          removeModule={removeModule}
-          onGenerate={handleGenerate}
-          onSwitchToFullForm={() => setLayout('full')}
-          onLoadDemo={handleLoadDemo}
-          busy={busy}
-        />
-      ) : (
-        <FullForm
-          state={wizard}
-          setIntent={setIntent}
-          setScope={setScope}
-          setFirstDayOfWeek={setFirstDayOfWeek}
-          updateForm={updateForm}
-          updateModule={updateModule}
-          addModule={addModule}
-          duplicateModule={duplicateModule}
-          removeModule={removeModule}
-          onGenerate={handleGenerate}
-          onLoadDemo={handleLoadDemo}
-          onClear={handleClear}
-          onImportErpnext={handleImportErpnext}
-          erpRecords={erpRecords}
-          onPickErpRecord={handlePickErpRecord}
-          onCancelErpPick={() => setErpRecords(null)}
-          onSwitchToWizard={() => setLayout('wizard')}
-          busy={busy}
-        />
-      )}
+      {!setupCollapsed &&
+        (layout === 'wizard' ? (
+          <Wizard
+            state={wizard}
+            step={wizardStep}
+            setStep={setWizardStep}
+            setIntent={setIntent}
+            setScope={setScope}
+            setFirstDayOfWeek={setFirstDayOfWeek}
+            updateForm={updateForm}
+            updateModule={updateModule}
+            addModule={addModule}
+            duplicateModule={duplicateModule}
+            removeModule={removeModule}
+            onGenerate={handleGenerate}
+            onSwitchToFullForm={() => setLayout('full')}
+            onLoadDemo={handleLoadDemo}
+            busy={busy}
+          />
+        ) : (
+          <FullForm
+            state={wizard}
+            setIntent={setIntent}
+            setScope={setScope}
+            setFirstDayOfWeek={setFirstDayOfWeek}
+            updateForm={updateForm}
+            updateModule={updateModule}
+            addModule={addModule}
+            duplicateModule={duplicateModule}
+            removeModule={removeModule}
+            onGenerate={handleGenerate}
+            onLoadDemo={handleLoadDemo}
+            onClear={handleClear}
+            onImportErpnext={handleImportErpnext}
+            erpRecords={erpRecords}
+            onPickErpRecord={handlePickErpRecord}
+            onCancelErpPick={() => setErpRecords(null)}
+            onSwitchToWizard={() => setLayout('wizard')}
+            busy={busy}
+          />
+        ))}
 
       {/* ---------------- Right: preview + exports ---------------- */}
       <section className="panel">
         <div className="preview-head">
-          <h2>Preview</h2>
+          <div className="preview-head__title">
+            <button
+              type="button"
+              className="icon-toggle-btn"
+              aria-label={
+                setupCollapsed ? 'Show setup panel' : 'Hide setup panel'
+              }
+              aria-expanded={!setupCollapsed}
+              title={
+                setupCollapsed
+                  ? 'Show the setup panel'
+                  : 'Hide the setup panel to give the table more width'
+              }
+              onClick={() => setSetupCollapsed(!setupCollapsed)}
+              data-tour="setup-toggle"
+            >
+              <Icon name="menu-2" size={18} />
+            </button>
+            <h2>Preview</h2>
+          </div>
           <div className="exports" data-tour="exports">
             <SavedItemControls
               toolId="timetable"
