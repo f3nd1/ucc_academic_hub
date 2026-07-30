@@ -19,6 +19,7 @@ import { AL_LABEL } from './constants';
 import {
   addPageFooters,
   drawPlainHeader,
+  loadLogoDataUrl,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -500,11 +501,12 @@ function truncateToWidth(doc: jsPDF, text: string, maxWidthMm: number, fontSize:
   return lo === 0 ? TRUNCATION_SUFFIX : text.slice(0, lo).trimEnd() + TRUNCATION_SUFFIX;
 }
 
-export function exportPlannerPdf(
+export async function exportPlannerPdf(
   model: PlannerModel,
   columnMode: PlannerColumnMode = 'activity',
-): void {
+): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
+  const logoDataUrl = await loadLogoDataUrl();
   const columnLabel = columnModeLabel(columnMode);
   const headerLines = [
     `${model.scopeLabel}: ${model.course}`,
@@ -539,7 +541,7 @@ export function exportPlannerPdf(
     weekCount: number,
     titleSuffix: string,
   ) {
-    const y = drawPlainHeader(doc, headerLines);
+    const y = drawPlainHeader(doc, headerLines, logoDataUrl);
 
     // Month/year sits above the table (matching the Calendar PDF's month
     // title) rather than in a table column — a table corner cell narrow
@@ -639,7 +641,7 @@ export function exportPlannerPdf(
         if (rgb) data.cell.styles.fillColor = to255(rgb);
       },
       didDrawPage: () => {
-        drawPlainHeader(doc, headerLines);
+        drawPlainHeader(doc, headerLines, logoDataUrl);
       },
     });
   }

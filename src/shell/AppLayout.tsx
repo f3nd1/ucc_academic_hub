@@ -68,6 +68,11 @@ export function AppLayout() {
             <Icon name="layout-grid" size={22} />
             <span>UCC Workspace</span>
           </NavLink>
+          <img
+            src={`${import.meta.env.BASE_URL}ucc-logo.png`}
+            alt="United Ceres College"
+            className="sidebar__logo"
+          />
           <button
             type="button"
             className="icon-toggle-btn"

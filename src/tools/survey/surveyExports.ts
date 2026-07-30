@@ -13,6 +13,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { HistogramBin, ReportBlock } from './surveyModel';
+import { drawHeaderLogo, loadLogoDataUrl, LOGO_RESERVED_HEIGHT_MM } from '../../shared/pdfBrand';
 
 // Report export, in two flavours:
 //   - { kind: 'blocks' }: the built-in report's structured blocks (see
@@ -144,12 +145,20 @@ function drawPdfWrappedText(
   lineHeight: number,
   margin: number,
   pageHeight: number,
+  logoDataUrl: string | null,
 ): number {
+  // A page this function itself breaks onto needs its content to start below
+  // the freshly-redrawn logo, not just below the margin — the initial y (the
+  // page-1 case) is the caller's responsibility, since it's shared across
+  // several calls building up one page (see exportReportToPdf/
+  // renderBlocksToPdf).
+  const resetY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
   const lines = pdf.splitTextToSize(text, maxWidth) as string[];
   for (const line of lines) {
     if (y > pageHeight - margin) {
       pdf.addPage();
-      y = margin;
+      drawHeaderLogo(pdf, logoDataUrl);
+      y = resetY;
     }
     pdf.text(line, x, y);
     y += lineHeight;
@@ -165,11 +174,14 @@ function drawPdfHistogram(
   startY: number,
   margin: number,
   pageHeight: number,
+  logoDataUrl: string | null,
 ): number {
+  const resetY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
   let y = startY;
   if (y > pageHeight - 50) {
     pdf.addPage();
-    y = margin;
+    drawHeaderLogo(pdf, logoDataUrl);
+    y = resetY;
   }
 
   pdf.setFont('helvetica', 'bold');
@@ -185,7 +197,8 @@ function drawPdfHistogram(
   for (const bin of bins) {
     if (y > pageHeight - margin) {
       pdf.addPage();
-      y = margin;
+      drawHeaderLogo(pdf, logoDataUrl);
+      y = resetY;
     }
     const barWidth = (bin.count / maxCount) * maxBarWidth;
     pdf.text(`${bin.label}: ${bin.count}`, margin, y);
@@ -196,33 +209,38 @@ function drawPdfHistogram(
   return y + 5;
 }
 
-function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[]): void {
+function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[], logoDataUrl: string | null): void {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 15;
   const maxLineWidth = pageWidth - margin * 2;
-  let y = margin;
+  // Page 1's content starts below the logo just drawn by the caller
+  // (exportReportToPdf), not at the bare margin — the title block's first
+  // line would otherwise sit right under (and, once it wraps to full width,
+  // behind) the logo.
+  let y = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
 
   for (const b of blocks) {
     switch (b.type) {
       case 'title':
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(15);
-        y = drawPdfWrappedText(pdf, `Student Survey Results Report for ${b.course}`, margin, y, maxLineWidth, 7, margin, pageHeight);
+        y = drawPdfWrappedText(pdf, `Student Survey Results Report for ${b.course}`, margin, y, maxLineWidth, 7, margin, pageHeight, logoDataUrl);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
-        y = drawPdfWrappedText(pdf, `Reporting Period: ${b.period}`, margin, y, maxLineWidth, 6, margin, pageHeight);
+        y = drawPdfWrappedText(pdf, `Reporting Period: ${b.period}`, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
         y += 4;
         break;
       case 'heading':
         if (y > pageHeight - margin - 10) {
           pdf.addPage();
-          y = margin;
+          drawHeaderLogo(pdf, logoDataUrl);
+          y = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
         }
         y += 3;
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(12);
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6.5, margin, pageHeight);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6.5, margin, pageHeight, logoDataUrl);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
         y += 2;
@@ -230,12 +248,12 @@ function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[]): void {
       case 'subheading':
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10.5);
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
         break;
       case 'paragraph':
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
         y += 3;
         break;
       case 'table':
@@ -246,42 +264,48 @@ function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[]): void {
           margin: { left: margin, right: margin },
           styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
           headStyles: { fillColor: [30, 30, 30] },
+          didDrawPage: () => drawHeaderLogo(pdf, logoDataUrl),
         });
         y = (pdf as DocWithAutoTable).lastAutoTable?.finalY ?? y;
         y += 8;
         break;
       case 'histogram':
-        y = drawPdfHistogram(pdf, b.title, b.bins, y, margin, pageHeight);
+        y = drawPdfHistogram(pdf, b.title, b.bins, y, margin, pageHeight, logoDataUrl);
         break;
     }
   }
 }
 
 /** Export the report as an A4 PDF and trigger a download. */
-export function exportReportToPdf(
+export async function exportReportToPdf(
   input: ReportExportInput,
   fileName = 'student-survey-results-report.pdf',
-): void {
+): Promise<void> {
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
+  const logoDataUrl = await loadLogoDataUrl();
+  drawHeaderLogo(pdf, logoDataUrl);
 
   if (input.kind === 'blocks') {
-    renderBlocksToPdf(pdf, input.blocks);
+    renderBlocksToPdf(pdf, input.blocks, logoDataUrl);
   } else {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 15;
     const maxLineWidth = pageWidth - margin * 2;
+    // Below the just-drawn logo, not the bare margin — see the "title" case
+    // in renderBlocksToPdf for why.
+    const startY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
 
-    let y = drawPdfWrappedText(pdf, input.text, margin, margin, maxLineWidth, 6, margin, pageHeight);
+    let y = drawPdfWrappedText(pdf, input.text, margin, startY, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
 
     if (input.currentHistogram.length > 0) {
       y += 5;
-      y = drawPdfHistogram(pdf, 'Histogram of Current Survey Results', input.currentHistogram, y, margin, pageHeight);
+      y = drawPdfHistogram(pdf, 'Histogram of Current Survey Results', input.currentHistogram, y, margin, pageHeight, logoDataUrl);
     }
     if (input.comparisonHistogram.length > 0) {
-      y = drawPdfHistogram(pdf, 'Histogram of Comparative Results', input.comparisonHistogram, y, margin, pageHeight);
+      y = drawPdfHistogram(pdf, 'Histogram of Comparative Results', input.comparisonHistogram, y, margin, pageHeight, logoDataUrl);
     }
   }
 

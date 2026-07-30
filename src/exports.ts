@@ -9,6 +9,7 @@ import {
   addPageFooters,
   drawBrandHeaderBand,
   drawPlainHeader,
+  loadLogoDataUrl,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -114,13 +115,18 @@ export function exportCsv(lessons: ScheduledLesson[], course: Course): void {
 }
 
 /** Course header band (UCC brand dark-blue), shared by the PDF layouts. */
-function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): number {
-  return drawBrandHeaderBand(doc, [
-    `${scopeLabel}: ${course.name}`,
-    `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
-      course.deliveryMode === 'series' ? 'Series' : 'Parallel'
-    }`,
-  ]);
+async function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): Promise<number> {
+  const logoDataUrl = await loadLogoDataUrl();
+  return drawBrandHeaderBand(
+    doc,
+    [
+      `${scopeLabel}: ${course.name}`,
+      `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
+        course.deliveryMode === 'series' ? 'Series' : 'Parallel'
+      }`,
+    ],
+    logoDataUrl,
+  );
 }
 
 /**
@@ -130,15 +136,15 @@ function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): number {
  * doc.autoTable({...}) to avoid the "Property 'autoTable' does not exist on
  * jsPDF" TypeScript error.
  */
-export function exportListPdf(
+export async function exportListPdf(
   lessons: ScheduledLesson[],
   course: Course,
   scopeLabel = 'Course',
-): void {
+): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape' });
   // Mirror the Hybrid planner band: the title honours the chosen scope
   // ("Module: X" when scope is Per module), not a hardcoded "Course".
-  const startY = pdfHeader(doc, course, scopeLabel);
+  const startY = await pdfHeader(doc, course, scopeLabel);
 
   autoTable(doc, {
     head: [[...COLUMN_HEADERS]],
@@ -173,14 +179,15 @@ const CAL_FILLS: Record<string, [number, number, number]> = {
  * only so a caller without a generated holiday set doesn't have to pass one;
  * the Timetable page always has one once a schedule exists).
  */
-export function exportCalendarPdf(
+export async function exportCalendarPdf(
   lessons: ScheduledLesson[],
   course: Course,
   firstDayOfWeek: FirstDayOfWeek,
   scopeLabel = 'Course',
   holidays?: HolidaySet,
-): void {
+): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
+  const logoDataUrl = await loadLogoDataUrl();
   const headerLines = [
     `${scopeLabel}: ${course.name}`,
     `Modules: ${course.modules.map((m) => m.name).join(', ')}`,
@@ -225,7 +232,7 @@ export function exportCalendarPdf(
     // — light course or heavy — left later months with no header at all,
     // reading as if the band had been clipped off).
     if (monthIndex > 0) doc.addPage();
-    const headerY = drawPlainHeader(doc, headerLines);
+    const headerY = drawPlainHeader(doc, headerLines, logoDataUrl);
 
     // Per-cell kind matrix aligned with the body for the colour hook.
     const kinds: string[][] = [];
@@ -326,7 +333,7 @@ export function exportCalendarPdf(
         doc.setTextColor(...BRAND.nearBlack);
       },
       didDrawPage: () => {
-        drawPlainHeader(doc, headerLines);
+        drawPlainHeader(doc, headerLines, logoDataUrl);
       },
     });
   });

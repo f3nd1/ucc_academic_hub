@@ -35,12 +35,85 @@ export const BRAND_GRID_STYLE = {
   lineColor: BRAND_GRID_LINE,
 } as const;
 
+// --- UCC logo, top-right of every PDF header --------------------------------
+//
+// jsPDF's addImage() needs actual pixel data (a data URL, HTMLImageElement,
+// or Uint8Array) — it cannot take a bare URL and fetch it lazily — so the
+// logo is fetched and base64-encoded once per session (loadLogoDataUrl,
+// cached) and the resolved string threaded synchronously into every header
+// draw from there. public/ucc-logo.png is a pre-cropped version of
+// public/UCC_1200x630.png: the source is a 1200×630 banner canvas with the
+// actual logo lockup (mark + wordmark) occupying only a small region of it,
+// so scaling the raw banner to a fixed header height would have made the
+// visible logo mark tiny; LOGO_ASPECT is that cropped asset's own pixel
+// aspect ratio (1123×317), used to size the logo from a fixed height only —
+// never a fixed width — so it can never distort.
+const LOGO_ASPECT = 1123 / 317;
+const LOGO_HEIGHT_MM = 9;
+const LOGO_MARGIN_MM = 5;
+
+// How far down a page's own content should start when it needs to clear the
+// logo vertically instead of relying on staying left of it horizontally (the
+// Survey PDF's narrower portrait page and wide title line need this; the
+// landscape exports' left-anchored, short header lines don't reach far
+// enough right to need it).
+export const LOGO_RESERVED_HEIGHT_MM = LOGO_MARGIN_MM + LOGO_HEIGHT_MM + 2;
+
+let logoDataUrlPromise: Promise<string | null> | null = null;
+
+/**
+ * Fetch + base64-encode the UCC logo, cached for the lifetime of the page.
+ * Resolves to null on any failure (missing asset, offline, unsupported
+ * response) so a logo problem degrades to "no logo on this export" rather
+ * than blocking the export entirely.
+ */
+export function loadLogoDataUrl(): Promise<string | null> {
+  if (!logoDataUrlPromise) {
+    logoDataUrlPromise = fetch(`${import.meta.env.BASE_URL}ucc-logo.png`)
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error('logo fetch failed'))))
+      .then(
+        (blob) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+          }),
+      )
+      .catch(() => null);
+  }
+  return logoDataUrlPromise;
+}
+
+/**
+ * Draw the UCC logo top-right of the CURRENT page from an already-resolved
+ * data URL (see loadLogoDataUrl — this is synchronous so it can be called
+ * from inside autoTable's didDrawPage, where awaiting isn't possible). A
+ * null dataUrl (logo failed to load) or a jsPDF decode error are both
+ * silently skipped — a missing logo should never break an export.
+ */
+export function drawHeaderLogo(doc: jsPDF, dataUrl: string | null): void {
+  if (!dataUrl) return;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const w = LOGO_HEIGHT_MM * LOGO_ASPECT;
+  try {
+    doc.addImage(dataUrl, 'PNG', pageWidth - LOGO_MARGIN_MM - w, LOGO_MARGIN_MM, w, LOGO_HEIGHT_MM);
+  } catch {
+    // Corrupt/unsupported image data — never let this break the export.
+  }
+}
+
 /**
  * Draw a full-width dark-blue header band across the top of the CURRENT page,
- * with the given lines in white text (first line larger, rest smaller).
+ * with the given lines in white text (first line larger, rest smaller), plus
+ * the UCC logo top-right when `logoDataUrl` is given (see loadLogoDataUrl).
  * Returns the Y position the first table should start at.
  */
-export function drawBrandHeaderBand(doc: jsPDF, lines: string[]): number {
+export function drawBrandHeaderBand(
+  doc: jsPDF,
+  lines: string[],
+  logoDataUrl?: string | null,
+): number {
   const pageWidth = doc.internal.pageSize.getWidth();
   const bandHeight = 10 + Math.max(0, lines.length - 1) * 6;
 
@@ -57,17 +130,20 @@ export function drawBrandHeaderBand(doc: jsPDF, lines: string[]): number {
 
   // Reset for whatever content is drawn next.
   doc.setTextColor(0, 0, 0);
+  drawHeaderLogo(doc, logoDataUrl ?? null);
   return bandHeight + 6;
 }
 
 /**
  * Draw the course/scope header as plain black text directly on the white
  * page background (first line larger + bold, rest smaller) instead of a
- * filled colour band. The Calendar and Hybrid PDFs switched to this after
- * the dark-blue band was found to get cropped at the top of some printers'
- * usable page area. Returns the Y position the first table should start at.
+ * filled colour band, plus the UCC logo top-right when `logoDataUrl` is
+ * given (see loadLogoDataUrl). The Calendar and Hybrid PDFs switched to this
+ * after the dark-blue band was found to get cropped at the top of some
+ * printers' usable page area. Returns the Y position the first table should
+ * start at.
  */
-export function drawPlainHeader(doc: jsPDF, lines: string[]): number {
+export function drawPlainHeader(doc: jsPDF, lines: string[], logoDataUrl?: string | null): number {
   doc.setTextColor(0, 0, 0);
   let y = 9;
   lines.forEach((line, i) => {
@@ -77,6 +153,7 @@ export function drawPlainHeader(doc: jsPDF, lines: string[]): number {
     y += i === 0 ? 7 : 5;
   });
   doc.setFont('helvetica', 'normal');
+  drawHeaderLogo(doc, logoDataUrl ?? null);
   return y + 3;
 }
 
