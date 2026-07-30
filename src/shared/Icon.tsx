@@ -57,6 +57,7 @@ const PATHS: Record<string, string[]> = {
     'M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z',
     'M9 18a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z',
   ],
+  'menu-2': ['M4 6l16 0', 'M4 12l16 0', 'M4 18l16 0'],
 };
 
 interface IconProps {

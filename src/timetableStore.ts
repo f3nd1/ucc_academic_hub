@@ -20,6 +20,10 @@ export interface TimetableStore {
   setWizardStep: Dispatch<SetStateAction<number>>;
   layout: FormLayout;
   setLayout: Dispatch<SetStateAction<FormLayout>>;
+  /** Collapses the setup/config panel so List/Calendar/Hybrid/Amend can use
+   *  the full width; persisted under "ucc:timetable:setupCollapsed". */
+  setupCollapsed: boolean;
+  setSetupCollapsed: (collapsed: boolean) => void;
   lessons: ScheduledLesson[] | null;
   setLessons: Dispatch<SetStateAction<ScheduledLesson[] | null>>;
   course: Course | null;
