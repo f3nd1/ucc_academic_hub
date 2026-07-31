@@ -23,17 +23,57 @@ export const BRAND = {
 // per-export copy), so there is exactly one AL colour value across both.
 export const BRAND_AL_TINT: [number, number, number] = [209, 212, 221]; // ~30% lightBlue over white
 
-// Subdued grid-line colour: structures every cell without competing with the
-// coloured special-day fills (Weekend/SchoolHoliday/PublicHoliday/AL).
-export const BRAND_GRID_LINE: [number, number, number] = [200, 205, 214];
+// Dark, clearly visible grid line — matches the visual weight of the
+// on-screen table's borders (thin-but-near-black on the default Y2K Pop
+// skin). The previous [200,205,214]/0.1mm combination read as faint pale
+// grey next to the module tints below; this is deliberately close to
+// BRAND.nearBlack rather than a mid-grey so it reads with confidence
+// without competing with body text.
+export const BRAND_GRID_LINE: [number, number, number] = [90, 96, 110];
 
 const COPYRIGHT_TEXT = 'Copyright © United Ceres College Pte Ltd.';
 
-/** Shared table look for every PDF export: subdued 1px borders on every cell. */
+/** Shared table look for every PDF export: dark, clearly visible borders on every cell. */
 export const BRAND_GRID_STYLE = {
-  lineWidth: 0.1,
+  lineWidth: 0.3,
   lineColor: BRAND_GRID_LINE,
 } as const;
+
+// --- Per-module colour tints (Calendar + Hybrid PDF only) -------------------
+//
+// Neither the on-screen Hybrid view nor any export previously had a
+// per-module colour scheme — every cell was tinted only by lesson kind
+// (teaching/weekend/AL/holiday), the same flat colour regardless of which
+// module a lesson belonged to. This is a new scheme, PDF-only by design
+// (confirmed with Felix rather than assumed): the on-screen Hybrid view is
+// unchanged. Six pastel tints, chosen to sit clearly apart from every
+// special-day colour above (BRAND.grey/lightGold/gold, BRAND_AL_TINT, the
+// conflict red) so a module cell is never mistaken for a special-day one,
+// and light enough that BRAND.nearBlack body text stays comfortably legible
+// against every one of them.
+export const MODULE_PALETTE: [number, number, number][] = [
+  [211, 235, 215], // mint
+  [206, 224, 245], // sky blue
+  [226, 214, 240], // lavender
+  [242, 214, 230], // rose
+  [244, 236, 200], // butter
+  [204, 236, 230], // seafoam
+];
+
+/**
+ * Map each module id to a MODULE_PALETTE colour by its position in
+ * `modules` — deterministic per course, and built the SAME way by both the
+ * Calendar and Hybrid PDF exports (both call this with `course.modules`) so
+ * a given module always gets the same colour in both, never a
+ * per-export-independent scheme that could disagree between the two.
+ */
+export function buildModuleColorMap(
+  modules: { id: string }[],
+): Map<string, [number, number, number]> {
+  const map = new Map<string, [number, number, number]>();
+  modules.forEach((m, i) => map.set(m.id, MODULE_PALETTE[i % MODULE_PALETTE.length]));
+  return map;
+}
 
 // --- UCC logo, top-right of every PDF header --------------------------------
 //

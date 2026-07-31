@@ -420,7 +420,7 @@ export function TimetablePage() {
           holidays ?? undefined,
         );
       } else if (view === 'hybrid' && plannerModel) {
-        exportPlannerPdf(plannerModel, plannerColumnMode);
+        exportPlannerPdf(plannerModel, course!, plannerColumnMode);
       } else {
         exportListPdf(lessons!, course!, scopeTitleLabel(wizard.scope));
       }

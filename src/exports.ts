@@ -9,6 +9,7 @@ import {
   addPageFooters,
   drawPlainHeader,
   loadLogoDataUrl,
+  buildModuleColorMap,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -192,6 +193,10 @@ export async function exportCalendarPdf(
 
   const months = buildCalendarMonths(lessons, firstDayOfWeek, holidays);
   const headers = weekdayHeaders(firstDayOfWeek);
+  // Same deterministic module->colour mapping the Hybrid PDF builds from
+  // this same course.modules array, so a given module reads as the same
+  // colour in both exports.
+  const moduleColorMap = buildModuleColorMap(course.modules);
 
   // Fixed-width grid: all 7 weekday columns get an identical, content-independent
   // share of the page's printable width, so column widths never shift between a
@@ -231,13 +236,21 @@ export async function exportCalendarPdf(
     if (monthIndex > 0) doc.addPage();
     const headerY = drawPlainHeader(doc, headerLines, logoDataUrl);
 
-    // Per-cell kind matrix aligned with the body for the colour hook.
+    // Per-cell kind matrix aligned with the body for the colour hook. A
+    // 'teaching' cell also resolves to a specific module colour when every
+    // real entry in it shares one module id — a day mixing sessions from
+    // two different modules (parallel delivery) has no single module to
+    // tint it by, so it's left with no module fill rather than picking one
+    // arbitrarily and misattributing the other entry's colour.
     const kinds: string[][] = [];
+    const moduleFills: ([number, number, number] | null)[][] = [];
     const body = m.weeks.map((week) => {
       const kindRow: string[] = [];
+      const fillRow: ([number, number, number] | null)[] = [];
       const row = week.map((cell) => {
         if (!cell.inMonth) {
           kindRow.push('out');
+          fillRow.push(null);
           return '';
         }
         const real = cell.entries.filter((l) => l.kind === 'lesson');
@@ -251,6 +264,12 @@ export async function exportCalendarPdf(
               : al
                 ? 'al'
                 : (cell.kind ?? 'blank'),
+        );
+        const moduleIds = new Set(real.map((l) => l.moduleId));
+        fillRow.push(
+          !conflicted && moduleIds.size === 1
+            ? (moduleColorMap.get(real[0].moduleId) ?? null)
+            : null,
         );
         // The day number is drawn separately (didDrawCell) in a larger, bold,
         // brand dark-blue style so it reads as the cell's primary anchor;
@@ -271,6 +290,7 @@ export async function exportCalendarPdf(
         return lines.join('\n');
       });
       kinds.push(kindRow);
+      moduleFills.push(fillRow);
       return row;
     });
 
@@ -314,7 +334,12 @@ export async function exportCalendarPdf(
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const kind = kinds[data.row.index]?.[data.column.index];
-        if (kind && CAL_FILLS[kind]) data.cell.styles.fillColor = CAL_FILLS[kind];
+        if (kind === 'teaching') {
+          const moduleFill = moduleFills[data.row.index]?.[data.column.index];
+          if (moduleFill) data.cell.styles.fillColor = moduleFill;
+        } else if (kind && CAL_FILLS[kind]) {
+          data.cell.styles.fillColor = CAL_FILLS[kind];
+        }
         if (kind === 'out') data.cell.styles.textColor = [160, 168, 180];
       },
       didDrawCell: (data) => {

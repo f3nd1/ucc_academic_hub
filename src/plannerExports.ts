@@ -16,10 +16,12 @@ import {
 import { requestSheetsToken } from './googleSheets';
 import { parseLocal } from './shared/dates';
 import { AL_LABEL } from './constants';
+import type { Course } from './types';
 import {
   addPageFooters,
   drawPlainHeader,
   loadLogoDataUrl,
+  buildModuleColorMap,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -474,10 +476,15 @@ function pdfDateText(cell: PlannerCell): string {
 
 export async function exportPlannerPdf(
   model: PlannerModel,
+  course: Course,
   columnMode: PlannerColumnMode = 'activity',
 ): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
   const logoDataUrl = await loadLogoDataUrl();
+  // Same deterministic module->colour mapping the Calendar PDF builds from
+  // this same course.modules array, so a given module reads as the same
+  // colour in both exports.
+  const moduleColorMap = buildModuleColorMap(course.modules);
   const columnLabel = columnModeLabel(columnMode);
   const headerLines = [
     `${model.scopeLabel}: ${model.course}`,
@@ -602,10 +609,27 @@ export async function exportPlannerPdf(
       didParseCell: (data) => {
         if (data.section !== 'body') return;
         const col = data.column.index;
-        if (col < 1 || (col - 1) % 4 !== 1) return;
+        if (col < 1) return;
+        const offset = (col - 1) % 4; // 0=Date, 1=Module/Activity, 2=Lesson, 3=Teacher
+        if (offset === 0) return; // Date column: never tinted
         const week = weekStart + Math.floor((col - 1) / 4);
         const cell = m.grid[data.row.index]?.[week];
         if (!cell) return;
+
+        if (cell.kind === 'teaching' && !cell.conflict) {
+          // Module/Lesson/Teacher all share the session's module tint —
+          // same deterministic colour as the Calendar PDF for this module.
+          // A cell mixing entries from two different modules (parallel
+          // delivery) has no single module to tint it by, so it's left
+          // uncoloured rather than picking one arbitrarily.
+          const moduleIds = new Set((cell.entries ?? []).map((e) => e.moduleId));
+          if (moduleIds.size === 1) {
+            const rgb = moduleColorMap.get(cell.entries![0].moduleId);
+            if (rgb) data.cell.styles.fillColor = rgb;
+          }
+          return;
+        }
+        if (offset !== 1) return; // conflict/weekend/holiday/AL: Module/Activity column only, as before
         const rgb = cell.conflict ? FILL.conflict : FILL[cell.kind];
         if (rgb) data.cell.styles.fillColor = to255(rgb);
       },
