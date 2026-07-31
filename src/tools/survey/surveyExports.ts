@@ -13,7 +13,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { HistogramBin, ReportBlock } from './surveyModel';
-import { drawHeaderLogo, loadLogoDataUrl, LOGO_RESERVED_HEIGHT_MM } from '../../shared/pdfBrand';
+import { drawHeaderLogo, loadLogoDataUrl, textLineCenterYMm } from '../../shared/pdfBrand';
 
 // Report export, in two flavours:
 //   - { kind: 'blocks' }: the built-in report's structured blocks (see
@@ -136,6 +136,22 @@ export async function exportReportToWord(
 /** jspdf-autotable stamps the finished table's bottom Y onto the doc instance. */
 type DocWithAutoTable = jsPDF & { lastAutoTable?: { finalY: number } };
 
+// Logo state threaded through every drawing helper below: the data URL (or
+// null if it failed to load) plus the fixed vertical centre — in Singapore
+// terms, "the same shelf the title sits on" — every redraw on every page
+// (including continuation pages that carry no title text of their own)
+// lines up against. Computed once per export from whichever text starts
+// page 1 (the title line for the built-in report, the body's own font size
+// for the AI-authored one — see exportReportToPdf).
+interface LogoState {
+  dataUrl: string | null;
+  centerYMm: number;
+}
+
+function drawLogo(pdf: jsPDF, logo: LogoState): void {
+  drawHeaderLogo(pdf, logo.dataUrl, logo.centerYMm);
+}
+
 function drawPdfWrappedText(
   pdf: jsPDF,
   text: string,
@@ -145,20 +161,14 @@ function drawPdfWrappedText(
   lineHeight: number,
   margin: number,
   pageHeight: number,
-  logoDataUrl: string | null,
+  logo: LogoState,
 ): number {
-  // A page this function itself breaks onto needs its content to start below
-  // the freshly-redrawn logo, not just below the margin — the initial y (the
-  // page-1 case) is the caller's responsibility, since it's shared across
-  // several calls building up one page (see exportReportToPdf/
-  // renderBlocksToPdf).
-  const resetY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
   const lines = pdf.splitTextToSize(text, maxWidth) as string[];
   for (const line of lines) {
     if (y > pageHeight - margin) {
       pdf.addPage();
-      drawHeaderLogo(pdf, logoDataUrl);
-      y = resetY;
+      drawLogo(pdf, logo);
+      y = margin;
     }
     pdf.text(line, x, y);
     y += lineHeight;
@@ -174,14 +184,13 @@ function drawPdfHistogram(
   startY: number,
   margin: number,
   pageHeight: number,
-  logoDataUrl: string | null,
+  logo: LogoState,
 ): number {
-  const resetY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
   let y = startY;
   if (y > pageHeight - 50) {
     pdf.addPage();
-    drawHeaderLogo(pdf, logoDataUrl);
-    y = resetY;
+    drawLogo(pdf, logo);
+    y = margin;
   }
 
   pdf.setFont('helvetica', 'bold');
@@ -197,8 +206,8 @@ function drawPdfHistogram(
   for (const bin of bins) {
     if (y > pageHeight - margin) {
       pdf.addPage();
-      drawHeaderLogo(pdf, logoDataUrl);
-      y = resetY;
+      drawLogo(pdf, logo);
+      y = margin;
     }
     const barWidth = (bin.count / maxCount) * maxBarWidth;
     pdf.text(`${bin.label}: ${bin.count}`, margin, y);
@@ -209,38 +218,34 @@ function drawPdfHistogram(
   return y + 5;
 }
 
-function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[], logoDataUrl: string | null): void {
+function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[], logo: LogoState): void {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 15;
   const maxLineWidth = pageWidth - margin * 2;
-  // Page 1's content starts below the logo just drawn by the caller
-  // (exportReportToPdf), not at the bare margin — the title block's first
-  // line would otherwise sit right under (and, once it wraps to full width,
-  // behind) the logo.
-  let y = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
+  let y = margin;
 
   for (const b of blocks) {
     switch (b.type) {
       case 'title':
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(15);
-        y = drawPdfWrappedText(pdf, `Student Survey Results Report for ${b.course}`, margin, y, maxLineWidth, 7, margin, pageHeight, logoDataUrl);
+        y = drawPdfWrappedText(pdf, `Student Survey Results Report for ${b.course}`, margin, y, maxLineWidth, 7, margin, pageHeight, logo);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
-        y = drawPdfWrappedText(pdf, `Reporting Period: ${b.period}`, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
+        y = drawPdfWrappedText(pdf, `Reporting Period: ${b.period}`, margin, y, maxLineWidth, 6, margin, pageHeight, logo);
         y += 4;
         break;
       case 'heading':
         if (y > pageHeight - margin - 10) {
           pdf.addPage();
-          drawHeaderLogo(pdf, logoDataUrl);
-          y = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
+          drawLogo(pdf, logo);
+          y = margin;
         }
         y += 3;
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(12);
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6.5, margin, pageHeight, logoDataUrl);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6.5, margin, pageHeight, logo);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
         y += 2;
@@ -248,12 +253,12 @@ function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[], logoDataUrl: strin
       case 'subheading':
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10.5);
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logo);
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(10);
         break;
       case 'paragraph':
-        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
+        y = drawPdfWrappedText(pdf, b.text, margin, y, maxLineWidth, 6, margin, pageHeight, logo);
         y += 3;
         break;
       case 'table':
@@ -264,13 +269,13 @@ function renderBlocksToPdf(pdf: jsPDF, blocks: ReportBlock[], logoDataUrl: strin
           margin: { left: margin, right: margin },
           styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
           headStyles: { fillColor: [30, 30, 30] },
-          didDrawPage: () => drawHeaderLogo(pdf, logoDataUrl),
+          didDrawPage: () => drawLogo(pdf, logo),
         });
         y = (pdf as DocWithAutoTable).lastAutoTable?.finalY ?? y;
         y += 8;
         break;
       case 'histogram':
-        y = drawPdfHistogram(pdf, b.title, b.bins, y, margin, pageHeight, logoDataUrl);
+        y = drawPdfHistogram(pdf, b.title, b.bins, y, margin, pageHeight, logo);
         break;
     }
   }
@@ -284,28 +289,32 @@ export async function exportReportToPdf(
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(10);
-  const logoDataUrl = await loadLogoDataUrl();
-  drawHeaderLogo(pdf, logoDataUrl);
+  const dataUrl = await loadLogoDataUrl();
+  const margin = 15;
+  // The built-in report's title line is bold 15pt; the AI-authored report
+  // has no distinct title, just its normal 10pt body text — either way the
+  // logo centres on whatever text starts at the top of page 1, and every
+  // later page (including ones with no title text of their own) reuses
+  // that same Y so the logo never jumps around the document.
+  const titleFontSize = input.kind === 'blocks' ? 15 : 10;
+  const logo: LogoState = { dataUrl, centerYMm: textLineCenterYMm(margin, titleFontSize) };
+  drawLogo(pdf, logo);
 
   if (input.kind === 'blocks') {
-    renderBlocksToPdf(pdf, input.blocks, logoDataUrl);
+    renderBlocksToPdf(pdf, input.blocks, logo);
   } else {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 15;
     const maxLineWidth = pageWidth - margin * 2;
-    // Below the just-drawn logo, not the bare margin — see the "title" case
-    // in renderBlocksToPdf for why.
-    const startY = logoDataUrl ? Math.max(margin, LOGO_RESERVED_HEIGHT_MM) : margin;
 
-    let y = drawPdfWrappedText(pdf, input.text, margin, startY, maxLineWidth, 6, margin, pageHeight, logoDataUrl);
+    let y = drawPdfWrappedText(pdf, input.text, margin, margin, maxLineWidth, 6, margin, pageHeight, logo);
 
     if (input.currentHistogram.length > 0) {
       y += 5;
-      y = drawPdfHistogram(pdf, 'Histogram of Current Survey Results', input.currentHistogram, y, margin, pageHeight, logoDataUrl);
+      y = drawPdfHistogram(pdf, 'Histogram of Current Survey Results', input.currentHistogram, y, margin, pageHeight, logo);
     }
     if (input.comparisonHistogram.length > 0) {
-      y = drawPdfHistogram(pdf, 'Histogram of Comparative Results', input.comparisonHistogram, y, margin, pageHeight, logoDataUrl);
+      y = drawPdfHistogram(pdf, 'Histogram of Comparative Results', input.comparisonHistogram, y, margin, pageHeight, logo);
     }
   }
 

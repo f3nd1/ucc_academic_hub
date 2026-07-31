@@ -53,15 +53,28 @@ const LOGO_HEIGHT_MM = 9;
 // Matches the 14mm left/right body-content margin already used by the
 // Calendar and Hybrid PDFs, so the logo lines up with the same printable
 // area as everything else on the page instead of sitting flush against the
-// page edge.
+// right page edge. Horizontal only — vertical position tracks the title
+// line it sits beside (see drawHeaderLogo's centerYMm).
 const LOGO_MARGIN_MM = 14;
 
-// How far down a page's own content should start when it needs to clear the
-// logo vertically instead of relying on staying left of it horizontally (the
-// Survey PDF's narrower portrait page and wide title line need this; the
-// landscape exports' left-anchored, short header lines don't reach far
-// enough right to need it).
-export const LOGO_RESERVED_HEIGHT_MM = LOGO_MARGIN_MM + LOGO_HEIGHT_MM + 2;
+// Helvetica's cap-height as a fraction of its em size. jsPDF doesn't expose
+// real font-metrics ascent/descent, so this is a close, consistent estimate
+// of where a text line's own visual centre sits above its baseline — used
+// to line the logo's vertical centre up with a specific text line (the
+// header title) rather than a fixed page-top offset that drifted out of
+// alignment whenever the header had more than one line.
+const CAP_HEIGHT_RATIO = 0.717;
+const MM_PER_PT = 0.3528;
+
+/**
+ * The vertical centre (mm from the page top) of a text line drawn with
+ * `doc.text(..., baselineYMm)` at `fontSizePt`. Exported so any PDF export
+ * whose header isn't built from drawPlainHeader (e.g. Survey's hand-rolled
+ * layout) can still line its logo up with its own title line.
+ */
+export function textLineCenterYMm(baselineYMm: number, fontSizePt: number): number {
+  return baselineYMm - (fontSizePt * MM_PER_PT * CAP_HEIGHT_RATIO) / 2;
+}
 
 let logoDataUrlPromise: Promise<string | null> | null = null;
 
@@ -92,16 +105,20 @@ export function loadLogoDataUrl(): Promise<string | null> {
 /**
  * Draw the UCC logo top-right of the CURRENT page from an already-resolved
  * data URL (see loadLogoDataUrl — this is synchronous so it can be called
- * from inside autoTable's didDrawPage, where awaiting isn't possible). A
- * null dataUrl (logo failed to load) or a jsPDF decode error are both
- * silently skipped — a missing logo should never break an export.
+ * from inside autoTable's didDrawPage, where awaiting isn't possible), its
+ * own vertical centre aligned with `centerYMm` (typically the header
+ * title's own text-centre — see textLineCenterYMm) rather than the header
+ * block as a whole, so the logo reads as level with the title specifically
+ * even when a subtitle line sits below it. A null dataUrl (logo failed to
+ * load) or a jsPDF decode error are both silently skipped — a missing logo
+ * should never break an export.
  */
-export function drawHeaderLogo(doc: jsPDF, dataUrl: string | null): void {
+export function drawHeaderLogo(doc: jsPDF, dataUrl: string | null, centerYMm: number): void {
   if (!dataUrl) return;
   const pageWidth = doc.internal.pageSize.getWidth();
   const w = LOGO_HEIGHT_MM * LOGO_ASPECT;
   try {
-    doc.addImage(dataUrl, 'PNG', pageWidth - LOGO_MARGIN_MM - w, LOGO_MARGIN_MM, w, LOGO_HEIGHT_MM);
+    doc.addImage(dataUrl, 'PNG', pageWidth - LOGO_MARGIN_MM - w, centerYMm - LOGO_HEIGHT_MM / 2, w, LOGO_HEIGHT_MM);
   } catch {
     // Corrupt/unsupported image data — never let this break the export.
   }
@@ -111,22 +128,27 @@ export function drawHeaderLogo(doc: jsPDF, dataUrl: string | null): void {
  * Draw the course/scope header as plain black text directly on the white
  * page background (first line larger + bold, rest smaller) instead of a
  * filled colour band, plus the UCC logo top-right when `logoDataUrl` is
- * given (see loadLogoDataUrl). The Calendar and Hybrid PDFs switched to this
- * after the dark-blue band was found to get cropped at the top of some
- * printers' usable page area. Returns the Y position the first table should
- * start at.
+ * given (see loadLogoDataUrl), vertically centred on the title line only —
+ * the subtitle line sits below both, untouched. The Calendar and Hybrid
+ * PDFs switched to this after the dark-blue band was found to get cropped
+ * at the top of some printers' usable page area. Returns the Y position the
+ * first table should start at.
  */
 export function drawPlainHeader(doc: jsPDF, lines: string[], logoDataUrl?: string | null): number {
   doc.setTextColor(0, 0, 0);
-  let y = 9;
+  const TITLE_BASELINE_Y = 9;
+  const TITLE_FONT_SIZE = 14;
+  let y = TITLE_BASELINE_Y;
   lines.forEach((line, i) => {
     doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
-    doc.setFontSize(i === 0 ? 14 : 9);
+    doc.setFontSize(i === 0 ? TITLE_FONT_SIZE : 9);
     doc.text(line, 14, y);
     y += i === 0 ? 7 : 5;
   });
   doc.setFont('helvetica', 'normal');
-  drawHeaderLogo(doc, logoDataUrl ?? null);
+  if (logoDataUrl) {
+    drawHeaderLogo(doc, logoDataUrl, textLineCenterYMm(TITLE_BASELINE_Y, TITLE_FONT_SIZE));
+  }
   return y + 3;
 }
 
