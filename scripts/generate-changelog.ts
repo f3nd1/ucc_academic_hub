@@ -93,6 +93,17 @@ function parse(raw: string): ChangelogEntry[] {
 const outDir = resolve(dirname(fileURLToPath(import.meta.url)), '../src/data');
 const outFile = resolve(outDir, 'changelog.json');
 const entries = parse(readGitLog());
+
+// `git log`'s default order follows the commit graph (each commit before its
+// parents), not a strict date sort — once several claude/... branches merge
+// into main, that graph walk can genuinely surface commits out of date order
+// (a branch merged later can carry earlier commit dates), which split a
+// single calendar day into two separate groups downstream in
+// changelogModel.ts's groupByDay. Sorting here, once, at the source, means
+// every consumer gets correctly newest-first data without having to re-sort
+// (or assume) anything of its own.
+entries.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+
 mkdirSync(outDir, { recursive: true });
 writeFileSync(outFile, `${JSON.stringify(entries, null, 2)}\n`);
 console.log(`changelog: wrote ${entries.length} entries to ${outFile}`);
