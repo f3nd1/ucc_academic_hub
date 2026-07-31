@@ -33,11 +33,51 @@ export const BRAND_GRID_LINE: [number, number, number] = [90, 96, 110];
 
 const COPYRIGHT_TEXT = 'Copyright © United Ceres College Pte Ltd.';
 
-/** Shared table look for every PDF export: dark, clearly visible borders on every cell. */
+// Two border weights, not one: the previous round darkened AND thickened
+// every cell edge uniformly, which read as too heavy once applied to every
+// interior line in a dense grid. Only the table's own outer perimeter (plus
+// the line separating the header block from the body, deliberately —
+// see outerBorderLineWidth) stays at the bolder weight; every interior
+// row/column divider drops back down to a thin-but-clearly-visible weight,
+// still darker than the original too-faint pale grey this whole effort
+// started from.
+const THIN_GRID_LINE_WIDTH = 0.15;
+const THICK_GRID_LINE_WIDTH = 0.3;
+
+/** Shared table look for every PDF export: dark, clearly visible borders on every cell (thin by default — see outerBorderLineWidth for the per-cell outer-edge override). */
 export const BRAND_GRID_STYLE = {
-  lineWidth: 0.3,
+  lineWidth: THIN_GRID_LINE_WIDTH,
   lineColor: BRAND_GRID_LINE,
 } as const;
+
+/**
+ * Per-cell border widths so only the table's OUTER perimeter (top, bottom,
+ * left, right edges of the whole grid) reads as the bolder weight, plus the
+ * line under the last header row — a deliberate cap that separates the
+ * header block from the data grid, distinct from the thin dividers used
+ * between every other pair of rows/columns (including between a multi-row
+ * header's own rows, e.g. Hybrid's "Week N" band over its Date/Module/
+ * Lesson/Teacher sub-header). Pass straight to `data.cell.styles.lineWidth`
+ * inside a didParseCell hook.
+ */
+export function outerBorderLineWidth(data: {
+  section: 'head' | 'body' | 'foot';
+  row: { index: number };
+  column: { index: number };
+  table: { head: unknown[]; body: unknown[]; columns: unknown[] };
+}): { top: number; bottom: number; left: number; right: number } {
+  const isFirstCol = data.column.index === 0;
+  const isLastCol = data.column.index === data.table.columns.length - 1;
+  const isTopEdge = data.section === 'head' && data.row.index === 0;
+  const isHeadBodyDivider = data.section === 'head' && data.row.index === data.table.head.length - 1;
+  const isBottomEdge = data.section === 'body' && data.row.index === data.table.body.length - 1;
+  return {
+    top: isTopEdge ? THICK_GRID_LINE_WIDTH : THIN_GRID_LINE_WIDTH,
+    bottom: isHeadBodyDivider || isBottomEdge ? THICK_GRID_LINE_WIDTH : THIN_GRID_LINE_WIDTH,
+    left: isFirstCol ? THICK_GRID_LINE_WIDTH : THIN_GRID_LINE_WIDTH,
+    right: isLastCol ? THICK_GRID_LINE_WIDTH : THIN_GRID_LINE_WIDTH,
+  };
+}
 
 // --- Per-module colour tints (Calendar + Hybrid PDF only) -------------------
 //

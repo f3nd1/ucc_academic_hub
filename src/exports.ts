@@ -10,6 +10,7 @@ import {
   drawPlainHeader,
   loadLogoDataUrl,
   buildModuleColorMap,
+  outerBorderLineWidth,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -148,9 +149,12 @@ export async function exportListPdf(
     head: [[...COLUMN_HEADERS]],
     body: lessons.map(rowFor),
     startY,
-    styles: { fontSize: 9, cellPadding: 2, textColor: BRAND.nearBlack },
+    styles: { fontSize: 9, cellPadding: 2, textColor: BRAND.nearBlack, ...BRAND_GRID_STYLE },
     headStyles: { fillColor: BRAND.darkBlue, textColor: BRAND.white },
     alternateRowStyles: { fillColor: BRAND.grey },
+    didParseCell: (data) => {
+      data.cell.styles.lineWidth = outerBorderLineWidth(data);
+    },
   });
 
   addPageFooters(doc);
@@ -332,6 +336,7 @@ export async function exportCalendarPdf(
       headStyles: { fillColor: BRAND.darkBlue, textColor: BRAND.white, halign: 'center' },
       alternateRowStyles: { fillColor: BRAND.grey },
       didParseCell: (data) => {
+        data.cell.styles.lineWidth = outerBorderLineWidth(data);
         if (data.section !== 'body') return;
         const kind = kinds[data.row.index]?.[data.column.index];
         if (kind === 'teaching') {

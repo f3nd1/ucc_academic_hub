@@ -22,6 +22,7 @@ import {
   drawPlainHeader,
   loadLogoDataUrl,
   buildModuleColorMap,
+  outerBorderLineWidth,
   BRAND,
   BRAND_AL_TINT,
   BRAND_GRID_STYLE,
@@ -607,6 +608,7 @@ export async function exportPlannerPdf(
       },
       alternateRowStyles: { fillColor: BRAND.grey },
       didParseCell: (data) => {
+        data.cell.styles.lineWidth = outerBorderLineWidth(data);
         if (data.section !== 'body') return;
         const col = data.column.index;
         if (col < 1) return;
