@@ -472,35 +472,6 @@ function pdfDateText(cell: PlannerCell): string {
   return cell.dateIso ? compactDate(cell.dateIso) : '';
 }
 
-// Two ASCII periods rather than the "…" glyph — jsPDF's built-in Helvetica
-// is a WinAnsi subset and this codebase has never confirmed U+2026 renders
-// in it, whereas plain ASCII is guaranteed.
-const TRUNCATION_SUFFIX = '..';
-
-/**
- * Shorten `text` to the longest prefix (plus TRUNCATION_SUFFIX) that fits
- * `maxWidthMm` at `fontSize`, measured with jsPDF's real font metrics — the
- * PDF-only fix for module names like "Data Fundamentals" wrapping across
- * 2-3 lines in every populated cell (the biggest space cost on the page).
- * Falls through untouched when the text already fits. Applied generally to
- * every Module/Lesson/Teacher body string, not just module names, since any
- * of them can run long (a holiday name, a long lesson title).
- */
-function truncateToWidth(doc: jsPDF, text: string, maxWidthMm: number, fontSize: number): string {
-  if (!text) return text;
-  doc.setFontSize(fontSize);
-  if (doc.getTextWidth(text) <= maxWidthMm) return text;
-  let lo = 0;
-  let hi = text.length;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    const candidate = text.slice(0, mid).trimEnd() + TRUNCATION_SUFFIX;
-    if (doc.getTextWidth(candidate) <= maxWidthMm) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo === 0 ? TRUNCATION_SUFFIX : text.slice(0, lo).trimEnd() + TRUNCATION_SUFFIX;
-}
-
 export async function exportPlannerPdf(
   model: PlannerModel,
   columnMode: PlannerColumnMode = 'activity',
@@ -523,7 +494,6 @@ export async function exportPlannerPdf(
   // loop below).
   const subColWidth = (usableWidth - WEEKDAY_COL_WIDTH_MM) / (PAGE_WEEK_BUDGET * 4);
   const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth);
-  const textMaxWidthMm = (subColWidth - SUB_COLUMN_PADDING_MM) * FIT_SAFETY_FACTOR;
   const columnStyles: Record<number, { cellWidth: number }> = {
     0: { cellWidth: WEEKDAY_COL_WIDTH_MM },
   };
@@ -570,10 +540,13 @@ export async function exportPlannerPdf(
 
     // Body: weekday label starts each row; cells from the shared planner
     // helpers so wording matches the view and the Sheets export, run through
-    // the PDF-only compact date/truncation helpers. An AL cell collapses its
-    // Module/Lesson/Teacher trio (three near-empty cells: "AL", "-", "-")
-    // into one merged cell — there was never going to be a lesson or teacher
-    // on a buffer day.
+    // only the PDF-only compact date helper. Module/Activity, Lesson, and
+    // Teacher all show their full text — none of them are cut short; a name
+    // too wide for one line wraps across lines via autoTable's own default
+    // wrap (the row simply grows taller), exactly as it always has for
+    // Lesson/Teacher. An AL cell collapses its Module/Lesson/Teacher trio
+    // (three near-empty cells: "AL", "-", "-") into one merged cell — there
+    // was never going to be a lesson or teacher on a buffer day.
     type BodyCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
     const body: BodyCell[][] = Array.from({ length: 7 }, (_, r) => {
       const cells: BodyCell[] = [model.weekdayLabels[r].slice(0, 3)];
@@ -591,13 +564,9 @@ export async function exportPlannerPdf(
         } else {
           cells.push(
             pdfDateText(cell),
-            truncateToWidth(doc, activityText(cell, columnMode), textMaxWidthMm, fontSize),
-            lessonLines(cell)
-              .map((l) => truncateToWidth(doc, l, textMaxWidthMm, fontSize))
-              .join('\n'),
-            teacherLines(cell)
-              .map((l) => truncateToWidth(doc, l, textMaxWidthMm, fontSize))
-              .join('\n'),
+            activityText(cell, columnMode),
+            lessonLines(cell).join('\n'),
+            teacherLines(cell).join('\n'),
           );
         }
       }

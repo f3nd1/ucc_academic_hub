@@ -7,7 +7,6 @@ import { formatDisplayDate } from './shared/dates';
 import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
 import {
   addPageFooters,
-  drawBrandHeaderBand,
   drawPlainHeader,
   loadLogoDataUrl,
   BRAND,
@@ -114,16 +113,14 @@ export function exportCsv(lessons: ScheduledLesson[], course: Course): void {
   download(blob, `${fileStem(course.name)}-timetable.csv`);
 }
 
-/** Course header band (UCC brand dark-blue), shared by the PDF layouts. */
+/** Plain black-on-white course header, shared by the PDF layouts. */
 async function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): Promise<number> {
   const logoDataUrl = await loadLogoDataUrl();
-  return drawBrandHeaderBand(
+  return drawPlainHeader(
     doc,
     [
       `${scopeLabel}: ${course.name}`,
-      `Modules: ${course.modules.map((m) => m.name).join(', ')}    Delivery: ${
-        course.deliveryMode === 'series' ? 'Series' : 'Parallel'
-      }`,
+      `Modules: ${course.modules.map((m) => m.name).join(', ')}`,
     ],
     logoDataUrl,
   );

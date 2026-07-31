@@ -1433,21 +1433,6 @@ select {
   flex-shrink: 0;
 }
 
-/* UCC logo, top-right of the sidebar's header row. Fixed height only (never
-   a fixed width) so it scales without distorting, roughly matching the
-   brand text's visual weight. margin-left: auto clusters it against the
-   collapse toggle at the row's right edge regardless of how many siblings
-   sit between it and .sidebar__brand. The source PNG carries its own
-   opaque white backdrop (no alpha), which already reads as a light chip on
-   every theme's darker panel colours (dark mode, Cult of the Lamb) without
-   any extra styling here. */
-.sidebar__logo {
-  height: 20px;
-  width: auto;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
 /* Collapse/expand toggle for the whole workspace sidebar. Always visible,
    icon-only, so it stays reachable regardless of collapsed state. */
 .icon-toggle-btn {
@@ -1551,8 +1536,7 @@ select {
   .sidebar--collapsed .sidebar__brand span,
   .sidebar--collapsed .sidebar__link span,
   .sidebar--collapsed .sidebar__group,
-  .sidebar--collapsed .sidebar__foot,
-  .sidebar--collapsed .sidebar__logo {
+  .sidebar--collapsed .sidebar__foot {
     display: none;
   }
 

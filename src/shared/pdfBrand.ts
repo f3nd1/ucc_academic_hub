@@ -50,7 +50,11 @@ export const BRAND_GRID_STYLE = {
 // never a fixed width — so it can never distort.
 const LOGO_ASPECT = 1123 / 317;
 const LOGO_HEIGHT_MM = 9;
-const LOGO_MARGIN_MM = 5;
+// Matches the 14mm left/right body-content margin already used by the
+// Calendar and Hybrid PDFs, so the logo lines up with the same printable
+// area as everything else on the page instead of sitting flush against the
+// page edge.
+const LOGO_MARGIN_MM = 14;
 
 // How far down a page's own content should start when it needs to clear the
 // logo vertically instead of relying on staying left of it horizontally (the
@@ -101,37 +105,6 @@ export function drawHeaderLogo(doc: jsPDF, dataUrl: string | null): void {
   } catch {
     // Corrupt/unsupported image data — never let this break the export.
   }
-}
-
-/**
- * Draw a full-width dark-blue header band across the top of the CURRENT page,
- * with the given lines in white text (first line larger, rest smaller), plus
- * the UCC logo top-right when `logoDataUrl` is given (see loadLogoDataUrl).
- * Returns the Y position the first table should start at.
- */
-export function drawBrandHeaderBand(
-  doc: jsPDF,
-  lines: string[],
-  logoDataUrl?: string | null,
-): number {
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const bandHeight = 10 + Math.max(0, lines.length - 1) * 6;
-
-  doc.setFillColor(...BRAND.darkBlue);
-  doc.rect(0, 0, pageWidth, bandHeight, 'F');
-
-  doc.setTextColor(...BRAND.white);
-  let y = 8;
-  lines.forEach((line, i) => {
-    doc.setFontSize(i === 0 ? 15 : 10);
-    doc.text(line, 14, y);
-    y += i === 0 ? 8 : 6;
-  });
-
-  // Reset for whatever content is drawn next.
-  doc.setTextColor(0, 0, 0);
-  drawHeaderLogo(doc, logoDataUrl ?? null);
-  return bandHeight + 6;
 }
 
 /**
