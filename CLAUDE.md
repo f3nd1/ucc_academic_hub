@@ -163,6 +163,56 @@ histograms (`SurveyHistogram.tsx`, bars filled from the `--accent` CSS var),
 full question text confined to one reference appendix. If it has merged,
 those conventions are also hard rules; delete this note.
 
+## PDF export conventions (`src/shared/pdfBrand.ts`)
+
+List, Calendar, and Hybrid/Planner all share this module; Survey's PDF
+(`surveyExports.ts`) has its own hand-rolled layout but follows the same
+rules by hand. Get these wrong and one export drifts from the other three.
+
+- **No coloured header band.** `drawBrandHeaderBand()` is gone — it used to
+  get cropped at the page top on some printers. Every header is plain black
+  text on white via `drawPlainHeader()`. The table's own header ROW fill
+  stays brand dark-navy (`BRAND.darkBlue`) deliberately — that's a separate,
+  intentional decision, not a leftover: matching the on-screen accent colour
+  would mean the PDF changes look depending on which of the 4 skins was
+  active, which defeats the point of a print-stable brand.
+- **Logo is PDF-only.** `public/ucc-logo.png` (pre-cropped from
+  `UCC_1200x630.png`, which is mostly blank canvas) via `loadLogoDataUrl()` +
+  `drawHeaderLogo()`. It was added to the on-screen sidebar once and reverted
+  — don't re-add it there without being asked. Vertical position tracks the
+  header's title line specifically (`textLineCenterYMm()`), not the header
+  block as a whole.
+- **Per-module colour tints are PDF-only too** (`MODULE_PALETTE` +
+  `buildModuleColorMap(course.modules)`), used by Calendar and Hybrid, NOT
+  mirrored on-screen — the on-screen Hybrid view still colours only by
+  lesson kind (teaching/weekend/AL/holiday), same flat colour regardless of
+  module. Don't assume a screen/PDF parity that doesn't exist; check before
+  extending either one. Colour is deterministic by a module's position in
+  `course.modules`, shared by both PDF builders so the same module is always
+  the same colour in both. A cell whose lessons span two different modules
+  (parallel delivery) is left uncoloured rather than guessing.
+- **Grid lines are two weights, not one.** `BRAND_GRID_STYLE` is thin
+  (0.15mm) by default; `outerBorderLineWidth(data)` in a `didParseCell` hook
+  bumps only the table's true outer perimeter (plus the line under the last
+  header row) to thick (0.3mm). Apply it unconditionally, before any
+  `if (data.section !== 'body') return` early-out in the same hook, or head
+  rows never get their outer edge.
+- **Hybrid caps at 5 week-columns per page.** A 6-week month splits into a
+  full page (weeks 1-5) plus a "(cont.)" continuation page for week 6 alone,
+  same column widths on both — never shrink columns to fit a 6th week.
+
+## Changelog date grouping (`changelogModel.ts`)
+
+`git log --date=iso-strict` records each commit in the AUTHOR'S OWN local
+offset — this repo's history mixes `+00:00` and `+08:00` commits. Reading a
+commit's calendar day off the raw ISO string (`.slice(0, 10)`) can put two
+commits seconds apart on different labelled days. `entryDay()`/`entryTime()`
+convert every commit to Singapore time (UTC+8) first. `groupByDay()` also
+sorts defensively before bucketing — `git log`'s default order follows the
+commit graph, not a strict date sort, so a merge can genuinely surface
+commits out of order. Get either one wrong and a date splits into two
+non-contiguous groups on the Changelog page.
+
 ## Code style
 
 - Comments explain **why**, in full sentences, and often record the bug that
