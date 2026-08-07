@@ -56,6 +56,33 @@ export function toIsoDate(value: unknown): string | null {
   return null;
 }
 
+/**
+ * The blank template offered next to the upload control, so nobody has to
+ * guess the column names or the date format.
+ *
+ * Deliberately written in DD/MM/YYYY rather than ISO: that is the shape
+ * someone typing dates into Excel here will produce anyway, and it is the one
+ * genuinely ambiguous case (09/08/2026 is 9 August, not 8 September), so the
+ * template is what documents the day-first reading. The third row leaves Name
+ * empty to show it is optional. Lives beside toIsoDate on purpose — the two
+ * have to agree, and a test round-trips this exact text back through
+ * importHolidayRows to prove they do.
+ */
+export const HOLIDAY_TEMPLATE_ROWS: string[][] = [
+  ['Date', 'Name'],
+  ['09/08/2026', 'National Day'],
+  ['25/12/2026', 'Christmas Day'],
+  ['01/01/2027', ''],
+];
+
+/** Escape a CSV field, doubling embedded quotes (RFC 4180). */
+const csvField = (v: string): string =>
+  /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+
+/** The template as CSV text, ready to hand to a Blob. */
+export const holidayTemplateCsv = (): string =>
+  HOLIDAY_TEMPLATE_ROWS.map((row) => row.map(csvField).join(',')).join('\r\n');
+
 export interface HolidayImportResult {
   /** New rows to APPEND to the existing table (never a replacement for it). */
   rows: HolidayRow[];

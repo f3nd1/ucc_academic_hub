@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { importHolidayRows, toIsoDate } from '../src/holidayImport';
+import {
+  HOLIDAY_TEMPLATE_ROWS,
+  holidayTemplateCsv,
+  importHolidayRows,
+  toIsoDate,
+} from '../src/holidayImport';
 import type { HolidayRow } from '../src/formModel';
 
 const existing = (...dates: string[]): HolidayRow[] =>
@@ -148,5 +153,65 @@ describe('importHolidayRows', () => {
     const rows = existing('2026-08-09');
     importHolidayRows([['2026-12-25']], rows);
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('holiday upload template', () => {
+  it('leads with the Date, Name header the importer looks for', () => {
+    expect(HOLIDAY_TEMPLATE_ROWS[0]).toEqual(['Date', 'Name']);
+  });
+
+  it('writes its example dates day-first, the format the hint promises', () => {
+    for (const [date] of HOLIDAY_TEMPLATE_ROWS.slice(1)) {
+      expect(date).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
+    }
+  });
+
+  it('shows Name filled in on some rows and left blank on another', () => {
+    const names = HOLIDAY_TEMPLATE_ROWS.slice(1).map(([, name]) => name);
+    expect(names.some((n) => n !== '')).toBe(true);
+    expect(names.some((n) => n === '')).toBe(true);
+  });
+
+  // The point of the template is that it is genuinely correct, not merely
+  // plausible: feeding it straight back to the importer must add every
+  // example row with nothing skipped and nothing flagged.
+  it('round-trips through the importer with no skips and no invalid rows', () => {
+    const result = importHolidayRows(HOLIDAY_TEMPLATE_ROWS, []);
+    expect(result.added).toBe(HOLIDAY_TEMPLATE_ROWS.length - 1);
+    expect(result.invalidRows).toEqual([]);
+    expect(result.duplicates).toBe(0);
+    expect(result.rows.map((r) => r.date)).toEqual([
+      '2026-08-09',
+      '2026-12-25',
+      '2027-01-01',
+    ]);
+  });
+
+  it('round-trips day-first, not month-first', () => {
+    // 09/08/2026 must land on 9 August. Reading it month-first would give
+    // 8 September and silently schedule around the wrong day.
+    const [first] = importHolidayRows(HOLIDAY_TEMPLATE_ROWS, []).rows;
+    expect(first.date).toBe('2026-08-09');
+    expect(first.name).toBe('National Day');
+  });
+
+  it('serialises to CSV that parses back to the same matrix', () => {
+    const parsed = holidayTemplateCsv()
+      .split('\r\n')
+      .map((line) => line.split(','));
+    expect(parsed).toEqual(HOLIDAY_TEMPLATE_ROWS);
+    expect(importHolidayRows(parsed, []).invalidRows).toEqual([]);
+  });
+
+  it('survives the byte-order mark the download prepends for Excel', () => {
+    // trim() treats U+FEFF as whitespace, so the header still matches — if it
+    // ever stopped doing so the header row would import as a bad date.
+    const withBom = `\ufeff${holidayTemplateCsv()}`
+      .split('\r\n')
+      .map((line) => line.split(','));
+    const result = importHolidayRows(withBom, []);
+    expect(result.added).toBe(3);
+    expect(result.invalidRows).toEqual([]);
   });
 });

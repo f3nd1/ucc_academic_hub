@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import type { CourseForm, HolidayRow } from '../formModel';
 import { emptyHolidayRow, holidayRowInvalid } from '../formModel';
-import { importHolidayRows } from '../holidayImport';
+import { holidayTemplateCsv, importHolidayRows } from '../holidayImport';
 import type { FirstDayOfWeek } from '../shared/settings';
 import { formatDisplayDate } from '../shared/dates';
 import { LabeledField } from './LabeledField';
@@ -38,6 +38,27 @@ function HolidayTable({ label, helpKey, hintKey, rows, onChange }: TableProps) {
 
   const patchRow = (id: string, patch: Partial<HolidayRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  /**
+   * Hand over a filled-in example of exactly what the uploader accepts. CSV
+   * rather than .xlsx so this stays a plain Blob — pulling SheetJS in just to
+   * WRITE four rows would load a ~400 kB parser for a file the uploader reads
+   * back as text anyway.
+   */
+  const downloadTemplate = () => {
+    // The BOM keeps Excel from mangling the file when it opens a bare CSV.
+    const blob = new Blob([`﻿${holidayTemplateCsv()}`], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'holiday-upload-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   /**
    * Read an .xlsx/.csv of Date + optional Name and APPEND its rows. SheetJS is
@@ -175,10 +196,19 @@ function HolidayTable({ label, helpKey, hintKey, rows, onChange }: TableProps) {
           <label className="btn btn--demo holiday-table__upload" htmlFor={uploadId}>
             Upload from file
           </label>
+          <button
+            type="button"
+            className="linkbtn"
+            onClick={downloadTemplate}
+          >
+            Download template
+          </button>
         </div>
         <p className="hint holiday-table__uploadhint">
-          Excel or CSV with a Date column and an optional Name column. Rows are
-          added to the table above; dates already listed are skipped.
+          Excel or CSV with a Date column and an optional Name column.{' '}
+          <strong>Date format: DD/MM/YYYY</strong> (09/08/2026 is 9 August).
+          Name is optional. Rows are added to the table above; dates already
+          listed are skipped.
         </p>
         {status && (
           <p
