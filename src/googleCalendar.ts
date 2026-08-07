@@ -18,7 +18,9 @@ export function calendarLinkFor(
     action: 'TEMPLATE',
     text: `${courseName} - ${lesson.lessonName}`,
     dates: `${stamp(lesson.date, lesson.startTime)}/${stamp(lesson.date, lesson.endTime)}`,
-    details: `${lesson.teacher}, ${lesson.classGroup}`,
+    // Teacher and class group are optional; a blank one is dropped so the
+    // event description never arrives as a lone ", " or an empty location.
+    details: [lesson.teacher, lesson.classGroup].filter(Boolean).join(', '),
     location: lesson.classroom,
     ctz: TZID,
   });
@@ -60,6 +62,10 @@ export function buildIcs(
 
   // AL buffer days have no times and are not calendar events — skip them.
   for (const l of lessons.filter((l) => l.kind !== 'AL')) {
+    // Classroom, teacher, and class group are optional. An empty LOCATION or
+    // DESCRIPTION property is filler in the importing calendar, so the whole
+    // property is omitted rather than emitted blank.
+    const description = [l.teacher, l.classGroup].filter(Boolean).join(', ');
     lines.push(
       'BEGIN:VEVENT',
       `UID:${l.moduleId}-${l.lessonNo}@ucc-timetable`,
@@ -67,8 +73,8 @@ export function buildIcs(
       `DTSTART;TZID=${TZID}:${stamp(l.date, l.startTime)}`,
       `DTEND;TZID=${TZID}:${stamp(l.date, l.endTime)}`,
       `SUMMARY:${icsEscape(`${course.name} - ${l.lessonName}`)}`,
-      `LOCATION:${icsEscape(l.classroom)}`,
-      `DESCRIPTION:${icsEscape(`${l.teacher}, ${l.classGroup}`)}`,
+      ...(l.classroom ? [`LOCATION:${icsEscape(l.classroom)}`] : []),
+      ...(description ? [`DESCRIPTION:${icsEscape(description)}`] : []),
       'END:VEVENT',
     );
   }

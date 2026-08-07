@@ -31,6 +31,14 @@ export interface PlannerEntry {
   lessonName: string;
   teacher: string;
   activity?: string;
+  /**
+   * The session's own window. A single date can carry a morning AND an
+   * afternoon session of the SAME module, in which case module name, activity,
+   * and lesson label are all identical and the time is the only thing that
+   * tells the two apart.
+   */
+  startTime: string;
+  endTime: string;
   /** True when the underlying lesson carries cross-module conflicts. */
   conflict: boolean;
 }
@@ -87,6 +95,8 @@ function cellForDate(
       lessonName: l.lessonName,
       teacher: l.teacher,
       activity: l.activity,
+      startTime: l.startTime,
+      endTime: l.endTime,
       conflict: (l.conflicts?.length ?? 0) > 0,
     }));
     return {
@@ -248,6 +258,10 @@ export function activityText(
       return '';
   }
 }
+
+/** "09:30-12:30" for a session, or '' when it carries no times (an AL-style entry). */
+export const entryTimeRange = (e: PlannerEntry): string =>
+  e.startTime && e.endTime ? `${e.startTime}-${e.endTime}` : '';
 
 /** Date sub-column text. Weekend shows "-" per the planner spec. */
 export function dateText(cell: PlannerCell): string {

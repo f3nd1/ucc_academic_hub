@@ -8,6 +8,7 @@ import { buildCalendarMonths, weekdayHeaders } from './calendarGrid';
 import {
   addPageFooters,
   drawPlainHeader,
+  hyphenateLongWords,
   loadLogoDataUrl,
   buildModuleColorMap,
   outerBorderLineWidth,
@@ -115,17 +116,18 @@ export function exportCsv(lessons: ScheduledLesson[], course: Course): void {
   download(blob, `${fileStem(course.name)}-timetable.csv`);
 }
 
-/** Plain black-on-white course header, shared by the PDF layouts. */
+/**
+ * Plain black-on-white course header, shared by the PDF layouts.
+ *
+ * No "Modules: A, B, C" line: it degraded into an unreadable run of names as
+ * soon as a course carried more than a couple of modules, and both PDFs that
+ * used it already identify a session's module in the grid itself — the List
+ * PDF has a Module column, and the Calendar PDF names the module on every
+ * session line.
+ */
 async function pdfHeader(doc: jsPDF, course: Course, scopeLabel: string): Promise<number> {
   const logoDataUrl = await loadLogoDataUrl();
-  return drawPlainHeader(
-    doc,
-    [
-      `${scopeLabel}: ${course.name}`,
-      `Modules: ${course.modules.map((m) => m.name).join(', ')}`,
-    ],
-    logoDataUrl,
-  );
+  return drawPlainHeader(doc, [`${scopeLabel}: ${course.name}`], logoDataUrl);
 }
 
 /**
@@ -190,10 +192,10 @@ export async function exportCalendarPdf(
 ): Promise<void> {
   const doc = new jsPDF({ orientation: 'landscape', format: 'a4' });
   const logoDataUrl = await loadLogoDataUrl();
-  const headerLines = [
-    `${scopeLabel}: ${course.name}`,
-    `Modules: ${course.modules.map((m) => m.name).join(', ')}`,
-  ];
+  // See pdfHeader: the old "Modules: A, B, C" line was unreadable on a course
+  // with several modules, and every session in the grid below now names its
+  // own module anyway.
+  const headerLines = [`${scopeLabel}: ${course.name}`];
 
   const months = buildCalendarMonths(lessons, firstDayOfWeek, holidays);
   const headers = weekdayHeaders(firstDayOfWeek);
@@ -218,6 +220,14 @@ export async function exportCalendarPdf(
   const columnStyles = Object.fromEntries(
     Array.from({ length: 7 }, (_, i) => [i, { cellWidth: colWidth }]),
   );
+  // Day cells are far wider than the Hybrid PDF's sub-columns, so a word only
+  // rarely overflows one — but a long module or lesson name still can, and
+  // autoTable's unmarked mid-word split reads as two words. Same treatment as
+  // the Hybrid PDF: hyphenate anything that will not fit.
+  const CELL_FONT_SIZE = 7;
+  const CELL_PADDING_X = 1.5;
+  const fit = (text: string) =>
+    hyphenateLongWords(doc, text, colWidth - CELL_PADDING_X * 2, CELL_FONT_SIZE);
 
   // Fixed, page-filling row height: divide the vertical space actually left
   // over — after the plain-text header, the month title, the head row, and
@@ -278,20 +288,26 @@ export async function exportCalendarPdf(
         // The day number is drawn separately (didDrawCell) in a larger, bold,
         // brand dark-blue style so it reads as the cell's primary anchor;
         // the body text here carries only the lesson/holiday detail lines.
+        //
+        // Each session is a time line plus a "Module — Lesson" line. Naming
+        // the module is what makes a day carrying two different modules'
+        // sessions readable at all; it used to show the lesson name alone,
+        // with no way to tell which module it belonged to. Teacher, classroom,
+        // and class group are deliberately absent — this is the compact view,
+        // that detail lives in the List view and List PDF, and all three are
+        // optional fields whose blanks used to render as " - : - " filler.
         const lines: string[] = [];
         for (const l of real) {
-          lines.push(
-            `${(l.conflicts?.length ?? 0) > 0 ? '! ' : ''}${l.lessonName}`,
-            `${l.startTime}-${l.endTime} ${l.teacher}`,
-            `${l.classroom} · ${l.classGroup}`,
-          );
+          if (l.startTime && l.endTime) lines.push(`${l.startTime}-${l.endTime}`);
+          const label = [l.moduleName, l.lessonName].filter(Boolean).join(' — ');
+          if (label) lines.push(`${(l.conflicts?.length ?? 0) > 0 ? '! ' : ''}${label}`);
         }
         if (real.length === 0 && al) lines.push(AL_LABEL);
         if (real.length === 0 && !al && cell.kind && cell.kind !== 'blank') {
           const label = cell.kind === 'weekend' ? 'Weekend' : cell.holidayName || cell.kind;
           lines.push(label);
         }
-        return lines.join('\n');
+        return fit(lines.join('\n'));
       });
       kinds.push(kindRow);
       moduleFills.push(fillRow);
@@ -323,11 +339,11 @@ export async function exportCalendarPdf(
       tableWidth: usableWidth,
       columnStyles,
       styles: {
-        fontSize: 7,
+        fontSize: CELL_FONT_SIZE,
         // Extra top padding reserves room for the larger date number drawn
         // above the lesson-detail lines in didDrawCell, without the two
         // overlapping.
-        cellPadding: { top: 5, right: 1.5, bottom: 1.5, left: 1.5 },
+        cellPadding: { top: 5, right: CELL_PADDING_X, bottom: 1.5, left: CELL_PADDING_X },
         valign: 'top',
         minCellHeight,
         textColor: BRAND.nearBlack,

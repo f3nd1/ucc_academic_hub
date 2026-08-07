@@ -165,6 +165,16 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
                 );
               }
               const conflicted = (l.conflicts?.length ?? 0) > 0;
+              // Teacher, classroom, and class group are optional fields, so a
+              // blank one is dropped outright rather than rendering an empty
+              // line (and, in the tooltip, the " · · " separators around it).
+              const meta = [
+                l.moduleName,
+                l.startTime && l.endTime ? `${l.startTime}–${l.endTime}` : '',
+                l.teacher,
+                l.classroom,
+                l.classGroup,
+              ].filter(Boolean);
               return (
                 <a
                   className={`month__lesson${conflicted ? ' month__lesson--conflict' : ''}`}
@@ -175,21 +185,18 @@ export function MonthView({ lessons, firstDayOfWeek, courseName }: Props) {
                   title={
                     (conflicted
                       ? `⚠ ${l.conflicts!.map((c) => c.detail).join('\n')}\n`
-                      : '') +
-                    `${l.lessonName}\n${l.startTime}–${l.endTime}\n${l.teacher} · ${l.classroom} · ${l.classGroup}`
+                      : '') + [l.lessonName, ...meta].filter(Boolean).join('\n')
                   }
                 >
                   <span className="month__lesson-name">
                     {conflicted ? '⚠ ' : ''}
                     {l.lessonName}
                   </span>
-                  <span className="month__lesson-meta">{l.moduleName}</span>
-                  <span className="month__lesson-meta">
-                    {l.startTime}–{l.endTime}
-                  </span>
-                  <span className="month__lesson-meta">{l.teacher}</span>
-                  <span className="month__lesson-meta">{l.classroom}</span>
-                  <span className="month__lesson-meta">{l.classGroup}</span>
+                  {meta.map((m, mi) => (
+                    <span className="month__lesson-meta" key={mi}>
+                      {m}
+                    </span>
+                  ))}
                 </a>
               );
             })}

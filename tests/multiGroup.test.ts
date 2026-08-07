@@ -160,3 +160,53 @@ describe('detectClashes', () => {
     expect(clashes.filter((c) => c.type === 'classroom')).toEqual([]);
   });
 });
+
+// Teacher, Classroom, and Module Class Details are optional fields (some
+// course types, AEIS Primary among them, have none of them). Two modules that
+// both leave one blank are not competing for that resource — before the blank
+// guard in checkResource, every such pair scheduled at overlapping times
+// raised a phantom conflict on Teacher "", Classroom "", or Class group "".
+describe('detectClashes with optional fields left blank', () => {
+  it('does NOT flag two groups that both leave the teacher blank', () => {
+    const clashes = detectClashes([
+      lesson({ teacher: '', classroom: 'R1', classGroup: 'CG-A' }),
+      lesson({ groupId: 'b', teacher: '', classroom: 'R2', classGroup: 'CG-B' }),
+    ]);
+    expect(clashes.filter((c) => c.type === 'teacher')).toEqual([]);
+  });
+
+  it('does NOT flag two groups that both leave the classroom blank', () => {
+    const clashes = detectClashes([
+      lesson({ teacher: 'Ms Tan', classroom: '', classGroup: 'CG-A' }),
+      lesson({ groupId: 'b', teacher: 'Mr Lim', classroom: '', classGroup: 'CG-B' }),
+    ]);
+    expect(clashes.filter((c) => c.type === 'classroom')).toEqual([]);
+  });
+
+  it('does NOT flag two groups that both leave the class group blank', () => {
+    const clashes = detectClashes([
+      lesson({ teacher: 'Ms Tan', classroom: 'R1', classGroup: '' }),
+      lesson({ groupId: 'b', teacher: 'Mr Lim', classroom: 'R2', classGroup: '' }),
+    ]);
+    expect(clashes.filter((c) => c.type === 'classGroup')).toEqual([]);
+  });
+
+  it('still flags a genuinely shared teacher when the name IS set', () => {
+    const clashes = detectClashes([
+      lesson({ teacher: 'Ms Tan', classroom: 'R1', classGroup: 'CG-A' }),
+      lesson({ groupId: 'b', teacher: 'Ms Tan', classroom: 'R2', classGroup: 'CG-B' }),
+    ]);
+    expect(clashes.filter((c) => c.type === 'teacher')).toHaveLength(1);
+  });
+
+  it('names the module in a duplicate-session clash when the class group is blank', () => {
+    const clashes = detectClashes([
+      lesson({ classGroup: '', moduleName: 'English' }),
+      lesson({ classGroup: '', moduleName: 'English', lessonNo: 2, startTime: '11:00', endTime: '12:00' }),
+    ]);
+    const dupes = clashes.filter((c) => c.type === 'duplicateSession');
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0].detail).toContain('English');
+    expect(dupes[0].detail).not.toContain('""');
+  });
+});

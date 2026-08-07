@@ -1,5 +1,7 @@
+import { useId, useState } from 'react';
 import type { CourseForm, HolidayRow } from '../formModel';
 import { emptyHolidayRow, holidayRowInvalid } from '../formModel';
+import { importHolidayRows } from '../holidayImport';
 import type { FirstDayOfWeek } from '../shared/settings';
 import { formatDisplayDate } from '../shared/dates';
 import { LabeledField } from './LabeledField';
@@ -29,8 +31,63 @@ interface TableProps {
  * generating, so an empty table is fine.
  */
 function HolidayTable({ label, helpKey, hintKey, rows, onChange }: TableProps) {
+  const uploadId = useId();
+  const [status, setStatus] = useState<{ text: string; error: boolean } | null>(
+    null,
+  );
+
   const patchRow = (id: string, patch: Partial<HolidayRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  /**
+   * Read an .xlsx/.csv of Date + optional Name and APPEND its rows. SheetJS is
+   * imported dynamically so a ~400 kB parser only loads for someone who
+   * actually uploads a file, rather than riding along in the timetable chunk
+   * for everyone.
+   *
+   * `cellDates` gets real .xlsx date cells back as Date objects, which carry
+   * no day/month ambiguity. `raw` is load-bearing and must stay: without it
+   * SheetJS parses CSV text itself, and it reads a slashed date MONTH-first
+   * (02/09/2026 became 9 February, not 2 September) and silently rolls an
+   * impossible one over (2026-02-30 became 2 March) before our own validation
+   * ever sees it. With `raw` the CSV cell arrives as the original string and
+   * toIsoDate applies the day-first reading and the real-calendar-date check
+   * the manual date pickers use. It does not affect .xlsx date cells.
+   */
+  const upload = async (file: File) => {
+    setStatus(null);
+    try {
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.read(await file.arrayBuffer(), {
+        type: 'array',
+        cellDates: true,
+        raw: true,
+      });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) {
+        setStatus({ text: 'That file has no sheets to read.', error: true });
+        return;
+      }
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        raw: true,
+        defval: '',
+      });
+      const result = importHolidayRows(matrix, rows);
+      if (result.rows.length > 0) onChange([...rows, ...result.rows]);
+      setStatus({
+        text: result.summary,
+        error: result.added === 0 && result.invalidRows.length > 0,
+      });
+    } catch (err) {
+      setStatus({
+        text: `Could not read that file: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        error: true,
+      });
+    }
+  };
 
   return (
     <div className="field">
@@ -90,13 +147,47 @@ function HolidayTable({ label, helpKey, hintKey, rows, onChange }: TableProps) {
             </div>
           );
         })}
-        <button
-          type="button"
-          className="btn btn--demo holiday-table__add"
-          onClick={() => onChange([...rows, emptyHolidayRow()])}
-        >
-          + Add holiday
-        </button>
+        <div className="holiday-table__actions">
+          <button
+            type="button"
+            className="btn btn--demo holiday-table__add"
+            onClick={() => onChange([...rows, emptyHolidayRow()])}
+          >
+            + Add holiday
+          </button>
+          {/* A fast-entry path alongside the manual table, never a
+              replacement for it: uploaded rows append to whatever is
+              already there. The input is ordered BEFORE its label so the
+              focus-visible sibling rule in App.css can reach it. */}
+          <input
+            id={uploadId}
+            type="file"
+            className="holiday-table__file"
+            accept=".xlsx,.xls,.csv"
+            aria-label={`Upload ${label} from a spreadsheet`}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Clear the input so re-picking the same file fires onChange again.
+              e.target.value = '';
+              if (file) void upload(file);
+            }}
+          />
+          <label className="btn btn--demo holiday-table__upload" htmlFor={uploadId}>
+            Upload from file
+          </label>
+        </div>
+        <p className="hint holiday-table__uploadhint">
+          Excel or CSV with a Date column and an optional Name column. Rows are
+          added to the table above; dates already listed are skipped.
+        </p>
+        {status && (
+          <p
+            className={`holiday-table__status${status.error ? ' holiday-table__status--error' : ''}`}
+            role="status"
+          >
+            {status.text}
+          </p>
+        )}
       </div>
 
       <Hint text={HINTS[hintKey]} />

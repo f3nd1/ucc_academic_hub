@@ -6,7 +6,6 @@ import type {
   NamedHoliday,
 } from './types';
 import { isValidIsoDate } from './shared/dates';
-import { CLASS_GROUP_LABEL } from './constants';
 
 /** Raw per-module form state — every field a string off the inputs. */
 export interface ModuleForm {
@@ -182,8 +181,11 @@ export function validateDetails(
 
     if (form.modules.length > 1 && !mod.name.trim())
       errors.push(`${tag}module name is required.`);
-    if (!mod.classGroup.trim())
-      errors.push(`${tag}${CLASS_GROUP_LABEL} is required.`);
+
+    // Module Class Details, Teacher, and Classroom are all deliberately
+    // unvalidated: some course types (AEIS Primary, say) genuinely have none
+    // of them, and requiring them blocked generating a timetable at all.
+    // Every view and export omits a blank one rather than printing filler.
 
     // Each module schedules within its own start/end window.
     const start = mod.moduleStartDate.trim();

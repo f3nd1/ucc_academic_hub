@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildPlannerLayout } from '../src/plannerExports';
-import { buildPlanner } from '../src/planner';
+import { buildPlannerLayout, cellTexts } from '../src/plannerExports';
+import { buildPlanner, type PlannerCell } from '../src/planner';
 import { generateSchedule } from '../src/scheduler';
 import type { ClassGroupConfig, Course, HolidaySet } from '../src/types';
 
@@ -122,5 +122,109 @@ describe('buildPlannerLayout', () => {
     expect(layout.fills.some((f) => closeTo(f.rgb, gold))).toBe(true);
     // The old hardcoded pinkish public-holiday colour must be gone.
     expect(layout.fills.some((f) => closeTo(f.rgb, [0.98, 0.87, 0.87]))).toBe(false);
+  });
+});
+
+describe('cellTexts — one line per session (Hybrid PDF)', () => {
+  const cellFor = (iso: string) => {
+    for (const m of model.months)
+      for (const row of m.grid)
+        for (const c of row) if (c.dateIso === iso) return c;
+    throw new Error(`no cell for ${iso}`);
+  };
+
+  /** A teaching cell carrying two sessions of the SAME module on one date. */
+  const amPmCell = (): PlannerCell => ({
+    kind: 'teaching',
+    dateIso: '2026-07-06',
+    dateDisplay: '06 July 2026',
+    conflict: false,
+    entries: [
+      {
+        moduleId: 'g1',
+        moduleName: 'English',
+        lessonName: 'Vocabulary',
+        teacher: 'Ms Tan',
+        activity: 'Listening and Viewing',
+        startTime: '09:30',
+        endTime: '12:30',
+        conflict: false,
+      },
+      {
+        moduleId: 'g1',
+        moduleName: 'English',
+        lessonName: 'Vocabulary',
+        teacher: 'Ms Tan',
+        activity: 'Listening and Viewing',
+        startTime: '14:00',
+        endTime: '17:00',
+        conflict: false,
+      },
+    ],
+  });
+
+  // The reported bug: a morning and an afternoon session of one module ran
+  // together into a single cramped, duplicated string with nothing to say
+  // there were two of them ("Listening and Viewing Listening and Viewing",
+  // "Vocabulary Vocabulary"). Each session must occupy its own line, and the
+  // time range is the only thing that distinguishes two identical sessions.
+  it('gives each same-day session of one module its own timed lesson line', () => {
+    const [, lesson] = cellTexts(amPmCell(), 'activity');
+    expect(lesson).toBe('09:30-12:30\nVocabulary\n14:00-17:00\nVocabulary');
+  });
+
+  it('never joins two sessions into one unbroken string', () => {
+    const [activity, lesson, teacher] = cellTexts(amPmCell(), 'activity');
+    expect(activity).not.toContain(' / ');
+    for (const text of [activity, lesson, teacher]) {
+      expect(text.split('\n').length).toBeGreaterThan(1);
+    }
+  });
+
+  // Each session occupies the same two lines in every column, so a value
+  // stays level with the session it describes.
+  it('keeps each module name level with its own session', () => {
+    const [module, lesson] = cellTexts(amPmCell(), 'module');
+    expect(module).toBe('English\n\nEnglish');
+    const moduleLines = module.split('\n');
+    const lessonLines = lesson.split('\n');
+    expect(moduleLines[0]).toBe('English');
+    expect(lessonLines[0]).toBe('09:30-12:30');
+    expect(moduleLines[2]).toBe('English');
+    expect(lessonLines[2]).toBe('14:00-17:00');
+  });
+
+  // The misattribution this padding exists to prevent: a day where only the
+  // SECOND session has a teacher used to print that name on the first line,
+  // reading as though it belonged to the first session.
+  it('keeps a lone teacher level with the session they actually teach', () => {
+    const cell = amPmCell();
+    cell.entries![0].teacher = '';
+    const [, lesson, teacher] = cellTexts(cell, 'activity');
+    expect(teacher).toBe('\n\nMs Tan');
+    expect(teacher.split('\n')[2]).toBe('Ms Tan');
+    expect(lesson.split('\n')[2]).toBe('14:00-17:00');
+  });
+
+  it('carries a single session with its own time too', () => {
+    // The header's "Timing:" line is gone, so the grid is now the only place
+    // a session's time appears — it has to be there for one-session days.
+    const [, lesson] = cellTexts(cellFor('2026-07-06'), 'activity');
+    expect(lesson).toBe('09:00-10:00\nL1');
+  });
+
+  it('leaves an all-blank teacher column genuinely empty, with no placeholder', () => {
+    const cell = amPmCell();
+    cell.entries![0].teacher = '';
+    cell.entries![1].teacher = '';
+    const [, , teacher] = cellTexts(cell, 'activity');
+    expect(teacher).toBe('');
+  });
+
+  it('leaves non-teaching cells to the shared planner helpers', () => {
+    const [activity, lesson, teacher] = cellTexts(cellFor('2026-07-10'), 'activity');
+    expect(activity).toBe('PublicHoliday — Some PH');
+    expect(lesson).toBe('-');
+    expect(teacher).toBe('-');
   });
 });

@@ -237,6 +237,12 @@ export function detectClashes(
     label: string,
   ) => {
     for (const [key, claimants] of groupBy(day, keyOf)) {
+      // A blank resource is "not recorded", not "shared". Teacher, Classroom,
+      // and Module Class Details are all optional, and two modules that both
+      // leave Teacher empty are not competing for the same teacher — without
+      // this guard every such pair scheduled at overlapping times raised a
+      // phantom `Teacher ""` conflict.
+      if (!key.trim()) continue;
       const groups = new Set(claimants.map((l) => l.groupId));
       if (groups.size < 2) continue;
       const contested = claimants.some((a, i) =>
@@ -262,7 +268,9 @@ export function detectClashes(
         clashes.push({
           type: 'duplicateSession',
           date,
-          detail: `Group "${sessions[0].classGroup}" has ${sessions.length} sessions on the same day.`,
+          // classGroup is optional, so fall back to the module name rather
+          // than reporting a conflict on Group "".
+          detail: `Group "${sessions[0].classGroup || sessions[0].moduleName}" has ${sessions.length} sessions on the same day.`,
           lessons: sessions,
         });
       }

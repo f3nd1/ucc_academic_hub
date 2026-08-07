@@ -10,6 +10,7 @@ import {
   activityText,
   columnModeLabel,
   dateText,
+  entryTimeRange,
   lessonLines,
   teacherLines,
 } from './planner';
@@ -20,6 +21,7 @@ import type { Course } from './types';
 import {
   addPageFooters,
   drawPlainHeader,
+  hyphenateLongWords,
   loadLogoDataUrl,
   buildModuleColorMap,
   outerBorderLineWidth,
@@ -421,24 +423,54 @@ const WEEKDAY_COL_WIDTH_MM = 10;
 // every column to squeeze a 6th week onto one page — see exportPlannerPdf.
 const PAGE_WEEK_BUDGET = 5;
 
+/** Widest single space-separated word across `texts`, at the doc's current font size. */
+function widestWordMm(doc: jsPDF, texts: string[]): number {
+  let widest = 0;
+  for (const text of texts) {
+    for (const line of text.split('\n')) {
+      for (const word of line.split(' ')) {
+        if (!word) continue;
+        const w = doc.getTextWidth(word);
+        if (w > widest) widest = w;
+      }
+    }
+  }
+  return widest;
+}
+
 /**
- * Pick a font size so the widest sub-column header label ("Activity") fits
- * inside `colWidthMm` at that size. Column width is set EXPLICITLY (via
- * columnStyles below) rather than left to autoTable's own content-based
- * 'auto' sizing — the two disagreed in practice: a 6-week month's Date/
- * Module/Lesson/Teacher labels still wrapped into fragments like "Lesso"/"n"
- * even when scaled against autoTable's actual computed width, because 'auto'
- * mode weights columns by their body content (e.g. "Data Fundamentals") much
- * more than the short header labels. Fixing the width ourselves makes the
- * fit fully predictable.
+ * Pick a font size so the widest UNBREAKABLE piece of text — a sub-column
+ * header label ("Activity"), or a single long word in the body — fits inside
+ * `colWidthMm` at that size. Column width is set EXPLICITLY (via columnStyles
+ * below) rather than left to autoTable's own content-based 'auto' sizing —
+ * the two disagreed in practice: a 6-week month's Date/Module/Lesson/Teacher
+ * labels still wrapped into fragments like "Lesso"/"n" even when scaled
+ * against autoTable's actual computed width, because 'auto' mode weights
+ * columns by their body content (e.g. "Data Fundamentals") much more than the
+ * short header labels. Fixing the width ourselves makes the fit fully
+ * predictable.
+ *
+ * `bodyTexts` joined the calculation once single words started overflowing
+ * too: a long lesson name ("Representing") and a session's time range
+ * ("09:30-12:30") are both unbreakable at a space, and autoTable splits an
+ * over-wide word at whatever character overflows, so "Representing" rendered
+ * as "Repre senting". Sizing against the widest body word keeps whole words
+ * whole wherever the size budget allows; anything still too wide once
+ * MIN_FONT_SIZE is hit gets an explicit hyphen instead (hyphenateLongWords).
  */
-function fontSizeForColumnWidth(doc: jsPDF, columnLabel: string, colWidthMm: number): number {
+function fontSizeForColumnWidth(
+  doc: jsPDF,
+  columnLabel: string,
+  colWidthMm: number,
+  bodyTexts: string[],
+): number {
   doc.setFontSize(REFERENCE_FONT_SIZE);
   const widestLabelMm = Math.max(
     doc.getTextWidth('Date'),
     doc.getTextWidth(columnLabel),
     doc.getTextWidth('Lesson'),
     doc.getTextWidth('Teacher'),
+    widestWordMm(doc, bodyTexts),
   );
   const availableMm = (colWidthMm - SUB_COLUMN_PADDING_MM) * FIT_SAFETY_FACTOR;
   if (widestLabelMm <= availableMm) return REFERENCE_FONT_SIZE;
@@ -475,6 +507,60 @@ function pdfDateText(cell: PlannerCell): string {
   return cell.dateIso ? compactDate(cell.dateIso) : '';
 }
 
+/**
+ * The Module/Activity, Lesson, and Teacher texts for one cell, ONE LINE PER
+ * SESSION, with each teaching session's own time range above its lesson name.
+ *
+ * A date carrying a morning and an afternoon session of the same module used
+ * to render each column as its entries joined into a single run of text
+ * ("Listening and Viewing / Listening and Viewing", "Vocabulary Vocabulary"),
+ * which once autoTable had wrapped it read as one cramped, duplicated string
+ * with nothing to say there were two sessions, let alone when each ran. Every
+ * session now occupies its own line, and the time range is what distinguishes
+ * two otherwise identical sessions. That time also carries the information the
+ * header's old "Timing:" line used to, which is why it is shown for every
+ * teaching session rather than only for the multi-session days that forced it.
+ *
+ * Every column lays each session out over the SAME two lines — the time range,
+ * then the lesson name — so a module name and a teacher stay LEVEL with the
+ * session they belong to. Packing each column's values up from the top
+ * instead put "Ms Tan" on the first line of a day whose first session was
+ * someone else's, which is worse than cramped: it misattributes the teacher.
+ *
+ * Blank fields leave an empty line rather than a placeholder, and trailing
+ * blanks are trimmed so an all-blank column (Teacher, Classroom, and Module
+ * Class Details are all optional) comes out genuinely empty and costs the row
+ * no extra height.
+ */
+export function cellTexts(
+  cell: PlannerCell,
+  columnMode: PlannerColumnMode,
+): [string, string, string] {
+  if (cell.kind !== 'teaching') {
+    return [
+      activityText(cell, columnMode),
+      lessonLines(cell).join('\n'),
+      teacherLines(cell).join('\n'),
+    ];
+  }
+  const entries = cell.entries ?? [];
+  const lines = (of: string[]): string => {
+    const out = [...of];
+    while (out.length > 0 && out[out.length - 1] === '') out.pop();
+    return out.join('\n');
+  };
+  return [
+    lines(
+      entries.flatMap((e) => [
+        columnMode === 'module' ? e.moduleName : (e.activity ?? ''),
+        '',
+      ]),
+    ),
+    lines(entries.flatMap((e) => [entryTimeRange(e), e.lessonName])),
+    lines(entries.flatMap((e) => [e.teacher, ''])),
+  ];
+}
+
 export async function exportPlannerPdf(
   model: PlannerModel,
   course: Course,
@@ -487,9 +573,11 @@ export async function exportPlannerPdf(
   // colour in both exports.
   const moduleColorMap = buildModuleColorMap(course.modules);
   const columnLabel = columnModeLabel(columnMode);
+  // No "Timing:" line: with per-module windows it usually only ever said
+  // "varies by module", and each session now carries its own time in the grid.
   const headerLines = [
     `${model.scopeLabel}: ${model.course}`,
-    `Timing: ${model.timing}    Updated: ${model.updatedDisplay}`,
+    `Updated: ${model.updatedDisplay}`,
   ];
   const margin = { left: 14, right: 14 };
   const usableWidth = doc.internal.pageSize.getWidth() - margin.left - margin.right;
@@ -501,7 +589,17 @@ export async function exportPlannerPdf(
   // shrinking every column to squeeze a 6th week in (see the months.forEach
   // loop below).
   const subColWidth = (usableWidth - WEEKDAY_COL_WIDTH_MM) / (PAGE_WEEK_BUDGET * 4);
-  const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth);
+  // Every body string the grid will hold, gathered up front so the font size
+  // can be sized against the widest single word in the real content (not just
+  // the header labels) before any table is laid out.
+  const allBodyTexts = model.months.flatMap((m) =>
+    m.grid.flatMap((row) => row.flatMap((cell) => cellTexts(cell, columnMode))),
+  );
+  const fontSize = fontSizeForColumnWidth(doc, columnLabel, subColWidth, allBodyTexts);
+  // Anything still wider than its column at that size gets an explicit hyphen
+  // rather than autoTable's unmarked mid-word split.
+  const textWidthMm = subColWidth - SUB_COLUMN_PADDING_MM;
+  const fit = (text: string) => hyphenateLongWords(doc, text, textWidthMm, fontSize);
   const columnStyles: Record<number, { cellWidth: number }> = {
     0: { cellWidth: WEEKDAY_COL_WIDTH_MM },
   };
@@ -546,15 +644,16 @@ export async function exportPlannerPdf(
       ]),
     ];
 
-    // Body: weekday label starts each row; cells from the shared planner
-    // helpers so wording matches the view and the Sheets export, run through
-    // only the PDF-only compact date helper. Module/Activity, Lesson, and
-    // Teacher all show their full text — none of them are cut short; a name
-    // too wide for one line wraps across lines via autoTable's own default
-    // wrap (the row simply grows taller), exactly as it always has for
-    // Lesson/Teacher. An AL cell collapses its Module/Lesson/Teacher trio
-    // (three near-empty cells: "AL", "-", "-") into one merged cell — there
-    // was never going to be a lesson or teacher on a buffer day.
+    // Body: weekday label starts each row; cells from cellTexts (one line per
+    // session, each teaching session prefixed by its own time range) run
+    // through only the PDF-only compact date helper. Module/Activity, Lesson,
+    // and Teacher all show their full text — none of them are cut short; a
+    // name too wide for one line wraps across lines via autoTable's own
+    // default wrap (the row simply grows taller), with `fit` hyphenating any
+    // single word too long to fit even that. An AL cell collapses its
+    // Module/Lesson/Teacher trio (three near-empty cells: "AL", "-", "-")
+    // into one merged cell — there was never going to be a lesson or teacher
+    // on a buffer day.
     type BodyCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
     const body: BodyCell[][] = Array.from({ length: 7 }, (_, r) => {
       const cells: BodyCell[] = [model.weekdayLabels[r].slice(0, 3)];
@@ -570,11 +669,12 @@ export async function exportPlannerPdf(
             },
           );
         } else {
+          const [activity, lesson, teacher] = cellTexts(cell, columnMode);
           cells.push(
             pdfDateText(cell),
-            activityText(cell, columnMode),
-            lessonLines(cell).join('\n'),
-            teacherLines(cell).join('\n'),
+            fit(activity),
+            fit(lesson),
+            fit(teacher),
           );
         }
       }

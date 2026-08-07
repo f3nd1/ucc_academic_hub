@@ -111,6 +111,15 @@ describe('validateDetails (course + modules)', () => {
       'end time must be later than start time.',
     );
   });
+  // Some course types (AEIS Primary among them) have no class-details label,
+  // no named teacher, and no fixed room. Requiring any of the three stopped a
+  // timetable being generated for them at all.
+  it('generates fine with Module Class Details, Teacher, and Classroom all blank', () => {
+    expect(
+      validateDetails(withModule({ classGroup: '', teacher: '', classroom: '' })),
+    ).toEqual([]);
+  });
+
   it('single module does not need its own name; multiple do, tagged', () => {
     expect(validateDetails(withModule({ name: '' }))).toEqual([]);
     const errs = validateDetails({

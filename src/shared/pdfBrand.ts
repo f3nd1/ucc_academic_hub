@@ -79,6 +79,56 @@ export function outerBorderLineWidth(data: {
   };
 }
 
+/**
+ * Break any word wider than `maxWidthMm` into hyphenated chunks that do fit,
+ * leaving every word that already fits untouched.
+ *
+ * autoTable/jsPDF wrap an over-wide word by splitting it at whatever character
+ * happens to overflow, with nothing to mark the break, so "Representing" in a
+ * narrow Lesson column came out as "Repre senting" — indistinguishable from
+ * two separate words. Splitting it here instead and ending each chunk with a
+ * hyphen ("Repre-" / "senting") makes it read as one word carried across two
+ * lines. Only a last resort: callers shrink the font first (see
+ * fontSizeForColumnWidth in plannerExports) so most words stay whole, and this
+ * catches whatever is still too wide at the smallest size worth reading.
+ *
+ * Measured at `fontSizePt` against the doc's current font, in the doc's own
+ * unit (mm for every export here), so it must be given the same size the cell
+ * will actually be rendered at.
+ */
+export function hyphenateLongWords(
+  doc: jsPDF,
+  text: string,
+  maxWidthMm: number,
+  fontSizePt: number,
+): string {
+  if (!text) return text;
+  doc.setFontSize(fontSizePt);
+  const hyphenMm = doc.getTextWidth('-');
+  const breakWord = (word: string): string => {
+    if (!word || doc.getTextWidth(word) <= maxWidthMm) return word;
+    const chunks: string[] = [];
+    let chunk = '';
+    for (const ch of word) {
+      // The `chunk &&` guard keeps at least one character per chunk, so a
+      // column too narrow for even a single glyph plus its hyphen still
+      // terminates instead of looping forever.
+      if (chunk && doc.getTextWidth(chunk + ch) + hyphenMm > maxWidthMm) {
+        chunks.push(`${chunk}-`);
+        chunk = ch;
+      } else {
+        chunk += ch;
+      }
+    }
+    if (chunk) chunks.push(chunk);
+    return chunks.join('\n');
+  };
+  return text
+    .split('\n')
+    .map((line) => line.split(' ').map(breakWord).join(' '))
+    .join('\n');
+}
+
 // --- Per-module colour tints (Calendar + Hybrid PDF only) -------------------
 //
 // Neither the on-screen Hybrid view nor any export previously had a

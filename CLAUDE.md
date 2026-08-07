@@ -123,6 +123,13 @@ gitignored — never commit it, never let it block a pull.
   passcodes.
 - **Destructive actions get a confirm** with a plain-English consequence
   ("This deletes the folder and everything inside it").
+- **Module Class Details, Teacher, and Classroom are OPTIONAL** — some course
+  types (AEIS Primary) have none of them, so nothing may require them to
+  generate. Two consequences that are easy to miss: `detectClashes` skips a
+  blank resource key (two modules that both leave Teacher empty are not
+  competing for one teacher, and without that guard every such pair raised a
+  phantom `Teacher ""` conflict), and every view and export must OMIT a blank
+  field rather than render a dash, an empty line, or an empty ICS property.
 - **Every AI call is logged** to the AI Log (`appendAiLog` in
   `src/shared/aiLog.ts`) — prompt sent, output, token usage, estimated cost —
   including failures. No silent AI calls.
@@ -200,6 +207,25 @@ rules by hand. Get these wrong and one export drifts from the other three.
 - **Hybrid caps at 5 week-columns per page.** A 6-week month splits into a
   full page (weeks 1-5) plus a "(cont.)" continuation page for week 6 alone,
   same column widths on both — never shrink columns to fit a 6th week.
+- **Headers carry the course name and nothing else that scales.** The old
+  "Timing: …" (Hybrid) and "Modules: A, B, C" (List + Calendar) lines are
+  gone: the first usually only said "varies by module", and the second became
+  an unreadable run of names on a real course. Both facts now live in the grid
+  per session instead.
+- **One line per session, everywhere.** A date can carry a morning AND an
+  afternoon session of the SAME module, in which case module, activity, and
+  lesson label are all identical and only the time tells them apart. Hybrid's
+  `cellTexts()` lays every session over the same two lines (time range, then
+  detail) in EVERY sub-column, so a module name or teacher stays level with
+  its own session — packing each column up from the top put one module's
+  teacher beside another module's session. Calendar cells are a time line plus
+  "Module — Lesson" per session. Never join two sessions with `/` or a space.
+- **Narrow columns shrink first, then hyphenate.** `fontSizeForColumnWidth()`
+  sizes the Hybrid font against the widest single WORD in the real body
+  content (not just the header labels), down to `MIN_FONT_SIZE`; whatever is
+  still too wide goes through `hyphenateLongWords()`. autoTable's own wrap
+  splits an over-wide word at whatever character overflows with no hyphen, so
+  "Representing" rendered as "Repre senting" — two words to any reader.
 
 ## Changelog date grouping (`changelogModel.ts`)
 
