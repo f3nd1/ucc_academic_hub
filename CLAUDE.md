@@ -256,11 +256,14 @@ non-contiguous groups on the Changelog page.
 
 ## Git, branches, deployment
 
-- **The live branch is `claude/init-dlpied`** — the droplet pulls this. There
-  is no `main` in active use. Feature work that needs review goes on a
-  `claude/<topic>` branch with a PR into `claude/init-dlpied`; small
-  requested fixes are committed directly to it. **Never merge a PR yourself
-  unless Felix explicitly says to.**
+- **The deployed droplet tracks `origin/main`** — that is what `git pull`
+  fetches during a deploy, so work is not live until it lands on `main`.
+  Agent work is developed on `claude/init-dlpied` and then fast-forwarded
+  onto `main` (`git push origin claude/init-dlpied:main`); keep the two in
+  step and confirm `origin/main` afterwards, or a deploy silently ships the
+  previous version. Feature work that needs review goes on a `claude/<topic>`
+  branch with a PR. **Never merge a PR yourself unless Felix explicitly says
+  to.**
 - The GitHub repo was **renamed** `f3nd1/timetable` → `f3nd1/ucc_academic_hub`.
   Remotes and tooling may still use the old name; both work, but a stale
   remote once made the droplet's `git pull` silently no-op — if a deploy
