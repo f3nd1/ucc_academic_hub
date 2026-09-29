@@ -1155,6 +1155,15 @@ select {
   font-style: italic;
 }
 
+/* On the Amend screen every cell holds an input, which paints its own
+   background over the row tint above — so the AL rows listed alongside real
+   lessons need the muting carried onto the inputs themselves to stay
+   distinguishable at a glance. */
+.row--al .amend__input {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .row--conflict td {
   background: var(--error-bg);
 }

@@ -45,7 +45,8 @@ import { openTabForAsyncUrl } from '../../popup';
 import { ListView } from '../../views/ListView';
 import { MonthView } from '../../views/MonthView';
 import { HybridView } from '../../views/HybridView';
-import { AmendView, type AmendableField } from '../../views/AmendView';
+import { AmendView } from '../../views/AmendView';
+import { amendEntry, removeEntry, type AmendableField } from '../../amendModel';
 import { Wizard } from '../../wizard/Wizard';
 import { FullForm } from '../../FullForm';
 import { SavedItemControls } from '../../shared/SavedItemControls';
@@ -293,24 +294,12 @@ export function TimetablePage() {
   // different modules share a teacher + classroom + overlapping time on the
   // same date is highlighted at once (here and in every other view).
   const handleAmendEdit = (
-    moduleId: string,
-    lessonNo: number,
+    index: number,
     field: AmendableField,
     value: string,
   ) => {
     if (!lessons) return;
-    const updated = lessons.map((l) =>
-      l.moduleId === moduleId && l.lessonNo === lessonNo
-        ? {
-            ...l,
-            [field]: value,
-            ...(field === 'date' && value
-              ? { day: dayName(parseLocal(value)) }
-              : {}),
-          }
-        : l,
-    );
-    const scanned = detectConflicts(updated);
+    const scanned = detectConflicts(amendEntry(lessons, index, field, value));
     setLessons(scanned.lessons);
     setConflicts(scanned.conflicts);
   };
@@ -355,12 +344,9 @@ export function TimetablePage() {
     setView('amend');
   };
 
-  const handleAmendRemove = (moduleId: string, lessonNo: number) => {
+  const handleAmendRemove = (index: number) => {
     if (!lessons) return;
-    const remaining = lessons.filter(
-      (l) => !(l.moduleId === moduleId && l.lessonNo === lessonNo),
-    );
-    const scanned = detectConflicts(remaining);
+    const scanned = detectConflicts(removeEntry(lessons, index));
     setLessons(scanned.lessons);
     setConflicts(scanned.conflicts);
   };

@@ -130,6 +130,13 @@ gitignored — never commit it, never let it block a pull.
   competing for one teacher, and without that guard every such pair raised a
   phantom `Teacher ""` conflict), and every view and export must OMIT a blank
   field rather than render a dash, an empty line, or an empty ICS property.
+- **Amend addresses entries by POSITION, never by `(moduleId, lessonNo)`** —
+  every AL buffer day a module owns carries `lessonNo: 0` (`makeModuleAL`), so
+  that pair matches all of them at once. The Amend table lists AL days
+  alongside real lessons precisely so they can be shifted; keying on the pair
+  would drag every AL day in the module along with one date change. Keying on
+  the date is also wrong: that is the field being edited, so the row would
+  remount mid-keystroke. `amendModel.ts` owns the rule.
 - **Every AI call is logged** to the AI Log (`appendAiLog` in
   `src/shared/aiLog.ts`) — prompt sent, output, token usage, estimated cost —
   including failures. No silent AI calls.
